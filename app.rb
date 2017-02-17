@@ -11,9 +11,9 @@ require 'sinatra/base'
 require 'time'
 
 class OpenidConnectRelyingParty < Sinatra::Base
-  SERVICE_PROVIDER = 'http://localhost:3000'
+  SERVICE_PROVIDER = 'https://idp.staging.login.gov'
 
-  CLIENT_ID = 'urn:gov:gsa:openidconnect:sp:sinatra'
+  CLIENT_ID = 'urn:gov:gsa:openidconnect:staging:sp:sinatra'
 
   get '/' do
     authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
@@ -40,7 +40,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTP.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')))
+      json(HTTP.basic_auth(user: ENV['SP_USER'], pass: ENV['SP_PASS']).get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')))
     end
   end
 
@@ -55,7 +55,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
     jwt = JWT.encode(jwt_payload, sp_private_key, 'RS256')
 
-    json HTTP.post(
+    json HTTP.basic_auth(user: ENV['SP_USER'], pass: ENV['SP_PASS']).post(
       openid_configuration[:token_endpoint],
       json: {
         grant_type: 'authorization_code',
@@ -66,8 +66,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
     )
   end
 
-  def userinfo(id_token)
-    JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).first.with_indifferent_access
+  def userinfo(access_token)
+    json HTTP.basic_auth(user: ENV['SP_USER'], pass: ENV['SP_PASS']).auth("Bearer #{access_token}").get(openid_configuration[:userinfo_endpoint])
   end
 
   def json(response)
