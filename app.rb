@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
@@ -19,9 +20,9 @@ class OpenidConnectRelyingParty < Sinatra::Base
       response_type: 'code',
       acr_values: 'http://idmanagement.gov/ns/assurance/loa/1',
       scope: 'openid email',
-      redirect_uri: "http://localhost:9292/auth/result",
+      redirect_uri: 'http://localhost:9292/auth/result',
       state: SecureRandom.urlsafe_base64,
-      prompt: 'select_account',
+      prompt: 'select_account'
     }.to_query
 
     erb :index, locals: { authorization_url: authorization_url }
@@ -48,7 +49,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       sub: CLIENT_ID,
       aud: openid_configuration[:token_endpoint],
       jti: SecureRandom.urlsafe_base64,
-      exp: Time.now.to_i + 1000,
+      exp: Time.now.to_i + 1000
     }
 
     jwt = JWT.encode(jwt_payload, private_key, 'RS256')
@@ -76,4 +77,3 @@ class OpenidConnectRelyingParty < Sinatra::Base
     @private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
   end
 end
-
