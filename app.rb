@@ -2,6 +2,7 @@ require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
 require 'http'
+require 'json/jwt'
 require 'jwt'
 require 'openssl'
 require 'securerandom'
@@ -29,7 +30,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   get '/auth/result' do
     token_response = token(params[:code])
-    userinfo_response = userinfo(token_response[:access_token])
+    userinfo_response = userinfo(token_response[:id_token])
 
     erb :userinfo, locals: { userinfo: userinfo_response }
   end
@@ -51,7 +52,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       exp: Time.now.to_i + 1000,
     }
 
-    jwt = JWT.encode(jwt_payload, private_key, 'RS256')
+    jwt = JWT.encode(jwt_payload, sp_private_key, 'RS256')
 
     json HTTP.post(
       openid_configuration[:token_endpoint],
@@ -64,16 +65,22 @@ class OpenidConnectRelyingParty < Sinatra::Base
     )
   end
 
-  def userinfo(access_token)
-    json HTTP.auth("Bearer #{access_token}").get(openid_configuration[:userinfo_endpoint])
+  def userinfo(id_token)
+    JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).first.with_indifferent_access
   end
 
   def json(response)
     JSON.parse(response.to_s).with_indifferent_access
   end
 
-  def private_key
-    @private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
+  def idp_public_key
+    certs_response = json(HTTP.get(openid_configuration[:jwks_uri]))
+
+    JSON::JWK.new(certs_response[:keys].first).to_key
+  end
+
+  def sp_private_key
+    @sp_private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
   end
 end
 
