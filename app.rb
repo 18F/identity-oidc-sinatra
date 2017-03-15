@@ -11,7 +11,8 @@ require 'sinatra/base'
 require 'time'
 
 class OpenidConnectRelyingParty < Sinatra::Base
-  SERVICE_PROVIDER = ENV['SERVICE_PROVIDER'] || 'https://idp.staging.login.gov'
+  IDENTITY_PROVIDER = ENV['IDENTITY_PROVIDER'] || 'https://idp.staging.login.gov'
+  SERVICE_PROVIDER = ENV['SERVICE_PROVIDER'] || 'http://localhost:9292'
   CLIENT_ID = ENV['CLIENT_ID'] || 'urn:gov:gsa:openidconnect:staging:sp:sinatra'
   SP_USER = ENV['SP_USER']
   SP_PASS = ENV['SP_PASS']
@@ -22,7 +23,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       response_type: 'code',
       acr_values: 'http://idmanagement.gov/ns/assurance/loa/1',
       scope: 'openid email',
-      redirect_uri: 'http://localhost:9292/auth/result',
+      redirect_uri: URI.join(SERVICE_PROVIDER, '/auth/result').to_s,
       state: SecureRandom.urlsafe_base64,
       prompt: 'select_account'
     }.to_query
@@ -41,7 +42,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTP.basic_auth(user: SP_USER, pass: SP_PASS).get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')))
+      json(HTTP.basic_auth(user: SP_USER, pass: SP_PASS).get(URI.join(IDENTITY_PROVIDER, '/.well-known/openid-configuration')))
     end
   end
 
