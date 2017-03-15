@@ -1,1 +1,10 @@
-<a href="<%= authorization_url %>">login.gov</a>
+<div class="container py2">
+  <h1> Login.gov Open ID Connect Sinatra</h1>
+  <div class="mb1 right-align">
+      <a href="<%= authorization_url %>" class="btn btn-outline bg-white navy">
+        <img class="align-middle" width="125" src="/images/login-gov.svg" alt="Login gov">
+      </a>
+  </div>
+  <%= erb :page_content %>
+</div>
+

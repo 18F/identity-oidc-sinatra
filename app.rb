@@ -9,6 +9,7 @@ require 'openssl'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
+require 'pry'
 
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = 'http://localhost:3000'
@@ -33,7 +34,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
     token_response = token(params[:code])
     userinfo_response = userinfo(token_response[:id_token])
 
-    erb :userinfo, locals: { userinfo: userinfo_response }
+    erb :success, locals: { userinfo: userinfo_response }
   end
 
   private
