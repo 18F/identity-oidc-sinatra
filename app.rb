@@ -33,7 +33,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   get '/auth/result' do
     token_response = token(params[:code])
-    userinfo_response = userinfo(token_response[:id_token])
+    userinfo_response = userinfo(token_response[:access_token])
 
     erb :userinfo, locals: { userinfo: userinfo_response }
   end
