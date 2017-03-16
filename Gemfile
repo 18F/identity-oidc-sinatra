@@ -12,4 +12,5 @@ gem 'jwt'
 group :development do
   gem 'reek'
   gem 'rubocop', require: false
+  gem 'pry'
 end

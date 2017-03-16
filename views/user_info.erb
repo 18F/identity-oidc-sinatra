@@ -1,0 +1,19 @@
+<div class="p2 bg-green white clearfix">
+  <% if userinfo %>
+    <form action="/auth/saml/logout" method="POST" class="right sm-show">
+      <button type="submit" class="btn p0 h6 white">Log out</button>
+    </form>
+  <% end %>
+  <span class="bold">Success!</span>
+  <% if userinfo %>
+    <span>Email: <strong><%= userinfo[:email] %></strong></span>
+    <% if userinfo[:first_name] %>
+      <span class="ml1 mr1">|</span>
+      <span>Name: <strong><%= userinfo[:first_name] %> <%= userinfo[:last_name] %></strong></span>
+    <% end %>
+    <% if userinfo[:social_security_number] %>
+      <span class="ml1 mr1">|</span>
+      <span>SSN: <strong>###-##-<%= userinfo[:social_security_number].split(//).last(4).join %></strong></span>
+    <% end %>
+  <% end %>
+</div>
