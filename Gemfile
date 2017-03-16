@@ -8,6 +8,7 @@ gem 'http'
 gem 'activesupport'
 gem 'json-jwt'
 gem 'jwt'
+gem 'dotenv-rails'
 
 group :development do
   gem 'reek'
