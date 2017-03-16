@@ -10,6 +10,7 @@ all: check
 
 setup:
 	bundle install
+	[ -f .env ] && echo ".env exists" || cat .env.example >> .env
 
 check: lint test
 
