@@ -9,8 +9,10 @@ PORT ?= 9292
 all: check
 
 setup:
-	bundle install
+	bundle check || bundle install
 	[ -f .env ] && echo ".env exists" || cat .env.example >> .env
+
+.env: setup
 
 check: lint test
 
@@ -23,3 +25,5 @@ lint:
 run:
 	bundle exec rackup -p $(PORT)
 
+test: .env $(CONFIG)
+	bundle exec rspec
