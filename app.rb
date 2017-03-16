@@ -10,7 +10,6 @@ require 'openssl'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
-require 'pry'
 
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
@@ -25,7 +24,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       scope: 'openid email',
       redirect_uri: ENV['REDIRECT_URI'],
       state: SecureRandom.urlsafe_base64,
-      prompt: 'select_account'
+      prompt: 'select_account',
     }.to_query
 
     erb :index, locals: { authorization_url: authorization_url }
@@ -47,29 +46,33 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def token(code)
-    jwt_payload = {
-      iss: CLIENT_ID,
-      sub: CLIENT_ID,
-      aud: openid_configuration[:token_endpoint],
-      jti: SecureRandom.urlsafe_base64,
-      exp: Time.now.to_i + 1000
-    }
-
-    jwt = JWT.encode(jwt_payload, sp_private_key, 'RS256')
-
     json HTTP.post(
       openid_configuration[:token_endpoint],
       json: {
         grant_type: 'authorization_code',
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion: jwt
+        client_assertion: client_assertion_jwt,
       }
     )
   end
 
+  def client_assertion_jwt
+    jwt_payload = {
+      iss: CLIENT_ID,
+      sub: CLIENT_ID,
+      aud: openid_configuration[:token_endpoint],
+      jti: SecureRandom.urlsafe_base64,
+      exp: Time.now.to_i + 1000,
+    }
+
+    JWT.encode(jwt_payload, sp_private_key, 'RS256')
+  end
+
   def userinfo(id_token)
-    JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).first.with_indifferent_access
+    JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).
+      first.
+      with_indifferent_access
   end
 
   def json(response)
