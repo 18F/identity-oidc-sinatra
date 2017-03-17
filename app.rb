@@ -24,6 +24,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       scope: 'openid email',
       redirect_uri: ENV['REDIRECT_URI'],
       state: SecureRandom.urlsafe_base64,
+      nonce: SecureRandom.urlsafe_base64,
       prompt: 'select_account',
     }.to_query
 
