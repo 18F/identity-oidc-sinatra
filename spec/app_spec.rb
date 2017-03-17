@@ -62,5 +62,14 @@ RSpec.describe OpenidConnectRelyingParty do
 
       expect(last_response.body).to include(email)
     end
+
+    it 'has a logout link back to root' do
+      get '/auth/result', code: code
+
+      doc = Nokogiri::HTML(last_response.body)
+
+      logout_link = doc.at('a[href="/"]')
+      expect(logout_link.text.strip).to eq('Log out')
+    end
   end
 end
