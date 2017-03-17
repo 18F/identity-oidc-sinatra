@@ -1,10 +1,10 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (4.2.8)
+    activesupport (5.0.2)
+      concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (~> 0.7)
       minitest (~> 5.1)
-      thread_safe (~> 0.3, >= 0.3.4)
       tzinfo (~> 1.1)
     addressable (2.5.0)
       public_suffix (~> 2.0, >= 2.0.2)
@@ -14,17 +14,23 @@ GEM
       ice_nine (~> 0.11.0)
       thread_safe (~> 0.3, >= 0.3.1)
     bindata (2.3.5)
+    byebug (9.0.6)
     codeclimate-engine-rb (0.4.0)
       virtus (~> 1.0)
     coderay (1.1.1)
     coercible (1.0.0)
       descendants_tracker (~> 0.0.1)
+    concurrent-ruby (1.0.5)
+    crack (0.4.3)
+      safe_yaml (~> 1.0.0)
     descendants_tracker (0.0.4)
       thread_safe (~> 0.3, >= 0.3.1)
+    diff-lcs (1.3)
     domain_name (0.5.20170223)
       unf (>= 0.0.5, < 1.0.0)
     dotenv (2.2.0)
     equalizer (0.0.11)
+    hashdiff (0.3.2)
     http (2.2.1)
       addressable (~> 2.3)
       http-cookie (~> 1.0)
@@ -44,8 +50,11 @@ GEM
       url_safe_base64
     jwt (1.5.6)
     method_source (0.8.2)
+    mini_portile2 (2.1.0)
     minitest (5.10.1)
     multi_json (1.12.1)
+    nokogiri (1.7.0.1)
+      mini_portile2 (~> 2.1.0)
     parser (2.4.0.0)
       ast (~> 2.2)
     powerpack (0.1.1)
@@ -53,15 +62,33 @@ GEM
       coderay (~> 1.1.0)
       method_source (~> 0.8.1)
       slop (~> 3.4)
+    pry-byebug (3.4.2)
+      byebug (~> 9.0)
+      pry (~> 0.10)
     public_suffix (2.0.5)
     rack (1.6.5)
     rack-protection (1.5.3)
       rack
+    rack-test (0.6.3)
+      rack (>= 1.0)
     rainbow (2.2.1)
     reek (4.5.6)
       codeclimate-engine-rb (~> 0.4.0)
       parser (>= 2.3.1.2, < 2.5)
       rainbow (~> 2.0)
+    rspec (3.5.0)
+      rspec-core (~> 3.5.0)
+      rspec-expectations (~> 3.5.0)
+      rspec-mocks (~> 3.5.0)
+    rspec-core (3.5.4)
+      rspec-support (~> 3.5.0)
+    rspec-expectations (3.5.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.5.0)
+    rspec-mocks (3.5.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.5.0)
+    rspec-support (3.5.0)
     rubocop (0.47.1)
       parser (>= 2.3.3.1, < 3.0)
       powerpack (~> 0.1)
@@ -69,6 +96,7 @@ GEM
       ruby-progressbar (~> 1.7)
       unicode-display_width (~> 1.0, >= 1.0.1)
     ruby-progressbar (1.8.1)
+    safe_yaml (1.0.4)
     securecompare (1.0.0)
     sinatra (1.4.8)
       rack (~> 1.5)
@@ -89,6 +117,10 @@ GEM
       coercible (~> 1.0)
       descendants_tracker (~> 0.0, >= 0.0.3)
       equalizer (~> 0.0, >= 0.0.9)
+    webmock (2.3.2)
+      addressable (>= 2.3.6)
+      crack (>= 0.3.2)
+      hashdiff
 
 PLATFORMS
   ruby
@@ -99,10 +131,14 @@ DEPENDENCIES
   http
   json-jwt
   jwt
-  pry
+  nokogiri
+  pry-byebug
+  rack-test
   reek
+  rspec (~> 3.5.0)
   rubocop
   sinatra
+  webmock
 
 RUBY VERSION
    ruby 2.3.3p222

@@ -18,6 +18,11 @@ These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) 
   $ make run
   ```
 
+3. To run specs:
+
+  ```
+  $ make test
+  ```
 
 ## Contributing
 
