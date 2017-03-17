@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
@@ -12,7 +13,7 @@ require 'time'
 require 'pry'
 
 class OpenidConnectRelyingParty < Sinatra::Base
-  SERVICE_PROVIDER = 'http://localhost:3000'
+  SERVICE_PROVIDER = ENV['IDP_SP_URL']
 
   CLIENT_ID = 'urn:gov:gsa:openidconnect:sp:sinatra'
 
@@ -20,9 +21,9 @@ class OpenidConnectRelyingParty < Sinatra::Base
     authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
       client_id: CLIENT_ID,
       response_type: 'code',
-      acr_values: 'http://idmanagement.gov/ns/assurance/loa/1',
+      acr_values: ENV['ACR_VALUES'],
       scope: 'openid email',
-      redirect_uri: 'http://localhost:9292/auth/result',
+      redirect_uri: ENV['REDIRECT_URI'],
       state: SecureRandom.urlsafe_base64,
       prompt: 'select_account'
     }.to_query
