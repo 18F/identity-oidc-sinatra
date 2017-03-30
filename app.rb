@@ -31,6 +31,10 @@ class OpenidConnectRelyingParty < Sinatra::Base
     erb :index, locals: { authorization_url: authorization_url }
   end
 
+  get '/test' do
+    erb :test
+  end
+
   get '/auth/result' do
     token_response = token(params[:code])
     userinfo_response = userinfo(token_response[:id_token])
@@ -42,7 +46,13 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTP.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')))
+      uri = URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')
+      if ENV['IDP_USER'] && ENV['IDP_PASS']
+        resp = HTTP.basic_auth(:user => ENV['IDP_USER'], :pass => ENV['IDP_PASS']).get(uri)
+      else
+        resp = HTTP.get(uri)
+      end
+      json(resp)
     end
   end
 
