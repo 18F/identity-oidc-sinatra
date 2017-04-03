@@ -5,7 +5,7 @@ ruby '2.3.3'
 
 gem 'activesupport'
 gem 'dotenv'
-gem 'http'
+gem 'httparty'
 gem 'json-jwt'
 gem 'jwt'
 gem 'sinatra'

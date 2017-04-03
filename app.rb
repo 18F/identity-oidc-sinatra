@@ -3,7 +3,7 @@ require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
-require 'http'
+require 'httparty'
 require 'json/jwt'
 require 'jwt'
 require 'openssl'
@@ -42,12 +42,12 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTP.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')))
+      json(HTTParty.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')).body)
     end
   end
 
   def token(code)
-    json HTTP.post(
+    json HTTParty.post(
       openid_configuration[:token_endpoint],
       json: {
         grant_type: 'authorization_code',
@@ -81,7 +81,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def idp_public_key
-    certs_response = json(HTTP.get(openid_configuration[:jwks_uri]))
+    certs_response = json(HTTParty.get(openid_configuration[:jwks_uri]).body)
 
     JSON::JWK.new(certs_response[:keys].first).to_key
   end
