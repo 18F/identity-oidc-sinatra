@@ -23,8 +23,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
       acr_values: ENV['ACR_VALUES'],
       scope: 'openid email',
       redirect_uri: ENV['REDIRECT_URI'],
-      state: SecureRandom.urlsafe_base64,
-      nonce: SecureRandom.urlsafe_base64,
+      state: SecureRandom.hex,
+      nonce: SecureRandom.hex,
       prompt: 'select_account',
     }.to_query
 
