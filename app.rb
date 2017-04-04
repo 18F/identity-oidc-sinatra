@@ -49,13 +49,13 @@ class OpenidConnectRelyingParty < Sinatra::Base
   def token(code)
     json HTTParty.post(
       openid_configuration[:token_endpoint],
-      json: {
+      body: {
         grant_type: 'authorization_code',
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: client_assertion_jwt,
       }
-    )
+    ).body
   end
 
   def client_assertion_jwt

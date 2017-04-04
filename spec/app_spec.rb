@@ -53,7 +53,12 @@ RSpec.describe OpenidConnectRelyingParty do
         }.to_json)
 
       stub_request(:post, token_endpoint).
-        to_return(body: {
+        with(body: {
+          grant_type: 'authorization_code',
+          code: code,
+          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: kind_of(String),
+        }).to_return(body: {
           id_token: id_token,
         }.to_json)
     end
