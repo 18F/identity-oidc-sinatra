@@ -10,6 +10,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
+      with(basic_auth: ENV.values_at('SP_NAME', 'SP_PASS')).
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
@@ -50,11 +51,13 @@ RSpec.describe OpenidConnectRelyingParty do
 
     before do
       stub_request(:get, jwks_uri).
+        with(basic_auth: ENV.values_at('SP_NAME', 'SP_PASS')).
         to_return(body: {
           keys: [JSON::JWK.new(idp_public_key)],
         }.to_json)
 
       stub_request(:post, token_endpoint).
+        with(basic_auth: ENV.values_at('SP_NAME', 'SP_PASS')).
         with(body: {
           grant_type: 'authorization_code',
           code: code,

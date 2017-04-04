@@ -14,6 +14,8 @@ require 'time'
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
   CLIENT_ID = ENV['CLIENT_ID']
+  BASIC_AUTH_NAME = ENV['SP_NAME']
+  BASIC_AUTH_PASS = ENV['SP_PASS']
 
   get '/' do
     authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
@@ -41,13 +43,17 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTParty.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')).body)
+      json HTTParty.get(
+        URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
+        basic_auth: basic_auth
+      ).body
     end
   end
 
   def token(code)
     json HTTParty.post(
       openid_configuration[:token_endpoint],
+      basic_auth: basic_auth,
       body: {
         grant_type: 'authorization_code',
         code: code,
@@ -80,12 +86,21 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def idp_public_key
-    certs_response = json(HTTParty.get(openid_configuration[:jwks_uri]).body)
+    certs_response = json HTTParty.get(
+      openid_configuration[:jwks_uri],
+      basic_auth: basic_auth
+    ).body
 
     JSON::JWK.new(certs_response[:keys].first).to_key
   end
 
   def sp_private_key
     @sp_private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
+  end
+
+  def basic_auth
+    if BASIC_AUTH_NAME && BASIC_AUTH_PASS
+      { username: BASIC_AUTH_NAME, password: BASIC_AUTH_PASS }
+    end
   end
 end
