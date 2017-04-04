@@ -30,6 +30,8 @@ RSpec.describe OpenidConnectRelyingParty do
       auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
 
       expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
+      expect(auth_uri_params[:client_id]).to_not be_empty
+      expect(auth_uri_params[:client_id]).to eq(ENV['CLIENT_ID'])
       expect(auth_uri_params[:response_type]).to eq('code')
       expect(auth_uri_params[:prompt]).to eq('select_account')
       expect(auth_uri_params[:nonce].length).to be >= 32
