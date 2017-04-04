@@ -32,8 +32,8 @@ RSpec.describe OpenidConnectRelyingParty do
       expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
       expect(auth_uri_params[:response_type]).to eq('code')
       expect(auth_uri_params[:prompt]).to eq('select_account')
-      expect(auth_uri_params[:nonce]).to be
-      expect(auth_uri_params[:state]).to be
+      expect(auth_uri_params[:nonce].length).to be >= 32
+      expect(auth_uri_params[:state].length).to be >= 32
     end
   end
 
