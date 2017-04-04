@@ -13,8 +13,7 @@ require 'time'
 
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
-
-  CLIENT_ID = 'urn:gov:gsa:openidconnect:sp:sinatra'
+  CLIENT_ID = ENV['CLIENT_ID']
 
   get '/' do
     authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
