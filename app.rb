@@ -14,6 +14,7 @@ require 'time'
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
   CLIENT_ID = ENV['CLIENT_ID']
+  BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
 
   get '/' do
     authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
@@ -41,7 +42,12 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def openid_configuration
     @openid_configuration ||= begin
-      json(HTTParty.get(URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration')).body)
+      json(
+        HTTParty.get(
+          URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
+          basic_auth: BASIC_AUTH
+        ).body
+      )
     end
   end
 
@@ -53,7 +59,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: client_assertion_jwt,
-      }
+      },
+      basic_auth: BASIC_AUTH
     ).body
   end
 
@@ -62,7 +69,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
       iss: CLIENT_ID,
       sub: CLIENT_ID,
       aud: openid_configuration[:token_endpoint],
-      jti: SecureRandom.urlsafe_base64,
+      jti: SecureRandom.hex,
+      nonce: SecureRandom.hex,
       exp: Time.now.to_i + 1000,
     }
 
@@ -80,8 +88,12 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def idp_public_key
-    certs_response = json(HTTParty.get(openid_configuration[:jwks_uri]).body)
-
+    certs_response = json(
+      HTTParty.get(
+        openid_configuration[:jwks_uri],
+        basic_auth: BASIC_AUTH
+      ).body
+    )
     JSON::JWK.new(certs_response[:keys].first).to_key
   end
 

@@ -10,6 +10,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
+      with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
@@ -50,19 +51,26 @@ RSpec.describe OpenidConnectRelyingParty do
 
     before do
       stub_request(:get, jwks_uri).
+        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: {
           keys: [JSON::JWK.new(idp_public_key)],
         }.to_json)
 
       stub_request(:post, token_endpoint).
-        with(body: {
-          grant_type: 'authorization_code',
-          code: code,
-          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-          client_assertion: kind_of(String),
-        }).to_return(body: {
-          id_token: id_token,
-        }.to_json)
+        with(
+          basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD'),
+          body: {
+            grant_type: 'authorization_code',
+            code: code,
+            client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            client_assertion: kind_of(String),
+          }
+        ).
+        to_return(
+          body: {
+            id_token: id_token,
+          }.to_json
+        )
     end
 
     it 'takes an authorization code and gets a token, and renders the email from the token' do
