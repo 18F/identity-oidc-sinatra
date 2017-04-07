@@ -17,18 +17,11 @@ class OpenidConnectRelyingParty < Sinatra::Base
   BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
 
   get '/' do
-    authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
-      client_id: CLIENT_ID,
-      response_type: 'code',
-      acr_values: ENV['ACR_VALUES'],
-      scope: 'openid email',
-      redirect_uri: ENV['REDIRECT_URI'],
-      state: SecureRandom.hex,
-      nonce: SecureRandom.hex,
-      prompt: 'select_account',
-    }.to_query
-
-    erb :index, locals: { authorization_url: authorization_url }
+    if openid_configuration
+      erb :index, locals: { authorization_url: authorization_url }
+    else
+      erb :errors, locals: { error: openid_configuration_error }
+    end
   end
 
   get '/auth/result' do
@@ -40,14 +33,44 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   private
 
+  def authorization_url
+    openid_configuration[:authorization_endpoint] + '?' + {
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      acr_values: ENV['ACR_VALUES'],
+      scope: 'openid email',
+      redirect_uri: ENV['REDIRECT_URI'],
+      state: SecureRandom.hex,
+      nonce: SecureRandom.hex,
+      prompt: 'select_account',
+    }.to_query
+  end
+
   def openid_configuration
     @openid_configuration ||= begin
-      json(
-        HTTParty.get(
-          URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
-          basic_auth: BASIC_AUTH
-        ).body
-      )
+      response = openid_configuration_response
+      if response.code == 200
+        json(response.body)
+      else
+        false
+      end
+    end
+  end
+
+  def openid_configuration_response
+    HTTParty.get(
+      URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
+      basic_auth: BASIC_AUTH
+    )
+  end
+
+  def openid_configuration_error
+    response = openid_configuration_response
+    if response.code == 401
+      "Error: #{SERVICE_PROVIDER} responded with #{response.code}.
+       Check basic authentication in environment variables.)"
+    else
+      "Error: #{SERVICE_PROVIDER} responded with #{response.code}."
     end
   end
 

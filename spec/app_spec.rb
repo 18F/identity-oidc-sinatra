@@ -38,6 +38,26 @@ RSpec.describe OpenidConnectRelyingParty do
       expect(auth_uri_params[:nonce].length).to be >= 32
       expect(auth_uri_params[:state].length).to be >= 32
     end
+
+    it 'renders an error if basic auth credentials are wrong' do
+      stub_request(:get, "#{host}/.well-known/openid-configuration").
+        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+        to_return(body: "", status: 401)
+
+      get '/'
+
+      expect(last_response.body).to include("Check basic authentication in environment variables.")
+    end
+
+    it 'renders an error if the app fails to get oidc configuration' do
+      stub_request(:get, "#{host}/.well-known/openid-configuration").
+        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+        to_return(body: "", status: 400)
+
+      get '/'
+      error_string = "Error: #{ENV['IDP_SP_URL']} responded with 400."
+      expect(last_response.body).to include(error_string)
+    end
   end
 
   context '/auth/result' do
