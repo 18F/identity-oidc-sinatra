@@ -120,5 +120,13 @@ RSpec.describe OpenidConnectRelyingParty do
 
       expect(doc.text).to include('access_denied')
     end
+
+    it 'renders a default error message when no code or explicit error code' do
+      get '/auth/result'
+
+      doc = Nokogiri::HTML(last_response.body)
+
+      expect(doc.text).to include('missing callback param: code')
+    end
   end
 end

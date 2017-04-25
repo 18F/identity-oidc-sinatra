@@ -11,7 +11,6 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 
-# rubocop:disable Metrics/ClassLength
 class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
   CLIENT_ID = ENV['CLIENT_ID']
@@ -34,7 +33,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
       erb :success, locals: { userinfo: userinfo_response }
     else
-      error = params[:error] || 'missing callback param code'
+      error = params[:error] || 'missing callback param: code'
 
       erb :errors, locals: { error: error }
     end
@@ -138,4 +137,3 @@ class OpenidConnectRelyingParty < Sinatra::Base
     SecureRandom.hex
   end
 end
-# rubocop:enable Metrics/ClassLength
