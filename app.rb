@@ -25,10 +25,18 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   get '/auth/result' do
-    token_response = token(params[:code])
-    userinfo_response = userinfo(token_response[:id_token])
+    code = params[:code]
 
-    erb :success, locals: { userinfo: userinfo_response }
+    if code
+      token_response = token(code)
+      userinfo_response = userinfo(token_response[:id_token])
+
+      erb :success, locals: { userinfo: userinfo_response }
+    else
+      error = params[:error] || 'missing callback param: code'
+
+      erb :errors, locals: { error: error }
+    end
   end
 
   private

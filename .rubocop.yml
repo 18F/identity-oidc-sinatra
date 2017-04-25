@@ -35,6 +35,7 @@ Metrics/ClassLength:
   CountComments: false
   Max: 100
   Exclude:
+  - app.rb
   - spec/**/*
 
 Metrics/LineLength:

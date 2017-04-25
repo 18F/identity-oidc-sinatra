@@ -112,5 +112,21 @@ RSpec.describe OpenidConnectRelyingParty do
       get logout_link[:href]
       expect(last_response.body).to_not include(email)
     end
+
+    it 'renders an error message when there is one' do
+      get '/auth/result', error: 'access_denied'
+
+      doc = Nokogiri::HTML(last_response.body)
+
+      expect(doc.text).to include('access_denied')
+    end
+
+    it 'renders a default error message when no code or explicit error code' do
+      get '/auth/result'
+
+      doc = Nokogiri::HTML(last_response.body)
+
+      expect(doc.text).to include('missing callback param: code')
+    end
   end
 end
