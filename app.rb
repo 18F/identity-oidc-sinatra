@@ -40,8 +40,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
       acr_values: ENV['ACR_VALUES'],
       scope: 'openid email',
       redirect_uri: ENV['REDIRECT_URI'],
-      state: SecureRandom.hex,
-      nonce: SecureRandom.hex,
+      state: random_value,
+      nonce: random_value,
       prompt: 'select_account',
     }.to_query
   end
@@ -65,12 +65,13 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def openid_configuration_error
-    response = openid_configuration_response
-    if response.code == 401
-      "Error: #{SERVICE_PROVIDER} responded with #{response.code}.
-       Check basic authentication in environment variables.)"
+    response_code = openid_configuration_response.code
+
+    if response_code == 401
+      "Error: #{SERVICE_PROVIDER} responded with #{response_code}.
+       Check basic authentication in IDP_USER and IDP_PASSSWORD environment variables."
     else
-      "Error: #{SERVICE_PROVIDER} responded with #{response.code}."
+      "Error: #{SERVICE_PROVIDER} responded with #{response_code}."
     end
   end
 
@@ -92,8 +93,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
       iss: CLIENT_ID,
       sub: CLIENT_ID,
       aud: openid_configuration[:token_endpoint],
-      jti: SecureRandom.hex,
-      nonce: SecureRandom.hex,
+      jti: random_value,
+      nonce: random_value,
       exp: Time.now.to_i + 1000,
     }
 
@@ -122,5 +123,9 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def sp_private_key
     @sp_private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
+  end
+
+  def random_value
+    SecureRandom.hex
   end
 end
