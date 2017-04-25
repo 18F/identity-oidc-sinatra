@@ -17,18 +17,11 @@ class OpenidConnectRelyingParty < Sinatra::Base
   BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
 
   get '/' do
-    authorization_url = openid_configuration[:authorization_endpoint] + '?' + {
-      client_id: CLIENT_ID,
-      response_type: 'code',
-      acr_values: ENV['ACR_VALUES'],
-      scope: 'openid email',
-      redirect_uri: ENV['REDIRECT_URI'],
-      state: SecureRandom.hex,
-      nonce: SecureRandom.hex,
-      prompt: 'select_account',
-    }.to_query
-
-    erb :index, locals: { authorization_url: authorization_url }
+    if openid_configuration
+      erb :index, locals: { authorization_url: authorization_url }
+    else
+      erb :errors, locals: { error: openid_configuration_error }
+    end
   end
 
   get '/auth/result' do
@@ -40,14 +33,45 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   private
 
+  def authorization_url
+    openid_configuration[:authorization_endpoint] + '?' + {
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      acr_values: ENV['ACR_VALUES'],
+      scope: 'openid email',
+      redirect_uri: ENV['REDIRECT_URI'],
+      state: random_value,
+      nonce: random_value,
+      prompt: 'select_account',
+    }.to_query
+  end
+
   def openid_configuration
     @openid_configuration ||= begin
-      json(
-        HTTParty.get(
-          URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
-          basic_auth: BASIC_AUTH
-        ).body
-      )
+      response = openid_configuration_response
+      if response.code == 200
+        json(response.body)
+      else
+        false
+      end
+    end
+  end
+
+  def openid_configuration_response
+    HTTParty.get(
+      URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
+      basic_auth: BASIC_AUTH
+    )
+  end
+
+  def openid_configuration_error
+    response_code = openid_configuration_response.code
+
+    if response_code == 401
+      "Error: #{SERVICE_PROVIDER} responded with #{response_code}.
+       Check basic authentication in IDP_USER and IDP_PASSSWORD environment variables."
+    else
+      "Error: #{SERVICE_PROVIDER} responded with #{response_code}."
     end
   end
 
@@ -69,8 +93,8 @@ class OpenidConnectRelyingParty < Sinatra::Base
       iss: CLIENT_ID,
       sub: CLIENT_ID,
       aud: openid_configuration[:token_endpoint],
-      jti: SecureRandom.hex,
-      nonce: SecureRandom.hex,
+      jti: random_value,
+      nonce: random_value,
       exp: Time.now.to_i + 1000,
     }
 
@@ -99,5 +123,9 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def sp_private_key
     @sp_private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
+  end
+
+  def random_value
+    SecureRandom.hex
   end
 end
