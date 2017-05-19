@@ -15,6 +15,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
   SERVICE_PROVIDER = ENV['IDP_SP_URL']
   CLIENT_ID = ENV['CLIENT_ID']
   BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
+  REDIRECT_URI = ENV['REDIRECT_URI']
 
   get '/' do
     if openid_configuration
@@ -29,9 +30,13 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
     if code
       token_response = token(code)
-      userinfo_response = userinfo(token_response[:id_token])
+      id_token = token_response[:id_token]
+      userinfo_response = userinfo(id_token)
 
-      erb :success, locals: { userinfo: userinfo_response }
+      erb :success, locals: {
+        userinfo: userinfo_response,
+        logout_uri: logout_uri(token_response[:id_token]),
+      }
     else
       error = params[:error] || 'missing callback param: code'
 
@@ -47,7 +52,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
       response_type: 'code',
       acr_values: ENV['ACR_VALUES'],
       scope: 'openid email',
-      redirect_uri: ENV['REDIRECT_URI'],
+      redirect_uri: File.join(REDIRECT_URI, '/auth/result'),
       state: random_value,
       nonce: random_value,
       prompt: 'select_account',
@@ -113,6 +118,14 @@ class OpenidConnectRelyingParty < Sinatra::Base
     JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).
       first.
       with_indifferent_access
+  end
+
+  def logout_uri(id_token)
+    openid_configuration[:end_session_endpoint] + '?' + {
+      id_token_hint: id_token,
+      post_logout_redirect_uri: REDIRECT_URI,
+      state: SecureRandom.hex,
+    }.to_query
   end
 
   def json(response)

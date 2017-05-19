@@ -5,8 +5,9 @@ require 'securerandom'
 RSpec.describe OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
   let(:authorization_endpoint) { "#{host}/openid/authorize" }
-  let(:token_endpoint) { "#{host}/openid/token" }
-  let(:jwks_uri) { "#{host}/openid/certs" }
+  let(:token_endpoint) { "#{host}/api/openid/token" }
+  let(:jwks_uri) { "#{host}/api/openid/certs" }
+  let(:end_session_endpoint) { "#{host}/openid/logout" }
 
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
@@ -15,6 +16,7 @@ RSpec.describe OpenidConnectRelyingParty do
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
         jwks_uri: jwks_uri,
+        end_session_endpoint: end_session_endpoint,
       }.to_json)
   end
 
@@ -101,16 +103,17 @@ RSpec.describe OpenidConnectRelyingParty do
       expect(last_response.body).to include(email)
     end
 
-    it 'has a logout link back to root, clicking it logs the user out' do
+    it 'has a logout link back to the SP-initiated logout URL' do
       get '/auth/result', code: code
 
       doc = Nokogiri::HTML(last_response.body)
 
-      logout_link = doc.at('a[href="/"]')
-      expect(logout_link.text.strip).to eq('Log out')
+      logout_link = doc.at_xpath("//a[text()='Log out']")
+      expect(logout_link).to be
 
-      get logout_link[:href]
-      expect(last_response.body).to_not include(email)
+      href = logout_link[:href]
+      expect(href).to start_with(end_session_endpoint)
+      expect(href).to include("id_token_hint=#{id_token}")
     end
 
     it 'renders an error message when there is one' do
