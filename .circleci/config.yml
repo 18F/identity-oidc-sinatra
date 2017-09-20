@@ -7,7 +7,7 @@ jobs:
   build:
     docker:
       # Specify the Ruby version you desire here
-      - image: circleci/ruby:2.3.3
+      - image: circleci/ruby:2.3.5
 
     working_directory: ~/identity-openidconnect-sinatra
     steps:
