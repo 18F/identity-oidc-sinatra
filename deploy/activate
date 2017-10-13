@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+require 'bundler'
+Bundler.setup(:default, :production)
+
+require 'logger'
+require 'login_gov/hostdata'
+
+module Deploy
+  class Activate
+    attr_reader :logger, :s3_client
+
+    def initialize(logger: default_logger, s3_client: nil)
+      @logger = logger
+      @s3_client = s3_client
+    end
+
+    def run
+      logger.info "app root: #{root}"
+
+      LoginGov::Hostdata.s3(logger: logger, s3_client: s3_client).download_configs(
+        '/%<env>s/sp-oidc-sinatra/v1/.env' => File.join(root, '.env')
+      )
+    end
+
+    def root
+      File.expand_path('../../', __FILE__)
+    end
+
+    def default_logger
+      logger = Logger.new(STDOUT)
+      logger.progname = 'deploy/activate'
+      logger
+    end
+  end
+end
+
+Deploy::Activate.new.run if $PROGRAM_NAME == __FILE__
