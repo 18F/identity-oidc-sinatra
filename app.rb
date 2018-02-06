@@ -10,12 +10,14 @@ require 'openssl'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
+require 'yaml'
 
 class OpenidConnectRelyingParty < Sinatra::Base
-  SERVICE_PROVIDER = ENV['IDP_SP_URL']
-  CLIENT_ID = ENV['CLIENT_ID']
-  BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
-  REDIRECT_URI = ENV['REDIRECT_URI']
+  APP_CONFIG =  YAML.load_file('application.yml')
+  SERVICE_PROVIDER = APP_CONFIG['IDP_SP_URL']
+  CLIENT_ID = APP_CONFIG['CLIENT_ID']
+  BASIC_AUTH = { username: APP_CONFIG['IDP_USER'], password: APP_CONFIG['IDP_PASSWORD'] }.freeze
+  REDIRECT_URI = APP_CONFIG['REDIRECT_URI']
 
   get '/' do
     if openid_configuration
@@ -50,7 +52,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
     openid_configuration[:authorization_endpoint] + '?' + {
       client_id: CLIENT_ID,
       response_type: 'code',
-      acr_values: ENV['ACR_VALUES'],
+      acr_values: APP_CONFIG['ACR_VALUES'],
       scope: 'openid email',
       redirect_uri: File.join(REDIRECT_URI, '/auth/result'),
       state: random_value,

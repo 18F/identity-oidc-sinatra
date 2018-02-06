@@ -1,7 +1,9 @@
 require 'rack/test'
 require 'rspec'
 require 'webmock/rspec'
+require 'yaml'
 
+APP_CONFIG =  YAML.load_file('application.yml')
 ENV['RACK_ENV'] = 'test'
 
 $LOAD_PATH.unshift File.expand_path('../..', __FILE__)
