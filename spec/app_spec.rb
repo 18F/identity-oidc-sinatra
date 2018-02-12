@@ -11,7 +11,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
-      with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+      with(basic_auth: APP_CONFIG.values_at('IDP_USER', 'IDP_PASSWORD')).
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
@@ -34,7 +34,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
       expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
       expect(auth_uri_params[:client_id]).to_not be_empty
-      expect(auth_uri_params[:client_id]).to eq(ENV['CLIENT_ID'])
+      expect(auth_uri_params[:client_id]).to eq(APP_CONFIG['CLIENT_ID'])
       expect(auth_uri_params[:response_type]).to eq('code')
       expect(auth_uri_params[:prompt]).to eq('select_account')
       expect(auth_uri_params[:nonce].length).to be >= 32
@@ -43,7 +43,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
     it 'renders an error if basic auth credentials are wrong' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+        with(basic_auth: APP_CONFIG.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: '', status: 401)
 
       get '/'
@@ -55,11 +55,11 @@ RSpec.describe OpenidConnectRelyingParty do
 
     it 'renders an error if the app fails to get oidc configuration' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+        with(basic_auth: APP_CONFIG.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: '', status: 400)
 
       get '/'
-      error_string = "Error: #{ENV['IDP_SP_URL']} responded with 400."
+      error_string = "Error: #{APP_CONFIG['IDP_SP_URL']} responded with 400."
       expect(last_response.body).to include(error_string)
     end
   end
@@ -75,14 +75,14 @@ RSpec.describe OpenidConnectRelyingParty do
 
     before do
       stub_request(:get, jwks_uri).
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
+        with(basic_auth: APP_CONFIG.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: {
           keys: [JSON::JWK.new(idp_public_key)],
         }.to_json)
 
       stub_request(:post, token_endpoint).
         with(
-          basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD'),
+          basic_auth: APP_CONFIG.values_at('IDP_USER', 'IDP_PASSWORD'),
           body: {
             grant_type: 'authorization_code',
             code: code,

@@ -10,9 +10,9 @@ all: check
 
 setup:
 	bundle check || bundle install
-	[ -f .env ] && echo ".env exists" || cat .env.example >> .env
+	[ -f application.yml ] && echo "application.yml exists" || cat application.yml.example > application.yml
 
-.env: setup
+config: setup
 
 check: lint test
 
@@ -25,5 +25,5 @@ lint:
 run:
 	bundle exec rackup -p $(PORT)
 
-test: .env $(CONFIG)
+test: config $(CONFIG)
 	bundle exec rspec
