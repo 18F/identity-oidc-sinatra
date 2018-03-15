@@ -30,7 +30,7 @@ RSpec.describe 'deploy/activate' do
         stub_request(:get, 'http://169.254.169.254/2016-09-02/dynamic/instance-identity/document').
           to_return(body: {
             'region' => 'us-west-1',
-            'accountId' => '12345'
+            'accountId' => '12345',
           }.to_json)
 
         s3_client.put_object(
