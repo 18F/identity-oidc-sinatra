@@ -74,8 +74,8 @@ GEM
       byebug (~> 10.0)
       pry (~> 0.10)
     public_suffix (3.0.2)
-    rack (2.0.4)
-    rack-protection (2.0.1)
+    rack (2.0.5)
+    rack-protection (2.0.3)
       rack
     rack-test (1.0.0)
       rack (>= 1.0, < 3)
@@ -107,10 +107,10 @@ GEM
     ruby-progressbar (1.9.0)
     safe_yaml (1.0.4)
     securecompare (1.0.0)
-    sinatra (2.0.1)
+    sinatra (2.0.3)
       mustermann (~> 1.0)
       rack (~> 2.0)
-      rack-protection (= 2.0.1)
+      rack-protection (= 2.0.3)
       tilt (~> 2.0)
     thread_safe (0.3.6)
     tilt (2.0.8)
@@ -145,11 +145,11 @@ DEPENDENCIES
   reek
   rspec (~> 3.5.0)
   rubocop
-  sinatra
+  sinatra (>= 2.0.2)
   webmock
 
 RUBY VERSION
    ruby 2.3.5p376
 
 BUNDLED WITH
-   1.16.0
+   1.16.1

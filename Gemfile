@@ -12,7 +12,7 @@ gem 'httparty'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
 gem 'json-jwt'
 gem 'jwt'
-gem 'sinatra'
+gem 'sinatra', '>= 2.0.2'
 
 group :development do
   gem 'pry-byebug'
