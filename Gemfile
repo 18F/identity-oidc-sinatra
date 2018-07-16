@@ -10,7 +10,7 @@ gem 'activesupport'
 gem 'dotenv'
 gem 'httparty'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
-gem 'json-jwt'
+gem 'json-jwt', '>= 1.9.4'
 gem 'jwt'
 gem 'sinatra'
 
