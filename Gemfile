@@ -22,7 +22,7 @@ end
 
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
-  gem 'nokogiri'
+  gem 'nokogiri', '>= 1.8.5'
   gem 'rack-test'
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'

@@ -61,7 +61,7 @@ GEM
     minitest (5.11.1)
     multi_xml (0.6.0)
     mustermann (1.0.2)
-    nokogiri (1.8.2)
+    nokogiri (1.8.5)
       mini_portile2 (~> 2.3.0)
     parallel (1.12.1)
     parser (2.5.0.5)
@@ -139,7 +139,7 @@ DEPENDENCIES
   identity-hostdata!
   json-jwt
   jwt
-  nokogiri
+  nokogiri (>= 1.8.5)
   pry-byebug
   rack-test
   reek
@@ -152,4 +152,4 @@ RUBY VERSION
    ruby 2.3.5p376
 
 BUNDLED WITH
-   1.16.0
+   1.16.6
