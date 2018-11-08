@@ -12,7 +12,7 @@ gem 'httparty'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
 gem 'json-jwt'
 gem 'jwt'
-gem 'sinatra'
+gem 'sinatra', '>= 2.0.1'
 
 group :development do
   gem 'pry-byebug'
@@ -23,7 +23,7 @@ end
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
   gem 'nokogiri'
-  gem 'rack-test'
+  gem 'rack-test', '>= 1.0.0'
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'
 end
