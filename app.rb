@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-
 require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
@@ -20,7 +19,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   get '/' do
     if openid_configuration
-      erb :index, locals: { authorization_url: authorization_url }
+      erb :index, locals: { loa1_url: authorization_url(1), loa3_url: authorization_url(3) }
     else
       erb :errors, locals: { error: openid_configuration_error }
     end
@@ -47,11 +46,11 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   private
 
-  def authorization_url
+  def authorization_url(loa)
     openid_configuration[:authorization_endpoint] + '?' + {
       client_id: CLIENT_ID,
       response_type: 'code',
-      acr_values: ENV['ACR_VALUES'],
+      acr_values: 'http://idmanagement.gov/ns/assurance/loa/' + loa.to_s,
       scope: 'openid email',
       redirect_uri: File.join(REDIRECT_URI, '/auth/result'),
       state: random_value,
