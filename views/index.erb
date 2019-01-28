@@ -1,10 +1,22 @@
 <div class="container py2">
   <h1> Login.gov Open ID Connect Sinatra</h1>
   <div class="mb1 right-align">
-      <a href="<%= authorization_url %>" class="btn btn-outline bg-white navy">
-        <img class="align-middle" width="125" src="/images/login-gov.svg" alt="Login gov">
-      </a>
+    <div class="mb1">
+      <label for="loa_1">
+        <input type="radio" name="loa" id="loa_1" value="1" checked="checked"> LOA1
+      </label>
+      <label for="loa_3">
+        <input type="radio" name="loa" id="loa_3" value="3"> LOA3
+      </label>
+    </div>
+    <a onclick='gotoAuthUrl(); return false;' href="<%= loa1_url %>" class="btn btn-outline bg-white navy">
+      <img class="align-middle" width="125" src="/images/login-gov.svg" alt="Login gov">
+    </a>
   </div>
   <%= erb :page_content %>
 </div>
-
+<script>
+  function gotoAuthUrl() {
+    window.location.href = document.getElementById('loa_1').checked ? "<%= loa1_url %>" : "<%= loa3_url %>";
+  }
+</script>
