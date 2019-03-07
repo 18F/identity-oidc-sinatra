@@ -6,8 +6,8 @@ source 'https://rubygems.org'
 
 ruby '~> 2.3.5'
 
+gem 'aws-sdk-secretsmanager', '~> 1.21'
 gem 'activesupport', '~> 5.2'
-gem 'dotenv' # TODO
 gem 'httparty', '~> 0.16'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
 gem 'json-jwt', '~> 1.9.4'

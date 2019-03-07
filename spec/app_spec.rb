@@ -2,22 +2,25 @@ require 'spec_helper'
 require 'nokogiri'
 require 'securerandom'
 
-RSpec.describe OpenidConnectRelyingParty do
+RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
   let(:authorization_endpoint) { "#{host}/openid/authorize" }
   let(:token_endpoint) { "#{host}/api/openid/token" }
   let(:jwks_uri) { "#{host}/api/openid/certs" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
+  let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
 
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
-      with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
         jwks_uri: jwks_uri,
         end_session_endpoint: end_session_endpoint,
       }.to_json)
+
+    # use the default local dev config
+    allow(LoginGov::Hostdata).to receive(:in_datacenter?).and_return(false)
   end
 
   context '/' do
@@ -34,7 +37,7 @@ RSpec.describe OpenidConnectRelyingParty do
 
       expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
       expect(auth_uri_params[:client_id]).to_not be_empty
-      expect(auth_uri_params[:client_id]).to eq(ENV['CLIENT_ID'])
+      expect(auth_uri_params[:client_id]).to eq(client_id)
       expect(auth_uri_params[:response_type]).to eq('code')
       expect(auth_uri_params[:prompt]).to eq('select_account')
       expect(auth_uri_params[:nonce].length).to be >= 32
@@ -43,23 +46,21 @@ RSpec.describe OpenidConnectRelyingParty do
 
     it 'renders an error if basic auth credentials are wrong' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: '', status: 401)
 
       get '/'
 
       expect(last_response.body).to include(
-        'Check basic authentication in IDP_USER and IDP_PASSSWORD environment variables.'
+        'Perhaps we need to reimplement HTTP Basic Auth'
       )
     end
 
     it 'renders an error if the app fails to get oidc configuration' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: '', status: 400)
 
       get '/'
-      error_string = "Error: #{ENV['IDP_SP_URL']} responded with 400."
+      error_string = "Error: #{host} responded with 400."
       expect(last_response.body).to include(error_string)
     end
   end
@@ -75,14 +76,12 @@ RSpec.describe OpenidConnectRelyingParty do
 
     before do
       stub_request(:get, jwks_uri).
-        with(basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD')).
         to_return(body: {
           keys: [JSON::JWK.new(idp_public_key)],
         }.to_json)
 
       stub_request(:post, token_endpoint).
         with(
-          basic_auth: ENV.values_at('IDP_USER', 'IDP_PASSWORD'),
           body: {
             grant_type: 'authorization_code',
             code: code,
