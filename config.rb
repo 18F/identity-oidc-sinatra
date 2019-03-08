@@ -37,6 +37,10 @@ module LoginGov::OidcSinatra
       @config.fetch('client_id')
     end
 
+    def redact_ssn?
+      @config.fetch('redact_ssn')
+    end
+
     # @return [OpenSSL::PKey::RSA]
     def sp_private_key
       key = get_sp_private_key_raw(@config.fetch('sp_private_key_path'))
@@ -63,11 +67,13 @@ module LoginGov::OidcSinatra
         end
         data['redirect_uri'] = "https://sp-oidc-sinatra.#{LoginGov::Hostdata.env}.#{LoginGov::Hostdata.domain}/"
         data['sp_private_key_path'] = "aws-secretsmanager:#{LoginGov::Hostdata.env}/sp-oidc-sinatra/oidc.key"
+        data['redact_ssn'] = true
       else
         # local dev defaults
         data['idp_url'] = 'http://localhost:3000'
         data['redirect_uri'] = 'http://localhost:9292/'
         data['sp_private_key_path'] = demo_private_key_path
+        data['redact_ssn'] = false
       end
 
       data

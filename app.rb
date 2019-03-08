@@ -50,15 +50,26 @@ module LoginGov::OidcSinatra; class OpenidConnectRelyingParty < Sinatra::Base
 
   def authorization_url(loa)
     openid_configuration[:authorization_endpoint] + '?' + {
-      client_id: CLIENT_ID,
+      client_id: config.client_id,
       response_type: 'code',
       acr_values: 'http://idmanagement.gov/ns/assurance/loa/' + loa.to_s,
-      scope: 'openid email',
-      redirect_uri: File.join(REDIRECT_URI, '/auth/result'),
+      scope: scopes_for(loa),
+      redirect_uri: File.join(config.redirect_uri, '/auth/result'),
       state: random_value,
       nonce: random_value,
       prompt: 'select_account',
     }.to_query
+  end
+
+  def scopes_for(loa)
+    case loa
+    when 1
+      'openid email'
+    when 3
+      'openid email profile social_security_number phone'
+    else
+      raise ArgumentError.new("Unexpected LOA: #{loa.inspect}")
+    end
   end
 
   def openid_configuration
@@ -139,5 +150,14 @@ module LoginGov::OidcSinatra; class OpenidConnectRelyingParty < Sinatra::Base
 
   def random_value
     SecureRandom.hex
+  end
+
+  def maybe_redact_ssn(ssn)
+    if config.redact_ssn?
+      # redact all characters since they're all sensitive
+      ssn = ssn.gsub(/\d/, '#')
+    end
+
+    ssn
   end
 end; end
