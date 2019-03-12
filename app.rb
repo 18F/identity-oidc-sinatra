@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
@@ -12,11 +11,13 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 
-class OpenidConnectRelyingParty < Sinatra::Base
-  SERVICE_PROVIDER = ENV['IDP_SP_URL']
-  CLIENT_ID = ENV['CLIENT_ID']
-  BASIC_AUTH = { username: ENV['IDP_USER'], password: ENV['IDP_PASSWORD'] }.freeze
-  REDIRECT_URI = ENV['REDIRECT_URI']
+require_relative './config'
+
+module LoginGov::OidcSinatra; class OpenidConnectRelyingParty < Sinatra::Base
+
+  def config
+    @config ||= Config.new
+  end
 
   get '/' do
     if openid_configuration
@@ -49,15 +50,26 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def authorization_url(loa)
     openid_configuration[:authorization_endpoint] + '?' + {
-      client_id: CLIENT_ID,
+      client_id: config.client_id,
       response_type: 'code',
       acr_values: 'http://idmanagement.gov/ns/assurance/loa/' + loa.to_s,
-      scope: 'openid email',
-      redirect_uri: File.join(REDIRECT_URI, '/auth/result'),
+      scope: scopes_for(loa),
+      redirect_uri: File.join(config.redirect_uri, '/auth/result'),
       state: random_value,
       nonce: random_value,
       prompt: 'select_account',
     }.to_query
+  end
+
+  def scopes_for(loa)
+    case loa
+    when 1
+      'openid email'
+    when 3
+      'openid email profile social_security_number phone'
+    else
+      raise ArgumentError.new("Unexpected LOA: #{loa.inspect}")
+    end
   end
 
   def openid_configuration
@@ -72,20 +84,17 @@ class OpenidConnectRelyingParty < Sinatra::Base
   end
 
   def openid_configuration_response
-    HTTParty.get(
-      URI.join(SERVICE_PROVIDER, '/.well-known/openid-configuration'),
-      basic_auth: BASIC_AUTH
-    )
+    HTTParty.get(URI.join(config.idp_url, '/.well-known/openid-configuration'))
   end
 
   def openid_configuration_error
     response_code = openid_configuration_response.code
 
     if response_code == 401
-      "Error: #{SERVICE_PROVIDER} responded with #{response_code}.
-       Check basic authentication in IDP_USER and IDP_PASSSWORD environment variables."
+      "Error: #{config.idp_url} responded with #{response_code}.
+       Perhaps we need to reimplement HTTP Basic Auth."
     else
-      "Error: #{SERVICE_PROVIDER} responded with #{response_code}."
+      "Error: #{config.idp_url} responded with #{response_code}."
     end
   end
 
@@ -97,22 +106,21 @@ class OpenidConnectRelyingParty < Sinatra::Base
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: client_assertion_jwt,
-      },
-      basic_auth: BASIC_AUTH
+      }
     ).body
   end
 
   def client_assertion_jwt
     jwt_payload = {
-      iss: CLIENT_ID,
-      sub: CLIENT_ID,
+      iss: config.client_id,
+      sub: config.client_id,
       aud: openid_configuration[:token_endpoint],
       jti: random_value,
       nonce: random_value,
       exp: Time.now.to_i + 1000,
     }
 
-    JWT.encode(jwt_payload, sp_private_key, 'RS256')
+    JWT.encode(jwt_payload, config.sp_private_key, 'RS256')
   end
 
   def userinfo(id_token)
@@ -124,7 +132,7 @@ class OpenidConnectRelyingParty < Sinatra::Base
   def logout_uri(id_token)
     openid_configuration[:end_session_endpoint] + '?' + {
       id_token_hint: id_token,
-      post_logout_redirect_uri: REDIRECT_URI,
+      post_logout_redirect_uri: config.redirect_uri,
       state: SecureRandom.hex,
     }.to_query
   end
@@ -135,19 +143,21 @@ class OpenidConnectRelyingParty < Sinatra::Base
 
   def idp_public_key
     certs_response = json(
-      HTTParty.get(
-        openid_configuration[:jwks_uri],
-        basic_auth: BASIC_AUTH
-      ).body
+      HTTParty.get(openid_configuration[:jwks_uri]).body
     )
     JSON::JWK.new(certs_response[:keys].first).to_key
-  end
-
-  def sp_private_key
-    @sp_private_key ||= OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key'))
   end
 
   def random_value
     SecureRandom.hex
   end
-end
+
+  def maybe_redact_ssn(ssn)
+    if config.redact_ssn?
+      # redact all characters since they're all sensitive
+      ssn = ssn.gsub(/\d/, '#')
+    end
+
+    ssn
+  end
+end; end

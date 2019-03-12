@@ -6,13 +6,13 @@ source 'https://rubygems.org'
 
 ruby '~> 2.3.5'
 
-gem 'activesupport'
-gem 'dotenv'
-gem 'httparty'
+gem 'activesupport', '~> 5.2'
+gem 'aws-sdk-secretsmanager', '~> 1.21'
+gem 'httparty', '~> 0.16'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
-gem 'json-jwt'
-gem 'jwt'
-gem 'sinatra'
+gem 'json-jwt', '~> 1.9.4'
+gem 'jwt', '~> 2.1'
+gem 'sinatra', '~> 2.0', '>= 2.0.2'
 
 group :development do
   gem 'pry-byebug'
@@ -22,7 +22,7 @@ end
 
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
-  gem 'nokogiri'
+  gem 'nokogiri', '~> 1.10'
   gem 'rack-test'
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'
