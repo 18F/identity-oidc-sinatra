@@ -15,15 +15,17 @@ require_relative './config'
 
 module LoginGov::OidcSinatra; class OpenidConnectRelyingParty < Sinatra::Base
 
+  class AppError < StandardError; end
+
   def config
     @config ||= Config.new
   end
 
   get '/' do
-    if openid_configuration
+    begin
       erb :index, locals: { loa1_url: authorization_url(1), loa3_url: authorization_url(3) }
-    else
-      erb :errors, locals: { error: openid_configuration_error }
+    rescue AppError => err
+      [500, erb(:errors, locals: { error: err.message })]
     end
   end
 
@@ -78,24 +80,20 @@ module LoginGov::OidcSinatra; class OpenidConnectRelyingParty < Sinatra::Base
       if response.code == 200
         json(response.body)
       else
-        false
+        msg = 'Error: Unable to retrieve OIDC configuration from IdP.'
+        msg += " #{config.idp_url} responded with #{response.code}."
+
+        if response.code == 401
+          msg += ' Perhaps we need to reimplement HTTP Basic Auth.'
+        end
+
+        raise AppError.new(msg)
       end
     end
   end
 
   def openid_configuration_response
     HTTParty.get(URI.join(config.idp_url, '/.well-known/openid-configuration'))
-  end
-
-  def openid_configuration_error
-    response_code = openid_configuration_response.code
-
-    if response_code == 401
-      "Error: #{config.idp_url} responded with #{response_code}.
-       Perhaps we need to reimplement HTTP Basic Auth."
-    else
-      "Error: #{config.idp_url} responded with #{response_code}."
-    end
   end
 
   def token(code)

@@ -56,12 +56,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'renders an error if the app fails to get oidc configuration' do
-      stub_request(:get, "#{host}/.well-known/openid-configuration").
+      stub = stub_request(:get, "#{host}/.well-known/openid-configuration").
         to_return(body: '', status: 400)
 
       get '/'
-      error_string = "Error: #{host} responded with 400."
+
+      error_string = "Error: Unable to retrieve OIDC configuration from IdP. #{host} responded with 400."
       expect(last_response.body).to include(error_string)
+      expect(stub).to have_been_requested.once
+      expect(last_response.status).to eq 500
     end
   end
 
