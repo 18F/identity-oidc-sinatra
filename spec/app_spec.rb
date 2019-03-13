@@ -112,6 +112,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('LOA1')
     end
 
+    context 'with dangerous input' do
+      let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
+
+      it 'escapes dangerous HTML' do
+        get '/auth/result', code: code
+
+        expect(last_response.body).to_not include(email)
+        expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
+      end
+    end
+
     it 'has a logout link back to the SP-initiated logout URL' do
       get '/auth/result', code: code
 

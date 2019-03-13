@@ -50,6 +50,8 @@ Layout/ExtraSpacing:
   ForceEqualSignAlignment: false
 
 # empty lines are fine
+Layout/EmptyLinesAroundBlockBody:
+  Enabled: false
 Layout/EmptyLinesAroundClassBody:
   Enabled: false
 Layout/EmptyLinesAroundExceptionHandlingKeywords:
