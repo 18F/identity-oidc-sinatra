@@ -4,13 +4,6 @@
 # https://github.com/bbatsov/rubocop/blob/master/config/enabled.yml
 # https://github.com/bbatsov/rubocop/blob/master/config/disabled.yml
 
-AllCops:
-  Include:
-    - '**/Gemfile'
-    - '**/Rakefile'
-  TargetRubyVersion: 2.3
-  UseCache: true
-
 Rails:
   Enabled: true
 
@@ -56,6 +49,16 @@ Layout/ExtraSpacing:
   # When true, forces the alignment of = in assignments on consecutive lines.
   ForceEqualSignAlignment: false
 
+# empty lines are fine
+Layout/EmptyLinesAroundClassBody:
+  Enabled: false
+Layout/EmptyLinesAroundExceptionHandlingKeywords:
+  Enabled: false
+Layout/EmptyLinesAroundModuleBody:
+  Enabled: false
+Layout/EmptyLines:
+  Enabled: false
+
 # Checks the indentation of the first element in an array literal.
 Layout/IndentArray:
   # The value `special_inside_parentheses` means that array literals with
@@ -86,31 +89,31 @@ Layout/MultilineOperationIndentation:
   # By default, the indentation width from Style/IndentationWidth is used
   # But it can be overridden by setting this parameter
   IndentationWidth: ~
-  
-Metrics/AbcSize:
-  Description: A calculated magnitude based on number of assignments, branches, and
-    conditions.
-  Enabled: true
-  Max: 15
-  Exclude:
-  - spec/**/*
 
+# All of these Metrics are mostly useless as an indicator of anything
+Metrics/AbcSize:
+  Enabled: false
 Metrics/BlockLength:
   CountComments: false  # count full line comments?
   Enabled: true
   Max: 25
   Exclude:
+    - '**/bin/*'
     - 'spec/**/*.rb'
-
 Metrics/ClassLength:
-  Description: Avoid classes longer than 100 lines of code.
-  Enabled: true
-  CountComments: false
-  Max: 100
-  Exclude:
-  - app.rb
-  - spec/**/*
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+Metrics/ParameterLists:
+  Enabled: false
 
+# Line length is actually useful
 Metrics/LineLength:
   Description: Limit lines to 100 characters.
   StyleGuide: https://github.com/bbatsov/ruby-style-guide#80-character-limits
@@ -121,24 +124,7 @@ Metrics/LineLength:
   - http
   - https
   Exclude:
-    - 'config/routes.rb'
-
-Metrics/MethodLength:
-  Description: Avoid methods longer than 10 lines of code.
-  StyleGuide: https://github.com/bbatsov/ruby-style-guide#short-methods
-  Enabled: true
-  CountComments: false
-  Max: 10
-  Exclude:
-  - spec/**/*
-
-Metrics/ModuleLength:
-  CountComments: false
-  Max: 100
-  Description: Avoid modules longer than 100 lines of code.
-  Enabled: true
-  Exclude:
-  - spec/**/*
+    - 'spec/**/*'
 
 # This is a Rails 5 feature, so it should be disabled until we upgrade
 Rails/HttpPositionalArguments:
@@ -159,6 +145,19 @@ Style/AndOr:
   SupportedStyles:
   - always
   - conditionals
+
+Style/BlockDelimiters:
+  Enabled: false
+  # Prefer do...end for procedural blocks, {...} for functional
+  #EnforcedStyle: semantic
+
+# for certain module hierarchies this is not useful
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+# This default recommendation is completely wrong
+Style/ConditionalAssignment:
+  Enabled: false
 
 Style/Documentation:
   Description: Document classes and non-namespace modules.
@@ -183,10 +182,20 @@ Style/FrozenStringLiteralComment:
                  to help transition from Ruby 2.3.0 to Ruby 3.0.
   Enabled: false
 
+# Too many false positives to be useful
+Style/GuardClause:
+  Enabled: false
+
+# Sometimes a `return` enhances clarity
+Style/RedundantReturn:
+  Enabled: false
+
+# Very frequently if/unless as modifier reduces clarity
 Style/IfUnlessModifier:
-  Description: Favor modifier if/unless usage when you have a single-line body.
-  StyleGuide: https://github.com/bbatsov/ruby-style-guide#if-as-a-modifier
-  Enabled: true
+  Enabled: false
+
+Style/RaiseArgs:
+  EnforcedStyle: compact
 
 Style/StringLiterals:
   Description: Checks if uses of quotes match the configured preference.
@@ -204,12 +213,11 @@ Style/TrailingCommaInArguments:
   # for all parenthesized method calls with arguments.
   EnforcedStyleForMultiline: no_comma
 
-Style/TrailingCommaInLiteral:
-  # If `comma`, the cop requires a comma after the last item in an array or
-  # hash, but only when each item is on its own line.
-  # If `consistent_comma`, the cop requires a comma after the last item of all
-  # non-empty array and hash literals.
-  EnforcedStyleForMultiline: comma
+# trailing commas improve diff clarity at no cost to readability
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: consistent_comma
 
 Style/SingleLineBlockParams:
   Enabled: false

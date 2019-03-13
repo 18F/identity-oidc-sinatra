@@ -62,13 +62,17 @@ module LoginGov::OidcSinatra
 
       if LoginGov::Hostdata.in_datacenter?
         # EC2 deployment defaults
-        if LoginGov::Hostdata.env == 'prod'
-          data['idp_url'] = "https://secure.#{LoginGov::Hostdata.domain}"
+
+        env = LoginGov::Hostdata.env
+        domain = LoginGov::Hostdata.domain
+
+        if env == 'prod'
+          data['idp_url'] = "https://secure.#{domain}"
         else
-          data['idp_url'] = "https://idp.#{LoginGov::Hostdata.env}.#{LoginGov::Hostdata.domain}"
+          data['idp_url'] = "https://idp.#{env}.#{domain}"
         end
-        data['redirect_uri'] = "https://sp-oidc-sinatra.#{LoginGov::Hostdata.env}.#{LoginGov::Hostdata.domain}/"
-        data['sp_private_key_path'] = "aws-secretsmanager:#{LoginGov::Hostdata.env}/sp-oidc-sinatra/oidc.key"
+        data['redirect_uri'] = "https://sp-oidc-sinatra.#{env}.#{domain}/"
+        data['sp_private_key_path'] = "aws-secretsmanager:#{env}/sp-oidc-sinatra/oidc.key"
         data['redact_ssn'] = true
       else
         # local dev defaults
@@ -90,7 +94,7 @@ module LoginGov::OidcSinatra
         # Set region using EC2 metadata if we're in EC2
         if LoginGov::Hostdata.in_datacenter?
           ec2 = LoginGov::Hostdata::EC2.load
-          opts = {region: ec2.region}
+          opts = { region: ec2.region }
         else
           opts = {}
         end
@@ -115,6 +119,7 @@ module LoginGov::OidcSinatra
       if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
         raise 'Refusing to use demo key in production'
       end
+
       File.dirname(__FILE__) + '/config/demo_sp.key'
     end
   end

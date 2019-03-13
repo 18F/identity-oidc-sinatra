@@ -4,8 +4,7 @@ require 'webmock/rspec'
 
 ENV['RACK_ENV'] = 'test'
 
-$LOAD_PATH.unshift File.expand_path('../..', __FILE__)
-require 'app'
+require_relative '../app'
 
 module RSpecMixin
   include Rack::Test::Methods
