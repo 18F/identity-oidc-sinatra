@@ -43,8 +43,10 @@ module LoginGov::OidcSinatra
 
     # @return [OpenSSL::PKey::RSA]
     def sp_private_key
+      return @sp_private_key if @sp_private_key
+
       key = get_sp_private_key_raw(@config.fetch('sp_private_key_path'))
-      OpenSSL::PKey::RSA.new(key)
+      @sp_private_key = OpenSSL::PKey::RSA.new(key)
     end
 
     # Define the default configuration values. If application.yml exists, those
@@ -60,13 +62,17 @@ module LoginGov::OidcSinatra
 
       if LoginGov::Hostdata.in_datacenter?
         # EC2 deployment defaults
-        if LoginGov::Hostdata.env == 'prod'
-          data['idp_url'] = "https://secure.#{LoginGov::Hostdata.domain}"
+
+        env = LoginGov::Hostdata.env
+        domain = LoginGov::Hostdata.domain
+
+        if env == 'prod'
+          data['idp_url'] = "https://secure.#{domain}"
         else
-          data['idp_url'] = "https://idp.#{LoginGov::Hostdata.env}.#{LoginGov::Hostdata.domain}"
+          data['idp_url'] = "https://idp.#{env}.#{domain}"
         end
-        data['redirect_uri'] = "https://sp-oidc-sinatra.#{LoginGov::Hostdata.env}.#{LoginGov::Hostdata.domain}/"
-        data['sp_private_key_path'] = "aws-secretsmanager:#{LoginGov::Hostdata.env}/sp-oidc-sinatra/oidc.key"
+        data['redirect_uri'] = "https://sp-oidc-sinatra.#{env}.#{domain}/"
+        data['sp_private_key_path'] = "aws-secretsmanager:#{env}/sp-oidc-sinatra/oidc.key"
         data['redact_ssn'] = true
       else
         # local dev defaults
@@ -84,7 +90,16 @@ module LoginGov::OidcSinatra
     def get_sp_private_key_raw(path)
       if path.start_with?('aws-secretsmanager:')
         secret_id = path.split(':', 2).fetch(1)
-        smc = Aws::SecretsManager::Client.new
+
+        # Set region using EC2 metadata if we're in EC2
+        if LoginGov::Hostdata.in_datacenter?
+          ec2 = LoginGov::Hostdata::EC2.load
+          opts = { region: ec2.region }
+        else
+          opts = {}
+        end
+
+        smc = Aws::SecretsManager::Client.new(opts)
         begin
           return smc.get_secret_value(secret_id: secret_id).secret_string
         rescue Aws::SecretsManager::Errors::ResourceNotFoundException
@@ -104,6 +119,7 @@ module LoginGov::OidcSinatra
       if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
         raise 'Refusing to use demo key in production'
       end
+
       File.dirname(__FILE__) + '/config/demo_sp.key'
     end
   end

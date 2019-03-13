@@ -56,12 +56,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'renders an error if the app fails to get oidc configuration' do
-      stub_request(:get, "#{host}/.well-known/openid-configuration").
-        to_return(body: '', status: 400)
+      stub = stub_request(:get, "#{host}/.well-known/openid-configuration").
+             to_return(body: '', status: 400)
 
       get '/'
-      error_string = "Error: #{host} responded with 400."
+
+      error_string = "Error: Unable to retrieve OIDC configuration from IdP. #{host} responded with 400."
       expect(last_response.body).to include(error_string)
+      expect(stub).to have_been_requested.once
+      expect(last_response.status).to eq 500
     end
   end
 
@@ -107,6 +110,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response.body).to include(email)
       expect(last_response.body).to include('LOA1')
+    end
+
+    context 'with dangerous input' do
+      let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
+
+      it 'escapes dangerous HTML' do
+        get '/auth/result', code: code
+
+        expect(last_response.body).to_not include(email)
+        expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
+      end
     end
 
     it 'has a logout link back to the SP-initiated logout URL' do
