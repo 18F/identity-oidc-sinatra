@@ -4,6 +4,7 @@ require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erb'
 require 'httparty'
+require 'json'
 require 'json/jwt'
 require 'jwt'
 require 'openssl'
@@ -27,6 +28,8 @@ module LoginGov::OidcSinatra
         erb :index, locals: { loa1_url: authorization_url(1), loa3_url: authorization_url(3) }
       rescue AppError => err
         [500, erb(:errors, locals: { error: err.message })]
+      rescue Errno::ECONNREFUSED => err
+        [500, erb(:errors, locals: { error: err.inspect })]
       end
     end
 
@@ -46,6 +49,22 @@ module LoginGov::OidcSinatra
         error = params[:error] || 'missing callback param: code'
 
         erb :errors, locals: { error: error }
+      end
+    end
+
+    get '/api/health' do
+      begin
+        content_type :json
+        {
+          authorization_endpoint: openid_configuration.fetch('authorization_endpoint'),
+          private_key_fingerprint: Digest::SHA1.hexdigest(config.sp_private_key.to_der),
+          healthy: true,
+        }.to_json
+      rescue StandardError => err
+        halt 500, {
+          error: err.inspect,
+          healthy: false,
+        }.to_json
       end
     end
 
