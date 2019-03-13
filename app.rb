@@ -2,7 +2,7 @@
 
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
-require 'erb'
+require 'erubi'
 require 'httparty'
 require 'json'
 require 'json/jwt'
@@ -18,6 +18,10 @@ module LoginGov::OidcSinatra
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
+
+    # Auto escape parameters in ERB.
+    # Use `<%=` to escape HTML, or use `<%==` to inject unescaped raw HTML.
+    set :erb, escape_html: true
 
     def config
       @config ||= Config.new
