@@ -189,5 +189,31 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to include('LOA3')
       end
     end
+
+    context 'LOA3 /auth/result without SSN' do
+      let(:id_token) {
+        JWT.encode(
+          {
+            email: email,
+            acr: 'http://idmanagement.gov/ns/assurance/loa/3',
+            phone: '0125551212',
+          },
+          idp_private_key,
+          'RS256'
+        )
+      }
+
+      it 'handles nil SSN when redaction is enabled' do
+        # enable redaction
+        expect_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:redact_ssn?).at_least(:once).and_return(true)
+
+        get '/auth/result', code: code
+
+        expect(last_response.body).to_not include('012-34-5678')
+        expect(last_response.body).to_not include('###-##-####')
+        expect(last_response.body).to include('0125551212')
+        expect(last_response.body).to include('LOA3')
+      end
+    end
   end
 end
