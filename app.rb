@@ -177,7 +177,7 @@ module LoginGov::OidcSinatra
     def maybe_redact_ssn(ssn)
       if config.redact_ssn?
         # redact all characters since they're all sensitive
-        ssn = ssn.gsub(/\d/, '#')
+        ssn = ssn&.gsub(/\d/, '#')
       end
 
       ssn
