@@ -1,6 +1,7 @@
 require 'spec_helper'
 require 'nokogiri'
 require 'securerandom'
+require 'pry'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
@@ -52,6 +53,36 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response.body).to include(
         'Perhaps we need to reimplement HTTP Basic Auth'
+      )
+    end
+
+    it 'renders loa3 sign in link if loa param is 3' do
+      get '/?loa=3'
+
+      expect(last_response.body).to include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'renders loa1 sign in link if loa param is 1' do
+      get '/?loa=1'
+
+      expect(last_response.body).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.body).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'renders loa1 sign in link if loa param is nil' do
+      get '/'
+
+      expect(last_response.body).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.body).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
       )
     end
 

@@ -29,7 +29,9 @@ module LoginGov::OidcSinatra
 
     get '/' do
       begin
-        erb :index, locals: { loa1_url: authorization_url(1), loa3_url: authorization_url(3) }
+        erb :index, locals: { loa_url: loa_url,
+                              loa1_link_class: loa1_link_class,
+                              loa3_link_class: loa3_link_class }
       rescue AppError => err
         [500, erb(:errors, locals: { error: err.message })]
       rescue Errno::ECONNREFUSED => err
@@ -182,5 +184,25 @@ module LoginGov::OidcSinatra
 
       ssn
     end
+
+    def loa_url
+      return authorization_url(3) if loa3?
+      authorization_url(1)
+    end
+
+    def loa1_link_class
+      return 'text-underline' unless loa3?
+      nil
+    end
+
+    def loa3_link_class
+      return 'text-underline' if loa3?
+      nil
+    end
+
+    def loa3?
+      params[:loa] == '3'
+    end
+
   end
 end
