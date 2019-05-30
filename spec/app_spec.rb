@@ -1,7 +1,6 @@
 require 'spec_helper'
 require 'nokogiri'
 require 'securerandom'
-require 'pry'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
