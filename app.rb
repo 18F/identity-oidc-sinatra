@@ -186,23 +186,18 @@ module LoginGov::OidcSinatra
     end
 
     def loa_url
-      return authorization_url(3) if loa3?
+      return authorization_url(3) if params[:loa] == '3'
       authorization_url(1)
     end
 
     def loa1_link_class
-      return 'text-underline' unless loa3?
+      return 'text-underline' unless params[:loa] == '3'
       nil
     end
 
     def loa3_link_class
-      return 'text-underline' if loa3?
+      return 'text-underline' if params[:loa] == '3'
       nil
     end
-
-    def loa3?
-      params[:loa] == '3'
-    end
-
   end
 end
