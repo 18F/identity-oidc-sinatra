@@ -1,0 +1,15 @@
+.sign-in-type-wrap {
+  margin-right: 25px;
+}
+.sign-in-wrap {
+  padding-top: 10px;
+  clear: both;
+}
+.sign-in-bttn {
+  float: right;
+}
+.sign-in-bttn svg {
+  margin-bottom: -2px;
+  margin-right: 3px;
+  height: 1rem;
+}
