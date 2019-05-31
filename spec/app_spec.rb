@@ -56,7 +56,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'renders loa3 sign in link if loa param is 3' do
-      get '/?loa=3'
+      get '/?ial=2'
 
       expect(last_response.body).to include(
         'scope=openid+email+profile+social_security_number+phone'
@@ -64,7 +64,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'renders loa1 sign in link if loa param is 1' do
-      get '/?loa=1'
+      get '/?ial=1'
 
       expect(last_response.body).to include(
         'scope=openid+email'
