@@ -1,22 +1,213 @@
-<div class="container py2">
-  <h1> Login.gov Open ID Connect Sinatra</h1>
-  <div class="mb1 right-align">
-    <div class="mb1">
-      <label for="loa_1">
-        <input type="radio" name="loa" id="loa_1" value="1" checked="checked"> LOA1
-      </label>
-      <label for="loa_3">
-        <input type="radio" name="loa" id="loa_3" value="3"> LOA3
-      </label>
+<a class="usa-skipnav" href="#main-content">Skip to main content</a>
+<div class="usa-banner">
+  <div class="usa-accordion">
+    <header class="usa-banner__header">
+      <div class="usa-banner__inner">
+        <div class="grid-col-auto">
+          <img class="usa-banner__header-flag" src="/assets/img/us_flag_small.png" alt="U.S. flag">
+        </div>
+        <div class="grid-col-fill tablet:grid-col-auto">
+          <p class="usa-banner__header-text">An official website of the United States government</p>
+          <p class="usa-banner__header-action" aria-hidden="true">Here’s how you know</p>
+        </div>
+        <button class="usa-accordion__button usa-banner__button"
+          aria-expanded="false" aria-controls="gov-banner">
+          <span class="usa-banner__button-text">Here’s how you know</span>
+        </button>
+      </div>
+    </header>
+    <div class="usa-banner__content usa-accordion__content" id="gov-banner">
+      <div class="grid-row grid-gap-lg">
+        <div class="usa-banner__guidance tablet:grid-col-6">
+          <img class="usa-banner__icon usa-media-block__img" src="/assets/img/icon-dot-gov.svg" alt="Dot gov">
+          <div class="usa-media-block__body">
+            <p>
+              <strong>The .gov means it’s official.</strong>
+              <br>
+              Federal government websites often end in .gov or .mil. Before sharing sensitive information, make sure you’re on a federal government site.
+            </p>
+          </div>
+        </div>
+        <div class="usa-banner__guidance tablet:grid-col-6">
+          <img class="usa-banner__icon usa-media-block__img" src="/assets/img/icon-https.svg" alt="Https">
+          <div class="usa-media-block__body">
+            <p>
+              <strong>The site is secure.</strong>
+              <br>
+              The <strong>https://</strong> ensures that you are connecting to the official website and that any information you provide is encrypted and transmitted securely.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
-    <a onclick='gotoAuthUrl(); return false;' href="<%= loa1_url %>" class="btn btn-outline bg-white navy">
-      <img class="align-middle" width="125" src="/images/login-gov.svg" alt="Login gov">
-    </a>
   </div>
-  <%== erb :page_content %>
 </div>
-<script>
-  function gotoAuthUrl() {
-    window.location.href = document.getElementById('loa_1').checked ? "<%= loa1_url %>" : "<%= loa3_url %>";
-  }
-</script>
+<div class="usa-overlay"></div>
+<header class="usa-header usa-header--extended" role="banner">
+   <div class="usa-navbar">
+      <div class="usa-logo" id="extended-logo">
+         <em class="usa-logo__text"><a href="/" title="Home" aria-label="Home">OpenID Connect Example</a></em>
+      </div>
+      <button class="usa-menu-btn">Menu</button>
+   </div>
+   <nav role="navigation" class="usa-nav">
+      <div class="usa-nav__inner">
+         <button class="usa-nav__close"><img src="/assets/img/close.svg" alt="close"></button>
+         <ul class="usa-nav__primary usa-accordion">
+            <li class="usa-nav__primary-item">
+               <button class="usa-accordion__button usa-nav__link  usa-current" aria-expanded="false" aria-controls="extended-nav-section-one"><span>Our process</span></button>
+               <ul id="extended-nav-section-one" class="usa-nav__submenu">
+                  <li class="usa-nav__submenu-item">
+                     <a href="#">Navigation link</a>
+                  </li>
+                  <li class="usa-nav__submenu-item">
+                     <a href="#">Navigation link</a>
+                  </li>
+                  <li class="usa-nav__submenu-item">
+                     <a href="#">Navigation link</a>
+                  </li>
+               </ul>
+            </li>
+            <li class="usa-nav__primary-item">
+               <a class="usa-nav__link" href="javascript:void(0)"><span>Explore</span></a>
+            </li>
+            <li class="usa-nav__primary-item">
+               <a class="usa-nav__link" href="javascript:void(0)"><span>News</span></a>
+            </li>
+         </ul>
+         <div class="usa-nav__secondary">
+            <ul class="usa-nav__secondary-links sign-in-type-wrap">
+               <li class="usa-nav__secondary-item">
+                  <a href="?ial=1"><span class="<%= ial1_link_class %>">IAL1</span></a>
+               </li>
+               <li class="usa-nav__secondary-item">
+                  <a href="?ial=2"><span class="<%= ial2_link_class %>">IAL2</span></a>
+               </li>
+            </ul>
+            <div class="sign-in-wrap">
+               <a class="usa-button usa-button--outline sign-in-bttn" href="<%= ial_url %>" style="float:right">
+                  <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                     <path fill="currentColor" d="M416 448h-84c-6.6 0-12-5.4-12-12v-40c0-6.6 5.4-12 12-12h84c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32h-84c-6.6 0-12-5.4-12-12V76c0-6.6 5.4-12 12-12h84c53 0 96 43 96 96v192c0 53-43 96-96 96zm-47-201L201 79c-15-15-41-4.5-41 17v96H24c-13.3 0-24 10.7-24 24v96c0 13.3 10.7 24 24 24h136v96c0 21.5 26 32 41 17l168-168c9.3-9.4 9.3-24.6 0-34z"></path>
+                  </svg>
+                  Sign in
+               </a>
+            </div>
+         </div>
+      </div>
+   </nav>
+</header>
+<main id="main-content">
+  <section class="usa-hero">
+    <div class="grid-container">
+      <div class="usa-hero__callout">
+        <h1 class="usa-hero__heading"><span class="usa-hero__heading--alt">Get started:</span>It's easy to create your account
+        </h1><p>You can create your new account in just a few short minutes.</p>
+        <a class="usa-button" href="javascript:void(0);">Create an account</a>
+      </div>
+    </div>
+  </section>
+  <section class="grid-container usa-section">
+    <div class="grid-row grid-gap">
+      <div class="tablet:grid-col-4">
+        <h2 class="font-heading-xl margin-top-0 tablet:margin-bottom-0">We are with you every step of the way</h2>
+      </div>
+      <div class="tablet:grid-col-8 usa-prose">
+        <p>We hope your visit will help you understand the opportunities and potential rewards that are available to you. We created this website to help you gain a better understanding of these concepts. Most importantly, we hope you see the value of working with us to pursue your goals. We're here to help educate you about the basic concepts, to help you learn more about who we are, and to give you fast, easy access to opportunities.</p>
+      </div>
+    </div>
+  </section>
+  <section class="usa-graphic-list usa-section usa-section--dark">
+    <div class="grid-container">
+      <div class="usa-graphic-list__row grid-row grid-gap">
+        <div class="usa-media-block tablet:grid-col">
+          <div class="usa-media-block__body">
+            <h3 class="usa-graphic-list__heading">Create a plan for success</h3>
+            <p>We offer educational articles that outline key concepts and highlight services designed to fill the gaps in your planning.</p>
+          </div>
+        </div>
+        <div class="usa-media-block tablet:grid-col">
+          <div class="usa-media-block__body">
+            <h3 class="usa-graphic-list__heading">Evaluate your current and future needs</h3>
+            <p>On our website, you'll find valuable information for evaluating your current situation and progress toward your goals.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="usa-section">
+    <div class="grid-container">
+      <h2 class="font-heading-xl margin-y-0">Come back often</h2>
+      <p class="usa-intro">We hope you take advantage of this resource and visit us often. Be sure to add our site to your list of "favorites" in your Internet browser. We frequently update our information, and we wouldn't want you to miss any developments.</p>
+      <a class="usa-button usa-button--big" href="#">New developments</a>
+    </div>
+  </section>
+</main>
+<footer class="usa-footer" role="contentinfo">
+  <div class="grid-container usa-footer__return-to-top">
+    <a href="#">Return to top</a>
+  </div>
+  <div class="usa-footer__primary-section">
+    <nav class="usa-footer__nav">
+      <ul class="add-list-reset grid-row grid-gap">
+        <li class="mobile-lg:grid-col-4 desktop:grid-col-2 usa-footer__primary-content">
+          <a class="usa-footer__primary-link" href="javascript:void(0);">Our process</a>
+        </li>
+        <li class="mobile-lg:grid-col-4 desktop:grid-col-2 usa-footer__primary-content">
+          <a class="usa-footer__primary-link" href="javascript:void(0);">Explore</a>
+        </li>
+        <li class="mobile-lg:grid-col-4 desktop:grid-col-2 usa-footer__primary-content">
+          <a class="usa-footer__primary-link" href="javascript:void(0);">News</a>
+        </li>
+        <li class="mobile-lg:grid-col-4 desktop:grid-col-2 usa-footer__primary-content">
+          <a class="usa-footer__primary-link" href="javascript:void(0);">Get help</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  <div class="usa-footer__secondary-section">
+    <div class="grid-container">
+      <div class="grid-row grid-gap">
+        <div class="usa-footer__logo grid-row mobile-lg:grid-col-6 mobile-lg:grid-gap-2">
+          <div class="mobile-lg:grid-col-auto">
+            <h3 class="usa-footer__logo-heading">OpenID Connect Example</h3>
+          </div>
+        </div>
+        <div class="usa-footer__contact-links mobile-lg:grid-col-6">
+          <div class="usa-footer__social-links grid-row grid-gap-1">
+            <div class="grid-col-auto">
+              <a class="usa-social-link usa-social-link--facebook" href="javascript:void(0);">
+                <span>Facebook</span>
+              </a>
+            </div>
+            <div class="grid-col-auto">
+              <a class="usa-social-link usa-social-link--twitter" href="javascript:void(0);">
+                <span>Twitter</span>
+              </a>
+            </div>
+            <div class="grid-col-auto">
+              <a class="usa-social-link usa-social-link--youtube" href="javascript:void(0);">
+                <span>YouTube</span>
+              </a>
+            </div>
+            <div class="grid-col-auto">
+              <a class="usa-social-link usa-social-link--rss" href="javascript:void(0);">
+                <span>RSS</span>
+              </a>
+            </div>
+          </div>
+          <h3 class="usa-footer__contact-heading">Agency Contact Center</h3>
+          <address class="usa-footer__address">
+            <div class="usa-footer__contact-info grid-row grid-gap">
+              <div class="grid-col-auto">
+                <a href="tel:1-800-555-5555">(800) CALL-GOVT</a>
+              </div>
+              <div class="grid-col-auto">
+                <a href="mailto:info@agency.gov">info@agency.gov</a>
+              </div>
+            </div>
+          </address>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>

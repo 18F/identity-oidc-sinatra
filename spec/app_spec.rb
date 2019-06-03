@@ -55,6 +55,36 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
+    it 'renders loa3 sign in link if loa param is 3' do
+      get '/?ial=2'
+
+      expect(last_response.body).to include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'renders loa1 sign in link if loa param is 1' do
+      get '/?ial=1'
+
+      expect(last_response.body).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.body).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'renders loa1 sign in link if loa param is nil' do
+      get '/'
+
+      expect(last_response.body).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.body).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
     it 'renders an error if the app fails to get oidc configuration' do
       stub = stub_request(:get, "#{host}/.well-known/openid-configuration").
              to_return(body: '', status: 400)
