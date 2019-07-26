@@ -1,0 +1,29 @@
+.bg-maroon {
+  background-color: #85144b;
+}
+.bg-navy {
+    background-color: #112e51;
+}
+.white {
+    color: #ffffff;
+}
+.fs-12p {
+    font-size: 12px;
+}
+.line-height-1 {
+    line-height: 1;
+}
+.center {
+    text-align: center;
+}
+.mr1 {
+    margin-right: 0.5rem;
+}
+.align-bottom {
+    vertical-align: bottom;
+}
+
+.py1 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
