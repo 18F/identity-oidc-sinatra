@@ -125,9 +125,18 @@
   <section class="usa-hero">
     <div class="grid-container">
       <div class="usa-hero__callout">
-        <h1 class="usa-hero__heading"><span class="usa-hero__heading--alt">Get started:</span>It's easy to create your account
-        </h1><p>You can create your new account in just a few short minutes.</p>
-        <a class="usa-button" href="javascript:void(0);">Create an account</a>
+        <% if user_email %>
+          <h1 class="usa-hero__heading">
+            <span class="usa-hero__heading--alt">Welcome Back!</span>Wasn't it easy to log in?
+          </h1>
+          <p>You can log out by clicking the 'Log out' button above in the header.</p>
+        <% else %>
+          <h1 class="usa-hero__heading">
+            <span class="usa-hero__heading--alt">Get started:</span>It's easy to create your account
+          </h1>
+          <p>You can create your new account in just a few short minutes.</p>
+          <a class="usa-button" href="javascript:void(0);">Create an account</a>
+        <% end %>
       </div>
     </div>
   </section>
