@@ -28,3 +28,7 @@ group :test do
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'
 end
+
+group :development, :test do
+  gem 'byebug'
+end

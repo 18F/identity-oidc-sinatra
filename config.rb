@@ -16,7 +16,7 @@ module LoginGov::OidcSinatra
       config_file ||= File.dirname(__FILE__) + '/config/application.yml'
 
       if File.exist?(config_file)
-        STDERR.puts("Loading config from #{config_file.inspect}")
+        # STDERR.puts("Loading config from #{config_file.inspect}")
         @config.merge!(YAML.safe_load(File.read(config_file)))
       end
     end
