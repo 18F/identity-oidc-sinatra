@@ -155,6 +155,7 @@ PLATFORMS
 DEPENDENCIES
   activesupport (~> 5.2)
   aws-sdk-secretsmanager (~> 1.21)
+  byebug
   erubi (~> 1.8)
   fakefs
   httparty (~> 0.16)
@@ -174,4 +175,4 @@ RUBY VERSION
    ruby 2.3.5p376
 
 BUNDLED WITH
-   1.17.1
+   1.17.3

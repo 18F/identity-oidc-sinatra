@@ -27,3 +27,18 @@
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
 }
+
+.p2 {
+  padding: 1rem;
+}
+
+.userinfo {
+  top: 100px;
+  right: 40px;
+}
+.userinfo pre {
+  margin: 0;
+}
+.fright {
+  float: right;
+}
