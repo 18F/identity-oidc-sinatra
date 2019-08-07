@@ -2,7 +2,6 @@
 
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
-require 'byebug'
 require 'erubi'
 require 'httparty'
 require 'json'
@@ -25,6 +24,10 @@ module LoginGov::OidcSinatra
     set :erb, escape_html: true
 
     enable :sessions
+
+    configure :development do
+      require 'byebug'
+    end
 
     def config
       @config ||= Config.new
