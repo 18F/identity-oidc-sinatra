@@ -1,10 +1,10 @@
 <a class="usa-skipnav" href="#main-content">Skip to main content</a>
 <div class="py1 bg-maroon white fs-12p line-height-1 center">
-  FAKE Do not use real personal information (demo purposes only) FAKE
+  TEST Do not use real personal information (demo purposes only) TEST
 </div>
 <div class="py1 bg-navy white fs-12p line-height-1 center">
   <img class="mr1 align-bottom" src="/assets/img/us-flag.png" alt="U.S. flag" width="18" height="12">
-  A FAKE website of the United States government
+  A DEMO website of the United States government
 </div>
 <div class="usa-overlay"></div>
 <header class="usa-header usa-header--extended" role="banner">
@@ -75,29 +75,6 @@
             </a>
           </div>
         </div>
-        <% if userinfo %>
-          <div class="usa-nav__secondary userinfo">
-            <div class="p2 clearfix bg-white">
-              <span>Received user info:</span>
-                <% case userinfo.fetch('acr')
-                     when 'http://idmanagement.gov/ns/assurance/loa/3' %>
-                  <span>Login type: <strong>LOA3</strong></span>
-                  <span class="ml1 mr1">|</span>
-                  <span>SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong></span>
-                <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
-                  <span>Login type: <strong>LOA1</strong></span>
-                <% else %>
-                  <span>Login type: <strong>Unexpected ACR: <%= userinfo.fetch('acr') %></strong></span>
-                <% end %>
-              <ul>
-              <% userinfo.each_pair do |key, val| %>
-                <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
-                <li><pre><%= key.inspect %>: <%= val.inspect %></pre></li>
-              <% end %>
-              </ul>
-            </div>
-          </div>
-        <% end %>
       <% else %>
         <div class="usa-nav__secondary">
           <ul class="usa-nav__secondary-links sign-in-type-wrap">
@@ -141,6 +118,29 @@
         <% end %>
       </div>
     </div>
+        <% if userinfo %>
+          <div class="userinfo">
+            <div class="p2 clearfix bg-white fg-black">
+              <span>Received user info:</span>
+                <% case userinfo.fetch('acr')
+                     when 'http://idmanagement.gov/ns/assurance/loa/3' %>
+                  <span>Login type: <strong>LOA3</strong></span>
+                  <span class="ml1 mr1">|</span>
+                  <span>SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong></span>
+                <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
+                  <span>Login type: <strong>LOA1</strong></span>
+                <% else %>
+                  <span>Login type: <strong>Unexpected ACR: <%= userinfo.fetch('acr') %></strong></span>
+                <% end %>
+              <ul>
+              <% userinfo.each_pair do |key, val| %>
+                <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
+                <li><pre><%= key.inspect %>: <%= val.inspect %></pre></li>
+              <% end %>
+              </ul>
+            </div>
+          </div>
+        <% end %>
   </section>
   <section class="grid-container usa-section">
     <div class="grid-row grid-gap">
