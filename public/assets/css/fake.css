@@ -33,11 +33,21 @@
 }
 
 .userinfo {
-  top: 100px;
-  right: 40px;
+  border: 1px solid black;
+  color: #000000;
+  font-size: 0.6em;
+  margin-top: .5rem;
+  position: absolute;
+  right: 360px;
+  top: 285px;
 }
 .userinfo pre {
   margin: 0;
+}
+@media (max-width: 63.99em) {
+  .userinfo {
+    position: initial;
+  }
 }
 .fright {
   float: right;
