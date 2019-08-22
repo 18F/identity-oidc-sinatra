@@ -52,3 +52,11 @@
 .fright {
   float: right;
 }
+.source-code-link img {
+  float: left;
+}
+.source-code-link span {
+  float: left;
+  margin-top: 20px;
+  margin-left: 10px;
+}
