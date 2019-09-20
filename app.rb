@@ -29,6 +29,12 @@ module LoginGov::OidcSinatra
       require 'byebug'
     end
 
+    if LoginGov::Hostdata.in_datacenter?
+      logger = Logger.new(File.open("/srv/sp-oidc-sinatra/shared/log/production.log", 'a'))
+      logger.level = Logger::DEBUG
+      set :logger, logger
+    end
+
     def config
       @config ||= Config.new
     end
