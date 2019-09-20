@@ -30,9 +30,12 @@ module LoginGov::OidcSinatra
     end
 
     if LoginGov::Hostdata.in_datacenter?
-      logger = Logger.new(File.open("/srv/sp-oidc-sinatra/shared/log/production.log", 'a'))
-      logger.level = Logger::DEBUG
-      set :logger, logger
+      configure do
+        enable :logging
+        file = File.new("/srv/sp-oidc-sinatra/shared/log/production.log", 'a+')
+        file.sync = true
+        use Rack::CommonLogger, file
+      end
     end
 
     def config
