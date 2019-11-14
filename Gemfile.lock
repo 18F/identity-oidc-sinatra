@@ -79,7 +79,7 @@ GEM
     minitest (5.11.3)
     multi_xml (0.6.0)
     mustermann (1.0.3)
-    nokogiri (1.10.1)
+    nokogiri (1.10.4)
       mini_portile2 (~> 2.4.0)
     parallel (1.14.0)
     parser (2.6.0.0)
