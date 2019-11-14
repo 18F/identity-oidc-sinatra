@@ -11,7 +11,7 @@ gem 'aws-sdk-secretsmanager', '~> 1.21'
 gem 'erubi', '~> 1.8'
 gem 'httparty', '~> 0.16'
 gem 'identity-hostdata', github: '18F/identity-hostdata', branch: 'master'
-gem 'json-jwt', '~> 1.9.4'
+gem 'json-jwt', '~> 1.11.0'
 gem 'jwt', '~> 2.1'
 gem 'sinatra', '~> 2.0', '>= 2.0.2'
 
