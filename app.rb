@@ -29,14 +29,14 @@ module LoginGov::OidcSinatra
       require 'byebug'
     end
 
-    if LoginGov::Hostdata.in_datacenter?
-      configure do
-        enable :logging
-        file = File.new("/srv/sp-oidc-sinatra/shared/log/production.log", 'a+')
-        file.sync = true
-        use Rack::CommonLogger, file
-      end
-    end
+#    if LoginGov::Hostdata.in_datacenter?
+#      configure do
+#        enable :logging
+#        file = File.new("/srv/sp-oidc-sinatra/shared/log/production.log", 'a+')
+#        file.sync = true
+#        use Rack::CommonLogger, file
+#      end
+#    end
 
     def config
       @config ||= Config.new

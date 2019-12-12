@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'login_gov/hostdata'
+# require 'login_gov/hostdata'
 require 'aws-sdk-secretsmanager'
 
-module LoginGov::OidcSinatra
+module LoginGov
+  module OidcSinatra
   # Class holding configuration for this sample app. Defaults come from
   # `#default_config`, with keys overridden by data from
   # `config/application.yml` if it exists.
@@ -14,7 +15,6 @@ module LoginGov::OidcSinatra
       @config = default_config
 
       config_file ||= File.dirname(__FILE__) + '/config/application.yml'
-
       if File.exist?(config_file)
         # STDERR.puts("Loading config from #{config_file.inspect}")
         @config.merge!(YAML.safe_load(File.read(config_file)))
@@ -56,31 +56,26 @@ module LoginGov::OidcSinatra
     #
     def default_config
       data = {
-        'acr_values' => 'http://idmanagement.gov/ns/assurance/loa/1',
-        'client_id' => 'urn:gov:gsa:openidconnect:sp:sinatra',
+        'acr_values'   => ENV['acr_values']   || 'http://idmanagement.gov/ns/assurance/ial/1',
+        'client_id'    => ENV['client_id']    || 'urn:gov:gsa:openidconnect:sp:sinatra',
+        'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
+        'redact_ssn'   => true,
       }
 
-      if LoginGov::Hostdata.in_datacenter?
-        # EC2 deployment defaults
+      # EC2 deployment defaults
 
-        env = LoginGov::Hostdata.env
-        domain = LoginGov::Hostdata.domain
+      env = ENV['idp_environment'] || 'int'
+      domain = ENV['idp_domain'] || 'identitysandbox.gov'
 
+      data['idp_url'] = ENV['idp_url']
+      unless data['idp_url']
         if env == 'prod'
           data['idp_url'] = "https://secure.#{domain}"
         else
           data['idp_url'] = "https://idp.#{env}.#{domain}"
         end
-        data['redirect_uri'] = "https://sp-oidc-sinatra.#{env}.#{domain}/"
-        data['sp_private_key_path'] = "aws-secretsmanager:#{env}/sp-oidc-sinatra/oidc.key"
-        data['redact_ssn'] = true
-      else
-        # local dev defaults
-        data['idp_url'] = 'http://localhost:3000'
-        data['redirect_uri'] = 'http://localhost:9292/'
-        data['sp_private_key_path'] = demo_private_key_path
-        data['redact_ssn'] = false
       end
+      data['sp_private_key_path'] = ENV['sp_private_key_path'] || "aws-secretsmanager:#{env}/sp-oidc-sinatra/oidc.key"
 
       data
     end
@@ -92,18 +87,18 @@ module LoginGov::OidcSinatra
         secret_id = path.split(':', 2).fetch(1)
 
         # Set region using EC2 metadata if we're in EC2
-        if LoginGov::Hostdata.in_datacenter?
-          ec2 = LoginGov::Hostdata::EC2.load
-          opts = { region: ec2.region }
-        else
+#        if LoginGov::Hostdata.in_datacenter?
+#          ec2 = LoginGov::Hostdata::EC2.load
+#          opts = { region: ec2.region }
+#        else
           opts = {}
-        end
+#        end
 
         smc = Aws::SecretsManager::Client.new(opts)
         begin
           return smc.get_secret_value(secret_id: secret_id).secret_string
         rescue Aws::SecretsManager::Errors::ResourceNotFoundException
-          if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
+          if ENV['deployed'] # LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
             raise
           end
         end
@@ -116,11 +111,12 @@ module LoginGov::OidcSinatra
     end
 
     def demo_private_key_path
-      if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
-        raise 'Refusing to use demo key in production'
-      end
+#      if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
+#        raise 'Refusing to use demo key in production'
+#      end
 
       File.dirname(__FILE__) + '/config/demo_sp.key'
     end
   end
+end
 end
