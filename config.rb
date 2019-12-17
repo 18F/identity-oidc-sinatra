@@ -45,7 +45,7 @@ module LoginGov
     def sp_private_key
       return @sp_private_key if @sp_private_key
 
-      key = get_sp_private_key_raw(@config.fetch('sp_private_key_path'))
+      key = ENV['sp_private_key'] || get_sp_private_key_raw(@config.fetch('sp_private_key_path'))
       @sp_private_key = OpenSSL::PKey::RSA.new(key)
     end
 
@@ -59,6 +59,7 @@ module LoginGov
         'acr_values'   => ENV['acr_values']   || 'http://idmanagement.gov/ns/assurance/ial/1',
         'client_id'    => ENV['client_id']    || 'urn:gov:gsa:openidconnect:sp:sinatra',
         'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
+        'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
         'redact_ssn'   => true,
       }
 
@@ -75,7 +76,7 @@ module LoginGov
           data['idp_url'] = "https://idp.#{env}.#{domain}"
         end
       end
-      data['sp_private_key_path'] = ENV['sp_private_key_path'] || "aws-secretsmanager:#{env}/sp-oidc-sinatra/oidc.key"
+      data['sp_private_key'] = ENV['sp_private_key']
 
       data
     end
