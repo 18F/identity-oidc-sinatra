@@ -86,20 +86,12 @@ module LoginGov
     def get_sp_private_key_raw(path)
       if path.start_with?('aws-secretsmanager:')
         secret_id = path.split(':', 2).fetch(1)
-
-        # Set region using EC2 metadata if we're in EC2
-#        if LoginGov::Hostdata.in_datacenter?
-#          ec2 = LoginGov::Hostdata::EC2.load
-#          opts = { region: ec2.region }
-#        else
-          opts = {}
-#        end
-
+        opts = {}
         smc = Aws::SecretsManager::Client.new(opts)
         begin
           return smc.get_secret_value(secret_id: secret_id).secret_string
         rescue Aws::SecretsManager::Errors::ResourceNotFoundException
-          if ENV['deployed'] # LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
+          if ENV['deployed']
             raise
           end
         end
@@ -112,10 +104,6 @@ module LoginGov
     end
 
     def demo_private_key_path
-#      if LoginGov::Hostdata.domain == 'login.gov' || LoginGov::Hostdata.env == 'prod'
-#        raise 'Refusing to use demo key in production'
-#      end
-
       File.dirname(__FILE__) + '/config/demo_sp.key'
     end
   end
