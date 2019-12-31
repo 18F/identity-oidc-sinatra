@@ -21,6 +21,7 @@ jobs:
           command: |
             gem install bundler
             bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
+            cp .env.example .env
 
       # Store bundle cache
       - save-cache:
