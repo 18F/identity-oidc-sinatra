@@ -10,6 +10,7 @@ all: check
 
 setup:
 	bundle check || bundle install
+	cp .env.example .env
 
 check: lint test
 

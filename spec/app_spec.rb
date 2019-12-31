@@ -18,9 +18,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         jwks_uri: jwks_uri,
         end_session_endpoint: end_session_endpoint,
       }.to_json)
-
-    # use the default local dev config
-    allow(LoginGov::Hostdata).to receive(:in_datacenter?).and_return(false)
   end
 
   context '/' do
