@@ -13,6 +13,7 @@ gem 'erubi', '~> 1.8'
 gem 'httparty', '~> 0.16'
 gem 'json-jwt', '~> 1.11.0'
 gem 'jwt', '~> 2.1'
+gem 'rake'
 gem 'sinatra', '~> 2.0', '>= 2.0.2'
 
 group :development do

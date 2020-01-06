@@ -22,6 +22,7 @@ jobs:
             gem install bundler
             bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
             cp .env.example .env
+            bundle exec rake login:deploy_json
 
       # Store bundle cache
       - save-cache:
@@ -56,6 +57,7 @@ jobs:
           command: |
             gem install bundler
             bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
+            bundle exec rake login:deploy_json
 
       - run:
           name: Install cf cli

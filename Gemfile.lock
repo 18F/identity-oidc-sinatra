@@ -85,6 +85,7 @@ GEM
     rack-test (1.1.0)
       rack (>= 1.0, < 3)
     rainbow (3.0.0)
+    rake (13.0.1)
     reek (5.3.1)
       codeclimate-engine-rb (~> 0.4.0)
       kwalify (~> 0.7.0)
@@ -151,6 +152,7 @@ DEPENDENCIES
   nokogiri (~> 1.10)
   pry-byebug
   rack-test
+  rake
   reek
   rspec (~> 3.5.0)
   rubocop

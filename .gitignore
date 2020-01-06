@@ -8,3 +8,4 @@
 .byebug_history
 /log
 .env
+public/api/deploy.json
