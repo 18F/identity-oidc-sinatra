@@ -43,14 +43,15 @@ module LoginGov::OidcSinatra
         userinfo = session.delete(:userinfo)
 
         erb :index, locals: {
-          ial_url: ial_url,
-          ial1_link_class: ial1_link_class,
-          ial2_link_class: ial2_link_class,
-          login_msg: login_msg,
-          logout_msg: logout_msg,
-          user_email: user_email,
-          logout_uri: logout_uri,
-          userinfo: userinfo,
+            ial_url: ial_url,
+            ial1_link_class: ial1_link_class,
+            ial2_link_class: ial2_link_class,
+            ialmax_link_class: ialmax_link_class,
+            login_msg: login_msg,
+            logout_msg: logout_msg,
+            user_email: user_email,
+            logout_uri: logout_uri,
+            userinfo: userinfo,
         }
       rescue AppError => err
         [500, erb(:errors, locals: { error: err.message })]
@@ -110,7 +111,7 @@ module LoginGov::OidcSinatra
       openid_configuration[:authorization_endpoint] + '?' + {
         client_id: config.client_id,
         response_type: 'code',
-        acr_values: 'http://idmanagement.gov/ns/assurance/loa/' + loa.to_s,
+        acr_values: 'http://idmanagement.gov/ns/assurance/' + (loa.zero? ? 'ial/0' : "loa/#{loa}"),
         scope: scopes_for(loa),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
@@ -121,6 +122,8 @@ module LoginGov::OidcSinatra
 
     def scopes_for(loa)
       case loa
+      when 0
+        'openid email social_security_number'
       when 1
         'openid email'
       when 3
@@ -217,6 +220,7 @@ module LoginGov::OidcSinatra
 
     def ial_url
       return authorization_url(3) if params[:ial] == '2'
+      return authorization_url(0) if params[:ial] == '0'
 
       authorization_url(1)
     end
@@ -229,6 +233,12 @@ module LoginGov::OidcSinatra
 
     def ial2_link_class
       return 'text-underline' if params[:ial] == '2'
+
+      nil
+    end
+
+    def ialmax_link_class
+      return 'text-underline' if params[:ial] == 'max'
 
       nil
     end
