@@ -220,9 +220,7 @@ module LoginGov::OidcSinatra
 
     def ial_url
       return authorization_url(3) if params[:ial] == '2'
-      return authorization_url(0) if params[:ial] == '0'
-
-      authorization_url(1)
+      authorization_url(params[:ial].to_i)
     end
 
     def ial1_link_class
