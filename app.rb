@@ -111,7 +111,8 @@ module LoginGov::OidcSinatra
       openid_configuration[:authorization_endpoint] + '?' + {
         client_id: config.client_id,
         response_type: 'code',
-        acr_values: 'http://idmanagement.gov/ns/assurance/' + (loa.zero? ? 'ial/0' : "loa/#{loa}"),
+        acr_values: 'http://idmanagement.gov/ns/assurance/' +
+            (loa.zero? ? 'ial/0' : "loa/#{loa.to_i}"),
         scope: scopes_for(loa),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
