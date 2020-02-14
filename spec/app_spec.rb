@@ -71,6 +71,14 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
+    it 'renders ialmax sign in link if loa param is 0' do
+      get '/?ial=0'
+
+      expect(last_response.body).to include(
+        'scope=openid+email+social_security_number'
+      )
+    end
+
     it 'renders loa1 sign in link if loa param is nil' do
       get '/'
 

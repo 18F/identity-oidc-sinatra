@@ -220,7 +220,7 @@ module LoginGov::OidcSinatra
 
     def ial_url
       return authorization_url(3) if params[:ial] == '2'
-      authorization_url(0) if params[:ial] == '0'
+      return authorization_url(0) if params[:ial] == '0'
       authorization_url(1)
     end
 
