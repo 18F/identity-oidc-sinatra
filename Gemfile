@@ -14,7 +14,7 @@ gem 'httparty', '~> 0.16'
 gem 'json-jwt', '~> 1.11.0'
 gem 'jwt', '~> 2.1'
 gem 'rake'
-gem 'sinatra', '~> 2.0', '>= 2.0.2'
+gem 'sinatra', '~> 2.0', '>= 2.0.5'
 
 group :development do
   gem 'pry-byebug'
@@ -25,7 +25,7 @@ end
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
   gem 'nokogiri', '~> 1.10'
-  gem 'rack-test'
+  gem 'rack-test', '>= 1.1.0'
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'
 end
