@@ -6,7 +6,7 @@ source 'https://rubygems.org'
 
 ruby '~> 2.6.5'
 
-gem 'activesupport', '~> 5.2'
+gem 'activesupport', '~> 5.2', '>= 5.2.4.3'
 gem 'aws-sdk-secretsmanager', '~> 1.21'
 gem 'dotenv'
 gem 'erubi', '~> 1.8'
