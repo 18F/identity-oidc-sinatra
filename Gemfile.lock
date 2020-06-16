@@ -64,7 +64,8 @@ GEM
     mini_portile2 (2.4.0)
     minitest (5.14.1)
     multi_xml (0.6.0)
-    mustermann (1.0.3)
+    mustermann (1.1.1)
+      ruby2_keywords (~> 0.0.1)
     nokogiri (1.10.8)
       mini_portile2 (~> 2.4.0)
     parallel (1.14.0)
@@ -79,8 +80,8 @@ GEM
       pry (~> 0.10)
     psych (3.1.0)
     public_suffix (3.0.3)
-    rack (2.0.8)
-    rack-protection (2.0.5)
+    rack (2.2.3)
+    rack-protection (2.0.8.1)
       rack
     rack-test (1.1.0)
       rack (>= 1.0, < 3)
@@ -115,14 +116,15 @@ GEM
       ruby-progressbar (~> 1.7)
       unicode-display_width (~> 1.4.0)
     ruby-progressbar (1.10.0)
+    ruby2_keywords (0.0.2)
     safe_yaml (1.0.5)
-    sinatra (2.0.5)
+    sinatra (2.0.8.1)
       mustermann (~> 1.0)
       rack (~> 2.0)
-      rack-protection (= 2.0.5)
+      rack-protection (= 2.0.8.1)
       tilt (~> 2.0)
     thread_safe (0.3.6)
-    tilt (2.0.9)
+    tilt (2.0.10)
     tzinfo (1.2.7)
       thread_safe (~> 0.1)
     unicode-display_width (1.4.1)
@@ -151,12 +153,12 @@ DEPENDENCIES
   jwt (~> 2.1)
   nokogiri (~> 1.10)
   pry-byebug
-  rack-test
+  rack-test (>= 1.1.0)
   rake
   reek
   rspec (~> 3.5.0)
   rubocop
-  sinatra (~> 2.0, >= 2.0.2)
+  sinatra (~> 2.0, >= 2.0.5)
   webmock
 
 RUBY VERSION
