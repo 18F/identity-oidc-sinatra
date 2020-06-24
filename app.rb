@@ -107,12 +107,13 @@ module LoginGov::OidcSinatra
 
     private
 
-    def authorization_url(loa)
+    def authorization_url(ial)
       openid_configuration[:authorization_endpoint] + '?' + {
         client_id: config.client_id,
         response_type: 'code',
-        acr_values: 'http://idmanagement.gov/ns/assurance/' + (loa.zero? ? 'ial/0' : "loa/#{loa}"),
-        scope: scopes_for(loa),
+        acr_values: "http://idmanagement.gov/ns/assurance/ial/#{ial} " +
+                    'http://idmanagement.gov/ns/assurance/aal/3',
+        scope: scopes_for(ial),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
         nonce: random_value,
@@ -120,16 +121,16 @@ module LoginGov::OidcSinatra
       }.to_query
     end
 
-    def scopes_for(loa)
-      case loa
+    def scopes_for(ial)
+      case ial
       when 0
         'openid email social_security_number'
       when 1
         'openid email'
-      when 3
+      when 2
         'openid email profile social_security_number phone'
       else
-        raise ArgumentError.new("Unexpected LOA: #{loa.inspect}")
+        raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
       end
     end
 
@@ -219,9 +220,8 @@ module LoginGov::OidcSinatra
     end
 
     def ial_url
-      return authorization_url(3) if params[:ial] == '2'
-      return authorization_url(0) if params[:ial] == '0'
-      authorization_url(1)
+      params[:ial] ||= 1
+      authorization_url(params[:ial])
     end
 
     def ial1_link_class
