@@ -1,6 +1,7 @@
 require 'spec_helper'
 require 'nokogiri'
 require 'securerandom'
+require 'cgi'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
@@ -52,44 +53,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
-    it 'renders loa3 sign in link if loa param is 3' do
-      get '/?ial=2'
-
-      expect(last_response.body).to include(
-        'scope=openid+email+profile+social_security_number+phone'
-      )
-    end
-
-    it 'renders loa1 sign in link if loa param is 1' do
-      get '/?ial=1'
-
-      expect(last_response.body).to include(
-        'scope=openid+email'
-      )
-      expect(last_response.body).to_not include(
-        'scope=openid+email+profile+social_security_number+phone'
-      )
-    end
-
-    it 'renders ialmax sign in link if loa param is 0' do
-      get '/?ial=0'
-
-      expect(last_response.body).to include(
-        'scope=openid+email+social_security_number'
-      )
-    end
-
-    it 'renders loa1 sign in link if loa param is nil' do
-      get '/'
-
-      expect(last_response.body).to include(
-        'scope=openid+email'
-      )
-      expect(last_response.body).to_not include(
-        'scope=openid+email+profile+social_security_number+phone'
-      )
-    end
-
     it 'renders an error if the app fails to get oidc configuration' do
       stub = stub_request(:get, "#{host}/.well-known/openid-configuration").
              to_return(body: '', status: 400)
@@ -100,6 +63,77 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include(error_string)
       expect(stub).to have_been_requested.once
       expect(last_response.status).to eq 500
+    end
+  end
+
+  context '/auth/request' do
+    it 'redirects to an ial1 sign in link if loa param is nil' do
+      get '/auth/request'
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.location).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'redirects to an ial2 signin if the ial is 2' do
+      get '/auth/request?ial=2'
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'redirects to an ial1 sign in link if loa param is 1' do
+      get '/auth/request?ial=1'
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to include(
+        'scope=openid+email'
+      )
+      expect(last_response.location).to_not include(
+        'scope=openid+email+profile+social_security_number+phone'
+      )
+    end
+
+    it 'redirects to an ialmax sign in link if ial param is 0' do
+      get '/auth/request?ial=0'
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to include(
+        'scope=openid+email+social_security_number'
+      )
+    end
+
+    it 'redirects to an ial2 strict sign in link if ial param is 2-strict' do
+      get '/auth/request?ial=2-strict'
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        '/ial/2?strict=true'
+      )
+    end
+
+    it 'redirects to an aal3 sign in link if ial param is 3' do
+      get '/auth/request?aal=3'
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        '/aal/3'
+      )
+    end
+
+    it 'redirects to an aal3 sign in link if ial param is 3' do
+      get '/auth/request?aal=3-hspd12'
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        '/aal/3?hspd12=true'
+      )
     end
   end
 

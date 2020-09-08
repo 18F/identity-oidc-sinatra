@@ -12,6 +12,7 @@ require 'openssl'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
+require 'logger'
 
 require_relative './config'
 
@@ -23,6 +24,7 @@ module LoginGov::OidcSinatra
     # Auto escape parameters in ERB.
     # Use `<%=` to escape HTML, or use `<%==` to inject unescaped raw HTML.
     set :erb, escape_html: true
+    set :logger, Logger.new(STDOUT)
 
     enable :sessions
 
@@ -58,6 +60,14 @@ module LoginGov::OidcSinatra
       rescue Errno::ECONNREFUSED => err
         [500, erb(:errors, locals: { error: err.inspect })]
       end
+    end
+
+    get '/auth/request' do
+      idp_url = authorization_url(ial: params[:ial], aal: params[:aal])
+
+      logger.info("Redirecting to #{idp_url}")
+
+      redirect to(idp_url)
     end
 
     get '/auth/result' do
@@ -107,12 +117,12 @@ module LoginGov::OidcSinatra
 
     private
 
-    def authorization_url(loa)
+    def authorization_url(ial:, aal: nil)
       openid_configuration[:authorization_endpoint] + '?' + {
         client_id: config.client_id,
         response_type: 'code',
-        acr_values: 'http://idmanagement.gov/ns/assurance/' + (loa.zero? ? 'ial/0' : "loa/#{loa}"),
-        scope: scopes_for(loa),
+        acr_values: acr_values(ial: ial, aal: aal),
+        scope: scopes_for(ial),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
         nonce: random_value,
@@ -120,17 +130,41 @@ module LoginGov::OidcSinatra
       }.to_query
     end
 
-    def scopes_for(loa)
-      case loa
+    def scopes_for(ial)
+      case ial.to_i
       when 0
         'openid email social_security_number'
       when 1
         'openid email'
-      when 3
+      when 2
         'openid email profile social_security_number phone'
       else
-        raise ArgumentError.new("Unexpected LOA: #{loa.inspect}")
+        raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
       end
+    end
+
+    def acr_values(ial:, aal:)
+      values = []
+
+      values << case ial
+      when nil, '', '1'
+        'http://idmanagement.gov/ns/assurance/ial/1'
+      when '2'
+        'http://idmanagement.gov/ns/assurance/ial/2'
+      when '2-strict'
+        'http://idmanagement.gov/ns/assurance/ial/2?strict=true'
+      when '0'
+        'http://idmanagement.gov/ns/assurance/ial/0'
+      end
+
+      values << case aal
+      when '3'
+        'http://idmanagement.gov/ns/assurance/aal/3'
+      when '3-hspd12'
+        'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true'
+      end
+
+      values.join(' ')
     end
 
     def openid_configuration
@@ -219,9 +253,7 @@ module LoginGov::OidcSinatra
     end
 
     def ial_url
-      return authorization_url(3) if params[:ial] == '2'
-      return authorization_url(0) if params[:ial] == '0'
-      authorization_url(1)
+      authorization_url(ial: '1')
     end
 
     def ial1_link_class
