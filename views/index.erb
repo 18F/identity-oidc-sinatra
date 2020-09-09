@@ -90,19 +90,19 @@
               <details class="details-popup display-inline-block float-right">
                 <summary class="float-right">Options</summary>
 
-                <label class="usa-label">
+                <label class="usa-label" for="aal">
                   Authentication Assurance Level (AAL)
                 </label>
-                <select name="aal" class="usa-select">
+                <select name="aal" id="aal" class="usa-select">
                   <option value="">Default</option>
                   <option value="3">AAL 3</option>
                   <option value="3-hspd12">HSPD12 required</option>
                 </select>
 
-                <label class="usa-label">
+                <label class="usa-label" for="ial">
                   Identity Assurance Level (IAL)
                 </label>
-                <select name="ial" class="usa-select">
+                <select name="ial" id="ial" class="usa-select">
                   <% [
                     ['1', 'IAL 1 (Default)'],
                     ['2', 'IAL  2'],
