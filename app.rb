@@ -47,9 +47,6 @@ module LoginGov::OidcSinatra
         erb :index, locals: {
             ial: params[:ial],
             ial_url: authorization_url(ial: params[:ial]),
-            ial1_link_class: ial1_link_class,
-            ial2_link_class: ial2_link_class,
-            ialmax_link_class: ialmax_link_class,
             login_msg: login_msg,
             logout_msg: logout_msg,
             user_email: user_email,
@@ -251,24 +248,6 @@ module LoginGov::OidcSinatra
       end
 
       ssn
-    end
-
-    def ial1_link_class
-      return 'text-underline' unless params[:ial] == '2'
-
-      nil
-    end
-
-    def ial2_link_class
-      return 'text-underline' if params[:ial] == '2'
-
-      nil
-    end
-
-    def ialmax_link_class
-      return 'text-underline' if params[:ial] == 'max'
-
-      nil
     end
   end
 end
