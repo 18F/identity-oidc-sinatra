@@ -42,6 +42,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(auth_uri_params[:state].length).to be >= 32
     end
 
+    it 'pre-fills IAL2 if the URL has ?ial=2 (used in smoke tests)' do
+      get '/?ial=2'
+
+      expect(last_response).to be_ok
+
+      doc = Nokogiri::HTML(last_response.body)
+      ial2_option = doc.at("select[name=ial] option[value=2]")
+      expect(ial2_option[:selected]).to be
+    end
+
     it 'renders an error if basic auth credentials are wrong' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
         to_return(body: '', status: 401)
