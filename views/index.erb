@@ -103,10 +103,18 @@
                   Identity Assurance Level (IAL)
                 </label>
                 <select name="ial" class="usa-select">
-                  <option value="1">IAL 1 (Default)</option>
-                  <option value="2">IAL 2</option>
-                  <option value="2-strict">IAL 2 (strict)</option>
-                  <option value="0">IAL Max</option>
+                  <% [
+                    ['1', 'IAL 1 (Default)'],
+                    ['2', 'IAL  2'],
+                    ['2-strict', 'IAL 2 (strict)'],
+                    ['0', 'IAL Max'],
+                  ].each do |value, label| %>
+                    <option value="<%= value %>"
+                            <%= 'selected="true"' if ial == value %>
+                            >
+                      <%= label %>
+                    </option>
+                  <% end %>
                 </select>
               </details>
             </div>

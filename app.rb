@@ -45,7 +45,8 @@ module LoginGov::OidcSinatra
         userinfo = session.delete(:userinfo)
 
         erb :index, locals: {
-            ial_url: ial_url,
+            ial: params[:ial],
+            ial_url: authorization_url(ial: params[:ial]),
             ial1_link_class: ial1_link_class,
             ial2_link_class: ial2_link_class,
             ialmax_link_class: ialmax_link_class,
@@ -250,10 +251,6 @@ module LoginGov::OidcSinatra
       end
 
       ssn
-    end
-
-    def ial_url
-      authorization_url(ial: '1')
     end
 
     def ial1_link_class
