@@ -46,7 +46,8 @@ module LoginGov::OidcSinatra
 
         erb :index, locals: {
             ial: params[:ial],
-            ial_url: authorization_url(ial: params[:ial]),
+            aal: params[:aal],
+            ial_url: authorization_url(ial: params[:ial], aal: params[:aal]),
             login_msg: login_msg,
             logout_msg: logout_msg,
             user_email: user_email,

@@ -52,6 +52,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(ial2_option[:selected]).to be
     end
 
+    it 'pre-fills AAL3 if the URL has ?aal=3' do
+      get '/?aal=3'
+
+      expect(last_response).to be_ok
+
+      doc = Nokogiri::HTML(last_response.body)
+      ial2_option = doc.at("select[name=aal] option[value=3]")
+      expect(ial2_option[:selected]).to be
+    end
+
     it 'renders an error if basic auth credentials are wrong' do
       stub_request(:get, "#{host}/.well-known/openid-configuration").
         to_return(body: '', status: 401)
