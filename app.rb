@@ -15,6 +15,7 @@ require 'time'
 require 'logger'
 
 require_relative './config'
+require_relative './openid_configuration'
 
 module LoginGov::OidcSinatra
   class AppError < StandardError; end
@@ -167,25 +168,11 @@ module LoginGov::OidcSinatra
     end
 
     def openid_configuration
-      @openid_configuration ||= begin
-        response = openid_configuration_response
-        if response.code == 200
-          json(response.body)
-        else
-          msg = 'Error: Unable to retrieve OIDC configuration from IdP.'
-          msg += " #{config.idp_url} responded with #{response.code}."
-
-          if response.code == 401
-            msg += ' Perhaps we need to reimplement HTTP Basic Auth.'
-          end
-
-          raise AppError.new(msg)
-        end
+      if config.cache_oidc_config?
+        OpenidConfiguration.cached
+      else
+        OpenidConfiguration.live
       end
-    end
-
-    def openid_configuration_response
-      HTTParty.get(URI.join(config.idp_url, '/.well-known/openid-configuration'))
     end
 
     def token(code)
