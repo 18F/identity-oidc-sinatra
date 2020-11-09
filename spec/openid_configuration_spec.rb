@@ -8,6 +8,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConfiguration do
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
 
+  let(:configuration_uri) { "#{host}/.well-known/openid-configuration" }
+
   before do
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
@@ -29,14 +31,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConfiguration do
   end
 
   describe '#cached' do
-    after(:each) do
-      WebMock.enable!
-    end
     it 'does not make more than one HTTP request' do
       oidc_config = LoginGov::OidcSinatra::OpenidConfiguration.cached
-      WebMock.disable!
       cached_oidc_config = LoginGov::OidcSinatra::OpenidConfiguration.cached
       expect(oidc_config).to eq cached_oidc_config
+      expect(a_request(:get, configuration_uri)).to have_been_made.once
     end
   end
 end
