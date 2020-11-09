@@ -12,6 +12,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
 
   before do
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
         authorization_endpoint: authorization_endpoint,

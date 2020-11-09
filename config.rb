@@ -40,6 +40,10 @@ module LoginGov
         @config.fetch('redact_ssn')
       end
 
+      def cache_oidc_config?
+        @config.fetch('cache_oidc_config')
+      end
+
       # @return [OpenSSL::PKey::RSA]
       def sp_private_key
         return @sp_private_key if @sp_private_key
@@ -60,6 +64,7 @@ module LoginGov
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
           'redact_ssn'   => true,
+          'cache_oidc_config' => true,
         }
 
         # EC2 deployment defaults
