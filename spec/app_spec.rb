@@ -230,12 +230,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(href).to include("id_token_hint=#{id_token}")
     end
 
-    it 'redirects to root when there is an access denied' do
+    it 'redirects to root with an error param when there is an access denied' do
       get '/auth/result', error: 'access_denied'
 
       expect(last_response).to be_redirect
       uri = URI::parse(last_response.location)
       expect(uri.path).to eq('/')
+      expect(uri.query).to eq('error=access_denied')
     end
 
     it 'renders a default error message when no code or explicit error code' do

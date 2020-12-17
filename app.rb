@@ -88,7 +88,7 @@ module LoginGov::OidcSinatra
         error = params[:error] || 'missing callback param: code'
 
         if error == 'access_denied'
-          redirect to('/')
+          redirect to('/?error=access_denied')
         else
           erb :errors, locals: { error: error }
         end
