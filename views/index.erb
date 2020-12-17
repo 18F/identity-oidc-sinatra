@@ -33,6 +33,13 @@
     </div>
   <% end %>
   <div class="usa-navbar">
+    <% if access_denied %>
+      <div class="usa-alert usa-alert--warning">
+        <div class="usa-alert__body">
+          <div class="usa-alert__text">You chose to exit before signing in</div>
+        </div>
+      </div>
+    <% end %>
     <div class="usa-logo" id="extended-logo">
        <em class="usa-logo__text"><a href="/" title="Home" aria-label="Home">OpenID Connect Sinatra Example</a></em>
     </div>

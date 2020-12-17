@@ -237,6 +237,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       uri = URI::parse(last_response.location)
       expect(uri.path).to eq('/')
       expect(uri.query).to eq('error=access_denied')
+      follow_redirect!
+      expect(last_response.body).to include('You chose to exit before signing in')
     end
 
     it 'renders a default error message when no code or explicit error code' do

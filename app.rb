@@ -54,6 +54,7 @@ module LoginGov::OidcSinatra
             user_email: user_email,
             logout_uri: logout_uri,
             userinfo: userinfo,
+            access_denied: params[:error]=='access_denied'
         }
       rescue AppError => err
         [500, erb(:errors, locals: { error: err.message })]
