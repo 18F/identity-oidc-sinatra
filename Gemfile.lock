@@ -153,7 +153,7 @@ DEPENDENCIES
   httparty (~> 0.16)
   json-jwt (~> 1.11.0)
   jwt (~> 2.1)
-  nokogiri (~> 1.11, >= 1.11.0)
+  nokogiri (>= 1.11.0)
   pry-byebug
   rack-test (>= 1.1.0)
   rake
