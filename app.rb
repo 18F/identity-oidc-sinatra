@@ -163,6 +163,8 @@ module LoginGov::OidcSinatra
       end
 
       values << case aal
+      when '2'
+        'http://idmanagement.gov/ns/assurance/aal/2'
       when '3'
         'http://idmanagement.gov/ns/assurance/aal/3'
       when '3-hspd12'
