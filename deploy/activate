@@ -1,3 +1,0 @@
-#!/bin/sh
-
-echo "$0: This activate script is a no-op"
