@@ -4,7 +4,7 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 
 ## Running locally
 
-These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) is also running locally at `http://localhost:3000`. This sample sp is configured to run on `http://localhost:9292`.
+These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) is also running locally at http://localhost:3000 .
 
 1. Set up the environment with:
 
@@ -23,6 +23,8 @@ These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) 
   ```
   $ make test
   ```
+
+This sample service provider is configured to run on http://localhost:9292 by default. Optionally, you can assign a custom hostname or port by passing `HOST=` or `PORT=` environment variables when starting the application server.
 
 ## Contributing
 
