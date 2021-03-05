@@ -4,6 +4,7 @@
 # than one or two lines should live in script files of their own in the
 # bin/ directory.
 
+HOST ?= localhost
 PORT ?= 9292
 
 all: check
@@ -21,7 +22,7 @@ lint:
 	bundle exec reek
 
 run:
-	bundle exec rackup -p $(PORT)
+	bundle exec rackup -p $(PORT) --host ${HOST}
 
 test: $(CONFIG)
 	bundle exec rspec
