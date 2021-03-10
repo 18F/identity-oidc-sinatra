@@ -9,9 +9,20 @@ PORT ?= 9292
 
 all: check
 
-setup:
-	bundle check || bundle install
+.env:
 	cp .env.example .env
+
+public/vendor:
+	mkdir -p public/vendor
+
+install_dependencies:
+	bundle check || bundle install
+	yarn install
+
+copy_vendor: public/vendor
+	cp -R node_modules/uswds/dist public/vendor/uswds
+
+setup: .env install_dependencies copy_vendor
 
 check: lint test
 
