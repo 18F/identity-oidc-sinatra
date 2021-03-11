@@ -13,7 +13,7 @@ jobs:
     steps:
       - checkout
 
-      - restore-cache:
+      - restore_cache:
           key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
 
       - run:
@@ -25,7 +25,7 @@ jobs:
             bundle exec rake login:deploy_json
 
       # Store bundle cache
-      - save-cache:
+      - save_cache:
           key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
           paths:
             - vendor/bundle
