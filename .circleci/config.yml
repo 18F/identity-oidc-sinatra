@@ -2,7 +2,7 @@
 #
 # Check https://circleci.com/docs/2.0/language-ruby/ for more details
 #
-version: 2
+version: 2.1
 jobs:
   build:
     docker:
@@ -46,6 +46,9 @@ jobs:
     docker:
       - image: circleci/ruby:2.6.5
     working_directory: ~/identity-oidc-sinatra
+    parameters:
+      space:
+        type: string
     steps:
       - checkout
 
@@ -69,12 +72,12 @@ jobs:
       - run:
           name: login to cloud.gov
           command: |
-            cf login -a https://api.fr.cloud.gov -u "4fbf18ec-1497-433f-814f-8c175041a6f1" -p $CF_PASS -o "gsa-login-prototyping" -s "int"
+            cf login -a https://api.fr.cloud.gov -u "4fbf18ec-1497-433f-814f-8c175041a6f1" -p $CF_PASS -o "gsa-login-prototyping" -s "<< parameters.space >>"
 
       - run:
           name: deploy to cloud.gov
           command: |
-            cf push int-identity-oidc-sinatra
+            cf push << parameters.space >>-identity-oidc-sinatra
 
       - save_cache:
           key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
@@ -92,3 +95,8 @@ workflows:
           filters:
             branches:
               only: main
+          matrix:
+            parameters:
+              space:
+                - int
+                - dev
