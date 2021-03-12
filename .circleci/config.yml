@@ -3,32 +3,54 @@
 # Check https://circleci.com/docs/2.0/language-ruby/ for more details
 #
 version: 2.1
+
+commands:
+  bundle-yarn-install:
+    steps:
+      - restore_cache:
+          key: identity-oidc-bundle-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install dependencies
+          command: bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
+      - save_cache:
+          key: identity-oidc-bundle-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+      - restore_cache:
+          key: identity-oidc-yarn-{{ checksum "yarn.lock" }}
+      - run:
+          name: Install Yarn
+          command: yarn install --cache-folder ~/.cache/yarn
+      - save_cache:
+          key: identity-oidc-yarn-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+  build-release:
+    steps:
+      - run:
+          name: Create deploy.json
+          command: bundle exec rake login:deploy_json
+      - run:
+          name: Copy vendor dependencies
+          command: make copy_vendor
+
 jobs:
   build:
     docker:
       # Specify the Ruby version you desire here
-      - image: circleci/ruby:2.6.5
+      - image: circleci/ruby:2.6.5-node
 
     working_directory: ~/identity-oidc-sinatra
     steps:
       - checkout
 
-      - restore_cache:
-          key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
+      - bundle-yarn-install
+
+      - build-release
 
       - run:
-          name: Install dependencies
-          command: |
-            gem install bundler
-            bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
-            cp .env.example .env
-            bundle exec rake login:deploy_json
-
-      # Store bundle cache
-      - save_cache:
-          key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
+          name: Copy example environment
+          command: make .env
 
       - run:
           name: Run Tests
@@ -44,7 +66,7 @@ jobs:
 
   deploy:
     docker:
-      - image: circleci/ruby:2.6.5
+      - image: circleci/ruby:2.6.5-node
     working_directory: ~/identity-oidc-sinatra
     parameters:
       space:
@@ -52,15 +74,9 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache:
-          key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
+      - bundle-yarn-install
 
-      - run:
-          name: Install dependencies
-          command: |
-            gem install bundler
-            bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
-            bundle exec rake login:deploy_json
+      - build-release
 
       - run:
           name: Install cf cli
@@ -78,11 +94,6 @@ jobs:
           name: deploy to cloud.gov
           command: |
             cf push << parameters.space >>-identity-oidc-sinatra
-
-      - save_cache:
-          key: identity-oidc-sinatra-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
 
 workflows:
   version: 2
