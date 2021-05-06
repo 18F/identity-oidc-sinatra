@@ -4,7 +4,7 @@ require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
 require 'erubi'
-require 'httparty'
+require 'faraday'
 require 'json'
 require 'json/jwt'
 require 'jwt'
@@ -183,14 +183,12 @@ module LoginGov::OidcSinatra
     end
 
     def token(code)
-      json HTTParty.post(
+      json Faraday.post(
         openid_configuration[:token_endpoint],
-        body: {
-          grant_type: 'authorization_code',
-          code: code,
-          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-          client_assertion: client_assertion_jwt,
-        }
+        grant_type: 'authorization_code',
+        code: code,
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: client_assertion_jwt,
       ).body
     end
 
@@ -227,7 +225,7 @@ module LoginGov::OidcSinatra
 
     def idp_public_key
       certs_response = json(
-        HTTParty.get(openid_configuration[:jwks_uri]).body
+        Faraday.get(openid_configuration[:jwks_uri]).body
       )
       JSON::JWK.new(certs_response[:keys].first).to_key
     end
