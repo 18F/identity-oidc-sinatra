@@ -2,6 +2,7 @@
 
 require 'json'
 require 'aws-sdk-secretsmanager'
+require 'yaml'
 
 module LoginGov
   module OidcSinatra
