@@ -25,7 +25,7 @@ GEM
       descendants_tracker (~> 0.0.4)
       ice_nine (~> 0.11.0)
       thread_safe (~> 0.3, >= 0.3.1)
-    bindata (2.4.7)
+    bindata (2.4.10)
     byebug (11.0.0)
     codeclimate-engine-rb (0.4.1)
       virtus (~> 1.0)
