@@ -182,6 +182,14 @@ module LoginGov::OidcSinatra
       end
     end
 
+    def idp_public_key
+      if config.cache_oidc_config?
+        OpenidConfiguration.cached_idp_public_key(openid_configuration)
+      else
+        OpenidConfiguration.live_idp_public_key(openid_configuration)
+      end
+    end
+
     def token(code)
       json Faraday.post(
         openid_configuration[:token_endpoint],
@@ -221,13 +229,6 @@ module LoginGov::OidcSinatra
 
     def json(response)
       JSON.parse(response.to_s).with_indifferent_access
-    end
-
-    def idp_public_key
-      certs_response = json(
-        Faraday.get(openid_configuration[:jwks_uri]).body
-      )
-      JSON::JWK.new(certs_response[:keys].first).to_key
     end
 
     def random_value
