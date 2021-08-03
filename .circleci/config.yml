@@ -4,14 +4,24 @@
 #
 version: 2.1
 
+executors:
+  ruby_browsers:
+    docker:
+      - image: circleci/ruby:2.7.3-node-browsers
+        environment:
+          BUNDLER_VERSION: 2.2.20
+
 commands:
   bundle-yarn-install:
     steps:
       - restore_cache:
           key: identity-oidc-bundle-{{ checksum "Gemfile.lock" }}
+      - run: gem install bundler --version $BUNDLER_VERSION
       - run:
           name: Install dependencies
-          command: bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
+          command: |
+            bundle check || bundle install --deployment --jobs=4 --retry=3 \
+              --without deploy development doc production --path vendor/bundle
       - save_cache:
           key: identity-oidc-bundle-{{ checksum "Gemfile.lock" }}
           paths:
@@ -36,10 +46,7 @@ commands:
 
 jobs:
   build:
-    docker:
-      # Specify the Ruby version you desire here
-      - image: circleci/ruby:2.7
-
+    executor: ruby_browsers
     working_directory: ~/identity-oidc-sinatra
     steps:
       - checkout
@@ -65,8 +72,7 @@ jobs:
           destination: test-results
 
   deploy:
-    docker:
-      - image: circleci/ruby:2.6.5-node
+    executor: ruby_browsers
     working_directory: ~/identity-oidc-sinatra
     parameters:
       space:
