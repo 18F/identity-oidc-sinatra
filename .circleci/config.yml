@@ -38,7 +38,7 @@ jobs:
   build:
     docker:
       # Specify the Ruby version you desire here
-      - image: circleci/ruby:2.6.5-node
+      - image: circleci/ruby:2.7
 
     working_directory: ~/identity-oidc-sinatra
     steps:
