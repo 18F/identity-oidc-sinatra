@@ -7,7 +7,7 @@ version: 2.1
 executors:
   ruby_browsers:
     docker:
-      - image: circleci/ruby:2.7.3-node-browsers
+      - image: cimg/ruby:2.7.3-browsers
         environment:
           BUNDLER_VERSION: 2.2.20
 
