@@ -96,7 +96,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         'scope=openid+email'
       )
       expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone'
+        'scope=openid+email+profile+social_security_number+phone+address'
       )
     end
 
@@ -105,7 +105,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
-        'scope=openid+email+profile+social_security_number+phone'
+        'scope=openid+email+profile+social_security_number+phone+address'
       )
     end
 
@@ -117,7 +117,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         'scope=openid+email'
       )
       expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone'
+        'scope=openid+email+profile+social_security_number+phone+address'
       )
     end
 
@@ -257,6 +257,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             acr: 'http://idmanagement.gov/ns/assurance/loa/3',
             social_security_number: '012-34-5678',
             phone: '0125551212',
+            address: '123 Main St., Anytown, US 12345'
           },
           idp_private_key,
           'RS256'
@@ -273,6 +274,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to include('012-34-5678')
         expect(last_response.body).to include('0125551212')
         expect(last_response.body).to include('LOA3')
+        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
       end
 
       it 'renders redacted SSN LOA3 data when redaction is enabled' do
@@ -286,6 +288,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to include('###-##-####')
         expect(last_response.body).to include('0125551212')
         expect(last_response.body).to include('LOA3')
+        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
       end
     end
 
@@ -296,6 +299,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             email: email,
             acr: 'http://idmanagement.gov/ns/assurance/loa/3',
             phone: '0125551212',
+            address: '123 Main St., Anytown, US 12345'
           },
           idp_private_key,
           'RS256'
@@ -313,6 +317,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to_not include('###-##-####')
         expect(last_response.body).to include('0125551212')
         expect(last_response.body).to include('LOA3')
+        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
       end
     end
   end
