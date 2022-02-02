@@ -142,7 +142,7 @@ module LoginGov::OidcSinatra
       when 1
         'openid email'
       when 2
-        'openid email profile social_security_number phone'
+        'openid email profile social_security_number phone address'
       else
         raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
       end
