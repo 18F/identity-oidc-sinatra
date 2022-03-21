@@ -1,0 +1,43 @@
+default:
+  image: ruby:2.7.3
+cache:
+  - key:
+      files:
+        - Gemfile.lock
+    paths:
+      - vendor/ruby
+  - key:
+      files:
+        - yarn.lock
+    paths:
+      - .yarn-cache/
+
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/ruby
+    - yarn install --cache-folder ~/.cache/yarn
+
+deploy:
+  stage: deploy
+  image: ruby:2.7.3
+  script:
+    - curl -v -L -o cf-cli_amd64.deb 'https://cli.run.pivotal.io/stable?release=debian64&source=github'
+    - sudo dpkg -i cf-cli_amd64.deb
+    - cf -v
+    - cf login -a https://api.fr.cloud.gov -u "4fbf18ec-1497-433f-814f-8c175041a6f1" -p $CF_PASS -o "gsa-login-prototyping" -s "$SPACE"
+    - cf push $SPACE-identity-oidc-sinatra
+  parallel:
+    matrix:
+      - SPACE: [prod, staging, int, dev, dm]
+
+# Sync from GitHub
+include:
+  project: 'lg/identity-gitlab'
+  ref: 'main'
+  file: '.gitlab-ci-sync.yml'
