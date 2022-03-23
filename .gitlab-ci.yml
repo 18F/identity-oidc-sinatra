@@ -1,10 +1,17 @@
 default:
-  image: ruby:2.7.3
+  image: mitchh/ruby-node-yarn-chrome-chromedriver:3.0.3
+
+.bundle_install: &bundle_install
+  - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/ruby
+
+.yarn_install: &yarn_install
+  - yarn install --cache-folder .yarn-cache/
+
 cache:
-  - key:
-      files:
-        - Gemfile.lock
-    paths:
+  key:
+    files:
+      - Gemfile.lock
+  paths:
       - vendor/ruby
   - key:
       files:
@@ -20,13 +27,14 @@ stages:
 build:
   stage: build
   script:
-    - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/ruby
-    - yarn install --cache-folder ~/.cache/yarn
+    - *bundle_install
+    - *yarn_install
 
 deploy:
   stage: deploy
-  image: ruby:2.7.3
   script:
+    - *bundle_install
+    - *yarn_install
     - curl -v -L -o cf-cli_amd64.deb 'https://cli.run.pivotal.io/stable?release=debian64&source=github'
     - sudo dpkg -i cf-cli_amd64.deb
     - cf -v
