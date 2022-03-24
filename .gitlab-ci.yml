@@ -39,7 +39,7 @@ test:
     - make test
   artifacts:
     paths:
-      -/tmp/test-results
+      - /tmp/test-results
 
 deploy:
   stage: deploy
