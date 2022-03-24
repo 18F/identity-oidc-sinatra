@@ -7,6 +7,10 @@ default:
 .yarn_install: &yarn_install
   - yarn install --cache-folder .yarn-cache/
 
+
+before_script:
+  - bundle config set path 'vendor/ruby'
+
 cache:
   key:
     files:
