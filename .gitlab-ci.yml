@@ -16,8 +16,8 @@ cache:
   key:
     files:
       - yarn.lock
-    paths:
-      - .yarn-cache/
+  paths:
+    - .yarn-cache/
 
 stages:
   - build
