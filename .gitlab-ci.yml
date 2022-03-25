@@ -40,7 +40,6 @@ test:
   script:
     - *bundle_install
     - *yarn_install
-    - make .env
     - make test
   artifacts:
     paths:

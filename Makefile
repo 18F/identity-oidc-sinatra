@@ -35,5 +35,5 @@ lint:
 run:
 	bundle exec rackup -p $(PORT) --host ${HOST}
 
-test: $(CONFIG)
+test: $(CONFIG) .env
 	bundle exec rspec
