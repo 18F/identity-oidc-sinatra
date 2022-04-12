@@ -8,8 +8,6 @@ default:
   - yarn install --cache-folder .yarn-cache/
 
 
-before_script:
-  - bundle config set path 'vendor/ruby'
 
 cache:
   key:
@@ -29,6 +27,8 @@ stages:
   - deploy
 
 build:
+  before_script:
+    - bundle config set path 'vendor/ruby'
   stage: build
   script:
     - *bundle_install
@@ -36,6 +36,8 @@ build:
     - bundle exec rake login:deploy_json
 
 test:
+  before_script:
+    - bundle config set path 'vendor/ruby'
   stage: test
   script:
     - *bundle_install
