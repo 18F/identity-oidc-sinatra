@@ -52,7 +52,6 @@ deploy:
   stage: deploy
   script:
     - cf -v
-    - bundle exec rake login:deploy_json
     - cf login -a https://api.fr.cloud.gov -u "4fbf18ec-1497-433f-814f-8c175041a6f1" -p $CF_PASS -o "gsa-login-prototyping" -s "$SPACE"
     - cf push $SPACE-identity-oidc-sinatra
   parallel:
