@@ -59,8 +59,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_ok
 
       doc = Nokogiri::HTML(last_response.body)
-      ial2_option = doc.at("select[name=aal] option[value=3]")
-      expect(ial2_option[:selected]).to be
+      aal3_option = doc.at("select[name=aal] option[value=3]")
+      expect(aal3_option[:selected]).to be
     end
 
     it 'renders an error if basic auth credentials are wrong' do
@@ -109,7 +109,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
-    it 'redirects to an ial1 sign in link if loa param is 1' do
+    it 'redirects to an ial1 sign in link if ial param is 1' do
       get '/auth/request?ial=1'
 
       expect(last_response).to be_redirect
@@ -136,6 +136,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
         '/ial/2?strict=true'
+      )
+    end
+
+    it 'redirects to an ial1 sign in link if ial param is step-up' do
+      get '/auth/request?ial=step-up'
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to include('scope=openid+email')
+      expect(last_response.location).to_not include(
+        'scope=openid+email+profile+social_security_number+phone+address'
       )
     end
 
