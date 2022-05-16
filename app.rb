@@ -45,10 +45,12 @@ module LoginGov::OidcSinatra
         logout_uri = session[:logout_uri]
         userinfo = session.delete(:userinfo)
 
+        ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+
         erb :index, locals: {
             ial: params[:ial],
             aal: params[:aal],
-            ial_url: authorization_url(session: session, ial: params[:ial], aal: params[:aal]),
+            ial_url: authorization_url(ial: ial, aal: params[:aal]),
             login_msg: login_msg,
             logout_msg: logout_msg,
             user_email: user_email,
@@ -64,7 +66,9 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
-      idp_url = authorization_url(session: session, ial: params[:ial], aal: params[:aal])
+      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+
+      idp_url = authorization_url(ial: ial, aal: params[:aal])
 
       logger.info("Redirecting to #{idp_url}")
 
@@ -107,6 +111,8 @@ module LoginGov::OidcSinatra
       session.delete(:logout_uri)
       session.delete(:userinfo)
       session.delete(:email)
+      session.delete(:step_up_enabled)
+      session.delete(:step_up_aal)
       redirect to('/')
     end
 
@@ -128,12 +134,7 @@ module LoginGov::OidcSinatra
 
     private
 
-    def authorization_url(session:, ial:, aal: nil)
-      if ial == 'step-up'
-        ial = '1'
-        session[:step_up_enabled] = 'true'
-        session[:step_up_aal] = aal
-      end
+    def authorization_url(ial:, aal: nil)
       openid_configuration[:authorization_endpoint] + '?' + {
         client_id: config.client_id,
         response_type: 'code',
@@ -144,6 +145,19 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
       }.to_query
+    end
+
+    def prepare_step_up_flow(session:, ial:, aal: nil)
+      if ial == 'step-up'
+        ial = '1'
+        session[:step_up_enabled] = 'true'
+        session[:step_up_aal] = aal if %r{^\d$}.match?(aal)
+      else
+        session.delete(:step_up_enabled)
+        session.delete(:step_up_aal)
+      end
+
+      ial
     end
 
     def scopes_for(ial)
