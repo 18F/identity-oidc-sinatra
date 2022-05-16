@@ -45,10 +45,12 @@ module LoginGov::OidcSinatra
         logout_uri = session[:logout_uri]
         userinfo = session.delete(:userinfo)
 
+        ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+
         erb :index, locals: {
             ial: params[:ial],
             aal: params[:aal],
-            ial_url: authorization_url(ial: params[:ial], aal: params[:aal]),
+            ial_url: authorization_url(ial: ial, aal: params[:aal]),
             login_msg: login_msg,
             logout_msg: logout_msg,
             user_email: user_email,
@@ -64,7 +66,9 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
-      idp_url = authorization_url(ial: params[:ial], aal: params[:aal])
+      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+
+      idp_url = authorization_url(ial: ial, aal: params[:aal])
 
       logger.info("Redirecting to #{idp_url}")
 
@@ -79,12 +83,18 @@ module LoginGov::OidcSinatra
         id_token = token_response[:id_token]
         userinfo_response = userinfo(id_token)
 
-        session[:login_msg] = 'ok'
-        session[:logout_uri] = logout_uri(token_response[:id_token])
-        session[:userinfo] = userinfo_response
-        session[:email] = session[:userinfo][:email]
+        if session.delete(:step_up_enabled)
+          aal = session.delete(:step_up_aal)
 
-        redirect to('/')
+          redirect to("/auth/request?aal=#{aal}&ial=2")
+        else
+          session[:login_msg] = 'ok'
+          session[:logout_uri] = logout_uri(token_response[:id_token])
+          session[:userinfo] = userinfo_response
+          session[:email] = session[:userinfo][:email]
+
+          redirect to('/')
+        end
       else
         error = params[:error] || 'missing callback param: code'
 
@@ -101,6 +111,8 @@ module LoginGov::OidcSinatra
       session.delete(:logout_uri)
       session.delete(:userinfo)
       session.delete(:email)
+      session.delete(:step_up_enabled)
+      session.delete(:step_up_aal)
       redirect to('/')
     end
 
@@ -133,6 +145,19 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
       }.to_query
+    end
+
+    def prepare_step_up_flow(session:, ial:, aal: nil)
+      if ial == 'step-up'
+        ial = '1'
+        session[:step_up_enabled] = 'true'
+        session[:step_up_aal] = aal if %r{^\d$}.match?(aal)
+      else
+        session.delete(:step_up_enabled)
+        session.delete(:step_up_aal)
+      end
+
+      ial
     end
 
     def scopes_for(ial)
