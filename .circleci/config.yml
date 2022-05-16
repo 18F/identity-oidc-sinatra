@@ -7,9 +7,9 @@ version: 2.1
 executors:
   ruby_browsers:
     docker:
-      - image: cimg/ruby:2.7.3-browsers
+      - image: cimg/ruby:3.0.4-browsers
         environment:
-          BUNDLER_VERSION: 2.2.20
+          BUNDLER_VERSION: 2.3.13
 
 commands:
   bundle-yarn-install:
