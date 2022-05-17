@@ -11,6 +11,7 @@ gem 'erubi', '~> 1.8'
 gem 'faraday'
 gem 'json-jwt', '~> 1.11.0'
 gem 'jwt', '~> 2.1'
+gem 'nokogiri', '>= 1.11.0'
 gem 'rake'
 gem 'sinatra', '~> 2.2'
 
@@ -22,7 +23,6 @@ end
 
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
-  gem 'nokogiri', '>= 1.11.0'
   gem 'rack-test', '>= 1.1.0'
   gem 'rspec', '~> 3.5.0'
   gem 'webmock'
