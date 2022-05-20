@@ -12,6 +12,7 @@ gem 'faraday'
 gem 'json-jwt', '~> 1.11.0'
 gem 'jwt', '~> 2.1'
 gem 'nokogiri', '>= 1.11.0'
+gem 'puma', '~> 5.6'
 gem 'rake'
 gem 'sinatra', '~> 2.2'
 
