@@ -66,6 +66,8 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
+      simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
+
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
 
       idp_url = authorization_url(ial: ial, aal: params[:aal])
@@ -87,6 +89,8 @@ module LoginGov::OidcSinatra
           aal = session.delete(:step_up_aal)
 
           redirect to("/auth/request?aal=#{aal}&ial=2")
+        elsif session.delete(:simulate_csp)
+          redirect to("https://www.example.com/")
         else
           session[:login_msg] = 'ok'
           session[:logout_uri] = logout_uri(token_response[:id_token])
@@ -145,6 +149,14 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
       }.to_query
+    end
+
+    def simulate_csp_issue_if_selected(session:, simulate_csp:)
+      if simulate_csp
+        session[:simulate_csp] = 'true'
+      else
+        session.delete(:simulate_csp)
+      end
     end
 
     def prepare_step_up_flow(session:, ial:, aal: nil)
