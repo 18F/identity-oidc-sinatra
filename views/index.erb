@@ -103,8 +103,8 @@
                 <select name="aal" id="aal" class="usa-select">
                   <% [
                     ['', 'Default'],
-                    ['2', 'AAL 2'],
-                    ['3', 'AAL 3'],
+                    ['2', 'AAL2'],
+                    ['3', 'Phishing-resistant AAL2'],
                     ['3-hspd12', 'HSPD12 required'],
                   ].each do |value, label| %>
                     <option value="<%= value %>"
@@ -116,14 +116,14 @@
                 </select>
 
                 <label class="usa-label" for="ial">
-                  Identity Assurance Level (IAL)
+                  Level of Service
                 </label>
                 <select name="ial" id="ial" class="usa-select">
                   <% [
-                    ['1', 'IAL 1 (Default)'],
-                    ['2', 'IAL  2'],
-                    ['2-strict', 'IAL 2 (strict)'],
-                    ['0', 'IAL Max'],
+                    ['1', 'Authentication only (default)'],
+                    ['2', 'Identity-verified'],
+                    ['2-strict', 'Identity-verified (strict)'],
+                    ['0', 'IALMax'],
                     ['step-up', 'Step-up Flow']
                   ].each do |value, label| %>
                     <option value="<%= value %>"
@@ -133,6 +133,17 @@
                     </option>
                   <% end %>
                 </select>
+                <div class="usa-checkbox">
+                  <input class="usa-checkbox__input"
+                         id="check-simulate_csp"
+                         type="checkbox"
+                         name="simulate_csp"
+                         value="true"
+                  />
+                  <label class="usa-checkbox__label" for="check-simulate_csp">
+                    Simulate CSP Error
+                  </label>
+                </div>
               </details>
             </div>
           </div>
