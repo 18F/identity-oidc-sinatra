@@ -148,6 +148,7 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
+        irs_attempts_api_session_id: random_value,
       }.to_query
     end
 
@@ -261,6 +262,7 @@ module LoginGov::OidcSinatra
         id_token_hint: id_token,
         post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
         state: SecureRandom.hex,
+        irs_attempts_api_session_id: random_value,
       }.to_query
     end
 
