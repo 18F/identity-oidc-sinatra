@@ -25,7 +25,7 @@ end
 group :test do
   gem 'fakefs', require: 'fakefs/safe'
   gem 'rack-test', '>= 1.1.0'
-  gem 'rspec', '~> 3.5.0'
+  gem 'rspec', '~> 3.11'
   gem 'webmock'
 end
 
