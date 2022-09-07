@@ -1,10 +1,11 @@
 namespace :login do
   desc 'generate a generic deploy.json file'
-  task :deploy_json do
+  task deploy_json: :environment do
     puts 'Writing deploy.json'
     data = {
       env: ENV['environment'] || 'unkown',
-      branch: `git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`.chomp[2..-1],
+      branch: `git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`.
+        chomp[2..-1],
       user: 'n/a',
       git_sha: `git rev-parse HEAD`.chomp,
       git_date: Time.at(`git show -s --format=%ct HEAD`.chomp.to_i).iso8601,

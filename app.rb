@@ -31,6 +31,7 @@ module LoginGov::OidcSinatra
 
     configure :development do
       require 'byebug'
+      set :logging, Logger::DEBUG
     end
 
     def config
@@ -56,7 +57,7 @@ module LoginGov::OidcSinatra
             user_email: user_email,
             logout_uri: logout_uri,
             userinfo: userinfo,
-            access_denied: params[:error] == 'access_denied'
+            access_denied: params[:error] == 'access_denied',
         }
       rescue AppError => err
         [500, erb(:errors, locals: { error: err.message })]
@@ -90,7 +91,7 @@ module LoginGov::OidcSinatra
 
           redirect to("/auth/request?aal=#{aal}&ial=2")
         elsif session.delete(:simulate_csp)
-          redirect to("https://www.example.com/")
+          redirect to('https://www.example.com/')
         else
           session[:login_msg] = 'ok'
           session[:logout_uri] = logout_uri(token_response[:id_token])
@@ -228,12 +229,14 @@ module LoginGov::OidcSinatra
     end
 
     def token(code)
+      logger.debug("DEBUG: in #token, token_endpoint = #{openid_configuration[:token_endpoint]}")
+
       json Faraday.post(
         openid_configuration[:token_endpoint],
         grant_type: 'authorization_code',
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion: client_assertion_jwt,
+        client_assertion: client_assertion_jwt
       ).body
     end
 

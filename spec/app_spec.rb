@@ -49,7 +49,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_ok
 
       doc = Nokogiri::HTML(last_response.body)
-      ial2_option = doc.at("select[name=ial] option[value=2]")
+      ial2_option = doc.at('select[name=ial] option[value=2]')
       expect(ial2_option[:selected]).to be
     end
 
@@ -59,7 +59,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_ok
 
       doc = Nokogiri::HTML(last_response.body)
-      aal3_option = doc.at("select[name=aal] option[value=3]")
+      aal3_option = doc.at('select[name=aal] option[value=3]')
       expect(aal3_option[:selected]).to be
     end
 
@@ -267,7 +267,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             acr: 'http://idmanagement.gov/ns/assurance/loa/3',
             social_security_number: '012-34-5678',
             phone: '0125551212',
-            address: '123 Main St., Anytown, US 12345'
+            address: '123 Main St., Anytown, US 12345',
           },
           idp_private_key,
           'RS256'
@@ -309,7 +309,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             email: email,
             acr: 'http://idmanagement.gov/ns/assurance/loa/3',
             phone: '0125551212',
-            address: '123 Main St., Anytown, US 12345'
+            address: '123 Main St., Anytown, US 12345',
           },
           idp_private_key,
           'RS256'

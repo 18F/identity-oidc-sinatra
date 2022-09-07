@@ -4,10 +4,17 @@
 # https://github.com/bbatsov/rubocop/blob/master/config/enabled.yml
 # https://github.com/bbatsov/rubocop/blob/master/config/disabled.yml
 
-Rails:
-  Enabled: true
+AllCops:
+  Exclude:
+    - 'node_modules/**/*'
+    - 'public/**/*'
+  TargetRubyVersion: 3.0.4
+  UseCache: true
+  DisabledByDefault: true
+  SuggestExtensions: false
+  NewCops: enable
 
-Layout/AlignParameters:
+Layout/ParameterAlignment:
   # Alignment of parameters in multi-line method calls.
   #
   # The `with_first_parameter` style aligns the following lines along the same
@@ -62,7 +69,7 @@ Layout/EmptyLines:
   Enabled: false
 
 # Checks the indentation of the first element in an array literal.
-Layout/IndentArray:
+Layout/FirstArrayElementIndentation:
   # The value `special_inside_parentheses` means that array literals with
   # brackets that have their opening bracket on the same line as a surrounding
   # opening round parenthesis, shall have their first element indented relative
@@ -92,31 +99,7 @@ Layout/MultilineOperationIndentation:
   # But it can be overridden by setting this parameter
   IndentationWidth: ~
 
-# All of these Metrics are mostly useless as an indicator of anything
-Metrics/AbcSize:
-  Enabled: false
-Metrics/BlockLength:
-  CountComments: false  # count full line comments?
-  Enabled: true
-  Max: 25
-  Exclude:
-    - '**/bin/*'
-    - 'spec/**/*.rb'
-Metrics/ClassLength:
-  Enabled: false
-Metrics/CyclomaticComplexity:
-  Enabled: false
-Metrics/MethodLength:
-  Enabled: false
-Metrics/ModuleLength:
-  Enabled: false
-Metrics/PerceivedComplexity:
-  Enabled: false
-Metrics/ParameterLists:
-  Enabled: false
-
-# Line length is actually useful
-Metrics/LineLength:
+Layout/LineLength:
   Description: Limit lines to 100 characters.
   StyleGuide: https://github.com/bbatsov/ruby-style-guide#80-character-limits
   Enabled: true
@@ -127,18 +110,6 @@ Metrics/LineLength:
   - https
   Exclude:
     - 'spec/**/*'
-
-# This is a Rails 5 feature, so it should be disabled until we upgrade
-Rails/HttpPositionalArguments:
-  Description: 'Use keyword arguments instead of positional arguments in http method calls.'
-  Enabled: false
-  Include:
-    - 'spec/**/*'
-    - 'test/**/*'
-
-Rails/OutputSafety:
-  Exclude:
-  - lib/i18n_override.rb
 
 Style/AndOr:
   Description: Use &&/|| instead of and/or.
@@ -222,4 +193,27 @@ Style/TrailingCommaInArrayLiteral:
   EnforcedStyleForMultiline: consistent_comma
 
 Style/SingleLineBlockParams:
+  Enabled: false
+
+# All of these Metrics are mostly useless as an indicator of anything
+Metrics/AbcSize:
+  Enabled: false
+Metrics/BlockLength:
+  CountComments: false  # count full line comments?
+  Enabled: true
+  Max: 25
+  Exclude:
+    - '**/bin/*'
+    - 'spec/**/*.rb'
+Metrics/ClassLength:
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+Metrics/ParameterLists:
   Enabled: false
