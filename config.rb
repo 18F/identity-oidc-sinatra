@@ -14,7 +14,7 @@ module LoginGov
       def initialize(config_file: nil)
         @config = default_config
 
-        config_file ||= File.dirname(__FILE__) + '/config/application.yml'
+        config_file ||= "#{File.dirname(__FILE__)}/config/application.yml"
         if File.exist?(config_file)
           # STDERR.puts("Loading config from #{config_file.inspect}")
           @config.merge!(YAML.safe_load(File.read(config_file)))
@@ -60,11 +60,11 @@ module LoginGov
       #
       def default_config
         data = {
-          'acr_values'   => ENV['acr_values']   || 'http://idmanagement.gov/ns/assurance/ial/1',
-          'client_id'    => ENV['client_id']    || 'urn:gov:gsa:openidconnect:sp:sinatra',
+          'acr_values' => ENV['acr_values'] || 'http://idmanagement.gov/ns/assurance/ial/1',
+          'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:sinatra',
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
-          'redact_ssn'   => true,
+          'redact_ssn' => true,
           'cache_oidc_config' => true,
         }
 
@@ -73,7 +73,7 @@ module LoginGov
         env = ENV['idp_environment'] || 'int'
         domain = ENV['idp_domain'] || 'identitysandbox.gov'
 
-        data['idp_url'] = ENV['idp_url']
+        data['idp_url'] = ENV.fetch('idp_url', nil)
         unless data['idp_url']
           if env == 'prod'
             data['idp_url'] = "https://secure.#{domain}"
@@ -81,7 +81,7 @@ module LoginGov
             data['idp_url'] = "https://idp.#{env}.#{domain}"
           end
         end
-        data['sp_private_key'] = ENV['sp_private_key']
+        data['sp_private_key'] = ENV.fetch('sp_private_key', nil)
 
         data
       end
@@ -101,7 +101,7 @@ module LoginGov
             end
           end
 
-          STDERR.puts "#{secret_id.inspect}: not found in AWS Secrets Manager, using demo key"
+          warn "#{secret_id.inspect}: not found in AWS Secrets Manager, using demo key"
           get_sp_private_key_raw(demo_private_key_path)
         else
           File.read(path)
@@ -109,7 +109,7 @@ module LoginGov
       end
 
       def demo_private_key_path
-        File.dirname(__FILE__) + '/config/demo_sp.key'
+        "#{File.dirname(__FILE__)}/config/demo_sp.key"
       end
     end
   end

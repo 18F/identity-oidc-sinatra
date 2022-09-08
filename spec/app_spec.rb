@@ -244,7 +244,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/auth/result', error: 'access_denied'
 
       expect(last_response).to be_redirect
-      uri = URI::parse(last_response.location)
+      uri = URI.parse(last_response.location)
       expect(uri.path).to eq('/')
       expect(uri.query).to eq('error=access_denied')
       follow_redirect!

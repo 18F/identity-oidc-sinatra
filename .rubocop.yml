@@ -1,33 +1,14 @@
-# This configuration only includes the cops that differ from the Rubocop
-# defaults, which can be found here:
-# https://github.com/bbatsov/rubocop/blob/master/config/default.yml
-# https://github.com/bbatsov/rubocop/blob/master/config/enabled.yml
-# https://github.com/bbatsov/rubocop/blob/master/config/disabled.yml
-
 AllCops:
   Exclude:
     - 'node_modules/**/*'
     - 'public/**/*'
   TargetRubyVersion: 3.0.4
   UseCache: true
-  DisabledByDefault: true
+#  EnabledByDefault: true
   SuggestExtensions: false
-  NewCops: enable
+  NewCops: disable
 
 Layout/ParameterAlignment:
-  # Alignment of parameters in multi-line method calls.
-  #
-  # The `with_first_parameter` style aligns the following lines along the same
-  # column as the first parameter.
-  #
-  #     method_call(a,
-  #                 b)
-  #
-  # The `with_fixed_indentation` style aligns the following lines with one
-  # level of indentation relative to the start of the line with the method call.
-  #
-  #     method_call(a,
-  #       b)
   Description: >-
                  Align the parameters of a method call if they span more
                  than one line.
@@ -36,8 +17,6 @@ Layout/ParameterAlignment:
   SupportedStyles:
     - with_first_parameter
     - with_fixed_indentation
-  # By default, the indentation width from Style/IndentationWidth is used
-  # But it can be overridden by setting this parameter
   IndentationWidth: ~
 
 Layout/DotPosition:
@@ -49,11 +28,7 @@ Layout/DotPosition:
   - trailing
 
 Layout/ExtraSpacing:
-  # When true, allows most uses of extra spacing if the intent is to align
-  # things with the previous or next line, not counting empty lines or comment
-  # lines.
   AllowForAlignment: true
-  # When true, forces the alignment of = in assignments on consecutive lines.
   ForceEqualSignAlignment: false
 
 # empty lines are fine
@@ -68,26 +43,12 @@ Layout/EmptyLinesAroundModuleBody:
 Layout/EmptyLines:
   Enabled: false
 
-# Checks the indentation of the first element in an array literal.
 Layout/FirstArrayElementIndentation:
-  # The value `special_inside_parentheses` means that array literals with
-  # brackets that have their opening bracket on the same line as a surrounding
-  # opening round parenthesis, shall have their first element indented relative
-  # to the first position inside the parenthesis.
-  #
-  # The value `consistent` means that the indentation of the first element shall
-  # always be relative to the first position of the line where the opening
-  # bracket is.
-  #
-  # The value `align_brackets` means that the indentation of the first element
-  # shall always be relative to the position of the opening bracket.
   EnforcedStyle: special_inside_parentheses
   SupportedStyles:
     - special_inside_parentheses
     - consistent
     - align_brackets
-  # By default, the indentation width from Style/IndentationWidth is used
-  # But it can be overridden by setting this parameter
   IndentationWidth: ~
 
 Layout/MultilineOperationIndentation:
@@ -95,8 +56,6 @@ Layout/MultilineOperationIndentation:
   SupportedStyles:
     - aligned
     - indented
-  # By default, the indentation width from Style/IndentationWidth is used
-  # But it can be overridden by setting this parameter
   IndentationWidth: ~
 
 Layout/LineLength:
@@ -138,10 +97,6 @@ Style/Documentation:
   Exclude:
     - 'spec/**/*'
 
-# Warn on empty else statements
-# empty - warn only on empty else
-# nil - warn on else with nil in it
-# both - warn on empty else and else with nil in it
 Style/EmptyElse:
   EnforcedStyle: both
   SupportedStyles:
@@ -180,10 +135,6 @@ Style/StringLiterals:
   ConsistentQuotesInMultiline: true
 
 Style/TrailingCommaInArguments:
-  # If `comma`, the cop requires a comma after the last argument, but only for
-  # parenthesized method calls where each argument is on its own line.
-  # If `consistent_comma`, the cop requires a comma after the last argument,
-  # for all parenthesized method calls with arguments.
   EnforcedStyleForMultiline: no_comma
 
 # trailing commas improve diff clarity at no cost to readability

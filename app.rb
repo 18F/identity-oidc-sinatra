@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require 'dotenv/load'
-require 'active_support/core_ext/hash/indifferent_access'
-require 'active_support/core_ext/object/to_query'
 require 'erubi'
 require 'faraday'
 require 'json'
@@ -21,11 +19,8 @@ module LoginGov::OidcSinatra
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
-
-    # Auto escape parameters in ERB.
-    # Use `<%=` to escape HTML, or use `<%==` to inject unescaped raw HTML.
     set :erb, escape_html: true
-    set :logger, Logger.new(STDOUT)
+    set :logger, Logger.new($stdout)
 
     enable :sessions
 
@@ -39,31 +34,31 @@ module LoginGov::OidcSinatra
     end
 
     get '/' do
-      begin
-        login_msg = session.delete(:login_msg)
-        logout_msg = session.delete(:logout_msg)
-        user_email = session[:email]
-        logout_uri = session[:logout_uri]
-        userinfo = session.delete(:userinfo)
 
-        ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      login_msg = session.delete(:login_msg)
+      logout_msg = session.delete(:logout_msg)
+      user_email = session[:email]
+      logout_uri = session[:logout_uri]
+      userinfo = session.delete(:userinfo)
 
-        erb :index, locals: {
-            ial: params[:ial],
-            aal: params[:aal],
-            ial_url: authorization_url(ial: ial, aal: params[:aal]),
-            login_msg: login_msg,
-            logout_msg: logout_msg,
-            user_email: user_email,
-            logout_uri: logout_uri,
-            userinfo: userinfo,
-            access_denied: params[:error] == 'access_denied',
-        }
-      rescue AppError => err
-        [500, erb(:errors, locals: { error: err.message })]
-      rescue Errno::ECONNREFUSED => err
-        [500, erb(:errors, locals: { error: err.inspect })]
-      end
+      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+
+      erb :index, locals: {
+        ial: params[:ial],
+        aal: params[:aal],
+        ial_url: authorization_url(ial: ial, aal: params[:aal]),
+        login_msg: login_msg,
+        logout_msg: logout_msg,
+        user_email: user_email,
+        logout_uri: logout_uri,
+        userinfo: userinfo,
+        access_denied: params[:error] == 'access_denied',
+      }
+    rescue AppError => e
+      [500, erb(:errors, locals: { error: e.message })]
+    rescue Errno::ECONNREFUSED => e
+      [500, erb(:errors, locals: { error: e.inspect })]
+
     end
 
     get '/auth/request' do
@@ -122,25 +117,26 @@ module LoginGov::OidcSinatra
     end
 
     get '/api/health' do
-      begin
-        content_type :json
-        {
-          authorization_endpoint: openid_configuration.fetch('authorization_endpoint'),
-          private_key_fingerprint: Digest::SHA1.hexdigest(config.sp_private_key.to_der),
-          healthy: true,
-        }.to_json
-      rescue StandardError => err
-        halt 500, {
-          error: err.inspect,
-          healthy: false,
-        }.to_json
-      end
+
+      content_type :json
+      {
+        authorization_endpoint: openid_configuration.fetch('authorization_endpoint'),
+        private_key_fingerprint: Digest::SHA1.hexdigest(config.sp_private_key.to_der),
+        healthy: true,
+      }.to_json
+    rescue StandardError => e
+      halt 500, {
+        error: e.inspect,
+        healthy: false,
+      }.to_json
+
     end
 
     private
 
     def authorization_url(ial:, aal: nil)
-      openid_configuration[:authorization_endpoint] + '?' + {
+      endpoint = openid_configuration[:authorization_endpoint]
+      request_params = {
         client_id: config.client_id,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
@@ -150,6 +146,8 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
       }.to_query
+
+      "#{endpoint}?#{request_params}"
     end
 
     def simulate_csp_issue_if_selected(session:, simulate_csp:)
@@ -164,7 +162,7 @@ module LoginGov::OidcSinatra
       if ial == 'step-up'
         ial = '1'
         session[:step_up_enabled] = 'true'
-        session[:step_up_aal] = aal if %r{^\d$}.match?(aal)
+        session[:step_up_aal] = aal if /^\d$/.match?(aal)
       else
         session.delete(:step_up_enabled)
         session.delete(:step_up_aal)
@@ -189,25 +187,20 @@ module LoginGov::OidcSinatra
     def acr_values(ial:, aal:)
       values = []
 
-      values << case ial
-      when nil, '', '1'
-        'http://idmanagement.gov/ns/assurance/ial/1'
-      when '2'
-        'http://idmanagement.gov/ns/assurance/ial/2'
-      when '2-strict'
-        'http://idmanagement.gov/ns/assurance/ial/2?strict=true'
-      when '0'
-        'http://idmanagement.gov/ns/assurance/ial/0'
-      end
+      values << {
+        '0' => 'http://idmanagement.gov/ns/assurance/ial/0',
+        nil => 'http://idmanagement.gov/ns/assurance/ial/1',
+        '' => 'http://idmanagement.gov/ns/assurance/ial/1',
+        '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
+        '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
+        '2-strict' => 'http://idmanagement.gov/ns/assurance/ial/2?strict=true',
+      }[ial]
 
-      values << case aal
-      when '2'
-        'http://idmanagement.gov/ns/assurance/aal/2'
-      when '3'
-        'http://idmanagement.gov/ns/assurance/aal/3'
-      when '3-hspd12'
-        'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true'
-      end
+      values << {
+        '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
+        '3' => 'http://idmanagement.gov/ns/assurance/aal/3',
+        '3-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true',
+      }[aal]
 
       values.join(' ')
     end
@@ -229,8 +222,6 @@ module LoginGov::OidcSinatra
     end
 
     def token(code)
-      logger.debug("DEBUG: in #token, token_endpoint = #{openid_configuration[:token_endpoint]}")
-
       json Faraday.post(
         openid_configuration[:token_endpoint],
         grant_type: 'authorization_code',
@@ -260,11 +251,14 @@ module LoginGov::OidcSinatra
     end
 
     def logout_uri(id_token)
-      openid_configuration[:end_session_endpoint] + '?' + {
+      endpoint = openid_configuration[:end_session_endpoint]
+      request_params = {
         id_token_hint: id_token,
         post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
         state: SecureRandom.hex,
       }.to_query
+
+      "#{endpoint}?#{request_params}"
     end
 
     def json(response)
