@@ -4,7 +4,6 @@ AllCops:
     - 'public/**/*'
   TargetRubyVersion: 3.0.4
   UseCache: true
-#  EnabledByDefault: true
   SuggestExtensions: false
   NewCops: disable
 

@@ -26,7 +26,6 @@ module LoginGov::OidcSinatra
 
     configure :development do
       require 'byebug'
-      set :logging, Logger::DEBUG
     end
 
     def config
