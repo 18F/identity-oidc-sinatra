@@ -3,8 +3,9 @@ namespace :login do
   task :deploy_json do
     puts 'Writing deploy.json'
     data = {
-      env: ENV['environment'] || 'unkown',
-      branch: `git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`.chomp[2..-1],
+      env: ENV['environment'] || 'unknown',
+      branch: `git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`.
+           chomp[2..],
       user: 'n/a',
       git_sha: `git rev-parse HEAD`.chomp,
       git_date: Time.at(`git show -s --format=%ct HEAD`.chomp.to_i).iso8601,
@@ -17,8 +18,6 @@ namespace :login do
     data[:sha] = data[:git_sha]
     data[:timestamp] = data[:cloud_gov_deploy_timestamp]
 
-    File.open('public/api/deploy.json', 'w') do |f|
-      f.write(JSON.generate(data))
-    end
+    File.write('public/api/deploy.json', JSON.generate(data))
   end
 end

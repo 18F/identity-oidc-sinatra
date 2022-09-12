@@ -5,7 +5,7 @@ module LoginGov
   module OidcSinatra
     class OpenidConfiguration
       def self.cached
-        @config ||= live
+        @cached ||= live
       end
 
       def self.live
@@ -29,7 +29,7 @@ module LoginGov
       end
 
       def self.cached_idp_public_key(openid_configuration)
-        @idp_public_key ||= live_idp_public_key(openid_configuration)
+        @cached_idp_public_key ||= live_idp_public_key(openid_configuration)
       end
 
       def self.live_idp_public_key(openid_configuration)
