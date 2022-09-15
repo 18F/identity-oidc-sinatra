@@ -154,14 +154,6 @@ module LoginGov::OidcSinatra
       "#{endpoint}?#{request_params}"
     end
 
-    def user_options
-      ip_auth_option = params['ip_auth_option']
-
-      {}.tap do |options|
-        options[:inherited_proofing_auth] = random_value if ip_auth_option
-      end
-    end
-
     def simulate_csp_issue_if_selected(session:, simulate_csp:)
       if simulate_csp
         session[:simulate_csp] = 'true'
