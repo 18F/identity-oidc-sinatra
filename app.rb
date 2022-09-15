@@ -69,7 +69,7 @@ module LoginGov::OidcSinatra
 
       idp_url = authorization_url(ial: ial, aal: params[:aal])
 
-      logger.info("Redirecting to #{idp_url}")
+      settings.logger.info("Redirecting to #{idp_url}") if ENV['RACK_ENV'] != 'test'
 
       redirect to(idp_url)
     end
@@ -146,9 +146,19 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-      }.to_query
+      }
 
-      "#{endpoint}?#{request_params}"
+      request_params.merge!(user_options)
+
+      "#{endpoint}?#{request_params.to_query}"
+    end
+
+    def user_options
+      ip_auth_option = params['ip_auth_option']
+
+      {}.tap do |options|
+        options[:inherited_proofing_auth] = random_value if ip_auth_option
+      end
     end
 
     def simulate_csp_issue_if_selected(session:, simulate_csp:)
