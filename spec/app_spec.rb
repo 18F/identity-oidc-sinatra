@@ -88,15 +88,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'user options' do
-      it 'adds the inherited proofing auth URL param when selected by user' do
-        get '/', { ip_auth_option: true }
+      it 'adds the (VA test) inherited proofing auth URL param when selected by user' do
+        va_test_auth_code = 'mocked-auth-code-for-testing'
+
+        get '/', { ip_auth_option: va_test_auth_code }
 
         doc = Nokogiri::HTML(last_response.body)
         login_link = doc.at("a[href*='#{authorization_endpoint}']")
         auth_uri = URI(login_link[:href])
         auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
 
-        expect(auth_uri_params[:inherited_proofing_auth]).not_to be_empty
+        expect(auth_uri_params[:inherited_proofing_auth]).to eq(va_test_auth_code)
       end
     end
   end
