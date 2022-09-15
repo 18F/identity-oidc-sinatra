@@ -21,8 +21,10 @@ module LoginGov::OidcSinatra
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
+    VA_TEST_AUTH_CODE = 'mocked-auth-code-for-testing'
+
     set :erb, escape_html: true
-    set :logger, Logger.new($stdout)
+    set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
     enable :sessions
 
@@ -69,7 +71,7 @@ module LoginGov::OidcSinatra
 
       idp_url = authorization_url(ial: ial, aal: params[:aal])
 
-      settings.logger.info("Redirecting to #{idp_url}") if ENV['RACK_ENV'] != 'test'
+      settings.logger.info("Redirecting to #{idp_url}")
 
       redirect to(idp_url)
     end
@@ -146,11 +148,10 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-      }
+        inherited_proofing_auth: params['ip_auth_option'] ? VA_TEST_AUTH_CODE : nil,
+      }.compact.to_query
 
-      request_params.merge!(user_options)
-
-      "#{endpoint}?#{request_params.to_query}"
+      "#{endpoint}?#{request_params}"
     end
 
     def user_options
