@@ -89,7 +89,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     context 'user options' do
       it 'adds the (VA test) inherited proofing auth URL param when selected by user' do
-        va_test_auth_code = 'mocked-auth-code-for-testing'
+        get '/'
+
+        doc = Nokogiri::HTML(last_response.body)
+
+        va_test_auth_code = doc.at('[name=ip_auth_option]').attr('value')
 
         get '/', { ip_auth_option: va_test_auth_code }
 
