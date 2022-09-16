@@ -22,7 +22,7 @@ module LoginGov::OidcSinatra
 
   class OpenidConnectRelyingParty < Sinatra::Base
     set :erb, escape_html: true
-    set :logger, Logger.new($stdout)
+    set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
     enable :sessions
 
@@ -69,7 +69,7 @@ module LoginGov::OidcSinatra
 
       idp_url = authorization_url(ial: ial, aal: params[:aal])
 
-      logger.info("Redirecting to #{idp_url}")
+      settings.logger.info("Redirecting to #{idp_url}")
 
       redirect to(idp_url)
     end
@@ -146,7 +146,8 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-      }.to_query
+        inherited_proofing_auth: params['ip_auth_option'].presence,
+      }.compact.to_query
 
       "#{endpoint}?#{request_params}"
     end
