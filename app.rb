@@ -67,7 +67,7 @@ module LoginGov::OidcSinatra
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
 
-      idp_url = authorization_url(ial: ial, aal: params[:aal])
+      idp_url = authorization_url(ial: ial, aal: params[:aal], enable_attempts_api: params[:enable_attempts_api])
 
       settings.logger.info("Redirecting to #{idp_url}")
 
@@ -135,8 +135,9 @@ module LoginGov::OidcSinatra
 
     private
 
-    def authorization_url(ial:, aal: nil)
+    def authorization_url(ial:, aal: nil, enable_attempts_api: nil)
       endpoint = openid_configuration[:authorization_endpoint]
+      irs_attempts_api_session_id = enable_attempts_api ? random_value : nil
       request_params = {
         client_id: config.client_id,
         response_type: 'code',
@@ -147,6 +148,7 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
         inherited_proofing_auth: params['ip_auth_option'].presence,
+        irs_attempts_api_session_id: irs_attempts_api_session_id,
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
