@@ -35,11 +35,9 @@ module LoginGov::OidcSinatra
     end
 
     get '/' do
-
       login_msg = session.delete(:login_msg)
       logout_msg = session.delete(:logout_msg)
       user_email = session[:email]
-      logout_uri = session[:logout_uri]
       userinfo = session.delete(:userinfo)
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
@@ -90,7 +88,6 @@ module LoginGov::OidcSinatra
           redirect to('https://www.example.com/')
         else
           session[:login_msg] = 'ok'
-          session[:logout_uri] = logout_uri(token_response[:id_token])
           session[:userinfo] = userinfo_response
           session[:email] = session[:userinfo][:email]
 
@@ -109,7 +106,6 @@ module LoginGov::OidcSinatra
 
     get '/logout' do
       session[:logout_msg] = 'ok'
-      session.delete(:logout_uri)
       session.delete(:userinfo)
       session.delete(:email)
       session.delete(:step_up_enabled)
@@ -254,10 +250,10 @@ module LoginGov::OidcSinatra
         with_indifferent_access
     end
 
-    def logout_uri(id_token)
+    def logout_uri
       endpoint = openid_configuration[:end_session_endpoint]
       request_params = {
-        id_token_hint: id_token,
+        client_id: config.client_id,
         post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
         state: SecureRandom.hex,
       }.to_query
