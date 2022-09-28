@@ -11,3 +11,4 @@
 public/api/deploy.json
 public/vendor
 node_modules
+.idea
