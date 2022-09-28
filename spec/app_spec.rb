@@ -257,7 +257,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       href = logout_link[:href]
       expect(href).to start_with(end_session_endpoint)
-      expect(href).to include("id_token_hint=#{id_token}")
+      expect(href).to include("client_id=#{CGI.escape(client_id)}")
     end
 
     it 'redirects to root with an error param when there is an access denied' do
