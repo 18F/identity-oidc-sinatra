@@ -67,7 +67,11 @@ module LoginGov::OidcSinatra
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
 
-      idp_url = authorization_url(ial: ial, aal: params[:aal], enable_attempts_api: params[:enable_attempts_api])
+      idp_url = authorization_url(
+        ial: ial,
+        aal: params[:aal],
+        enable_attempts_api: params[:enable_attempts_api],
+      )
 
       settings.logger.info("Redirecting to #{idp_url}")
 
@@ -231,7 +235,7 @@ module LoginGov::OidcSinatra
         grant_type: 'authorization_code',
         code: code,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion: client_assertion_jwt
+        client_assertion: client_assertion_jwt,
       ).body
     end
 

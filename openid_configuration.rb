@@ -34,7 +34,7 @@ module LoginGov
 
       def self.live_idp_public_key(openid_configuration)
         certs_response = JSON.parse(
-          Faraday.get(openid_configuration[:jwks_uri]).body
+          Faraday.get(openid_configuration[:jwks_uri]).body,
         ).with_indifferent_access
 
         JSON::JWK.new(certs_response[:keys].first).to_key

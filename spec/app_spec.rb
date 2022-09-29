@@ -71,7 +71,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/'
 
       expect(last_response.body).to include(
-        'Perhaps we need to reimplement HTTP Basic Auth'
+        'Perhaps we need to reimplement HTTP Basic Auth',
       )
     end
 
@@ -113,10 +113,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
-        'scope=openid+email'
+        'scope=openid+email',
       )
       expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address'
+        'scope=openid+email+profile+social_security_number+phone+address',
       )
     end
 
@@ -125,7 +125,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
-        'scope=openid+email+profile+social_security_number+phone+address'
+        'scope=openid+email+profile+social_security_number+phone+address',
       )
     end
 
@@ -134,10 +134,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
-        'scope=openid+email'
+        'scope=openid+email',
       )
       expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address'
+        'scope=openid+email+profile+social_security_number+phone+address',
       )
     end
 
@@ -146,7 +146,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
-        'scope=openid+email+social_security_number'
+        'scope=openid+email+social_security_number',
       )
     end
 
@@ -155,7 +155,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
-        '/ial/2?strict=true'
+        '/ial/2?strict=true',
       )
     end
 
@@ -165,7 +165,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(last_response.location).to include('scope=openid+email')
       expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address'
+        'scope=openid+email+profile+social_security_number+phone+address',
       )
     end
 
@@ -174,7 +174,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
-        '/aal/3'
+        '/aal/3',
       )
     end
 
@@ -183,7 +183,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
-        '/aal/3?hspd12=true'
+        '/aal/3?hspd12=true',
       )
     end
   end
@@ -196,7 +196,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       JWT.encode(
         { email: email, acr: 'http://idmanagement.gov/ns/assurance/loa/1' },
         idp_private_key,
-        'RS256'
+        'RS256',
       )
     }
 
@@ -216,12 +216,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             code: code,
             client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
             client_assertion: kind_of(String),
-          }
+          },
         ).
         to_return(
           body: {
             id_token: id_token,
-          }.to_json
+          }.to_json,
         )
     end
 
@@ -290,7 +290,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             address: '123 Main St., Anytown, US 12345',
           },
           idp_private_key,
-          'RS256'
+          'RS256',
         )
       }
 
@@ -332,7 +332,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             address: '123 Main St., Anytown, US 12345',
           },
           idp_private_key,
-          'RS256'
+          'RS256',
         )
       }
 

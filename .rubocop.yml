@@ -134,7 +134,11 @@ Style/StringLiterals:
   ConsistentQuotesInMultiline: true
 
 Style/TrailingCommaInArguments:
-  EnforcedStyleForMultiline: no_comma
+  EnforcedStyleForMultiline: comma
+  SupportedStylesForMultiline:
+    - comma
+    - consistent_comma
+    - no_comma
 
 # trailing commas improve diff clarity at no cost to readability
 Style/TrailingCommaInHashLiteral:

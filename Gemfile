@@ -17,7 +17,6 @@ gem 'sinatra', '~> 2.2'
 
 group :development do
   gem 'pry-byebug'
-  gem 'reek'
   gem 'rubocop', require: false
 end
 
