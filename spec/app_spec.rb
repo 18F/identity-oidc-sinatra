@@ -150,15 +150,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
-    it 'redirects to an ial2 strict sign in link if ial param is 2-strict' do
-      get '/auth/request?ial=2-strict'
-
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        '/ial/2?strict=true'
-      )
-    end
-
     it 'redirects to an ial1 sign in link if ial param is step-up' do
       get '/auth/request?ial=step-up'
 
