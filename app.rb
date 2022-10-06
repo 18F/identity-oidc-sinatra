@@ -193,7 +193,6 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        '2-strict' => 'http://idmanagement.gov/ns/assurance/ial/2?strict=true',
       }[ial]
 
       values << {
