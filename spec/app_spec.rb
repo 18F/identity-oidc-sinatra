@@ -88,21 +88,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'user options' do
-      it 'adds the (VA test) inherited proofing auth URL param when selected by user' do
-        get '/'
+      it 'adds inherited proofing auth_code URL param to authorization endpoint when selected by user' do
+        auth_code = 'auth_code_selected_by_user'
 
-        doc = Nokogiri::HTML(last_response.body)
-
-        va_test_auth_code = doc.at('[name=ip_auth_option]').attr('value')
-
-        get '/', { ip_auth_option: va_test_auth_code }
+        get '/', { ip_auth_option: auth_code }
 
         doc = Nokogiri::HTML(last_response.body)
         login_link = doc.at("a[href*='#{authorization_endpoint}']")
         auth_uri = URI(login_link[:href])
         auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
 
-        expect(auth_uri_params[:inherited_proofing_auth]).to eq(va_test_auth_code)
+        expect(auth_uri_params[:inherited_proofing_auth]).to eq(auth_code)
       end
     end
   end
@@ -147,15 +143,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
         'scope=openid+email+social_security_number',
-      )
-    end
-
-    it 'redirects to an ial2 strict sign in link if ial param is 2-strict' do
-      get '/auth/request?ial=2-strict'
-
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        '/ial/2?strict=true',
       )
     end
 
@@ -257,7 +244,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       href = logout_link[:href]
       expect(href).to start_with(end_session_endpoint)
-      expect(href).to include("id_token_hint=#{id_token}")
+      expect(href).to include("client_id=#{CGI.escape(client_id)}")
     end
 
     it 'redirects to root with an error param when there is an access denied' do

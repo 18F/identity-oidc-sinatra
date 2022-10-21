@@ -35,11 +35,9 @@ module LoginGov::OidcSinatra
     end
 
     get '/' do
-
       login_msg = session.delete(:login_msg)
       logout_msg = session.delete(:logout_msg)
       user_email = session[:email]
-      logout_uri = session[:logout_uri]
       userinfo = session.delete(:userinfo)
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
@@ -47,6 +45,7 @@ module LoginGov::OidcSinatra
       erb :index, locals: {
         ial: params[:ial],
         aal: params[:aal],
+        ip_auth_option: params[:ip_auth_option],
         ial_url: authorization_url(ial: ial, aal: params[:aal]),
         login_msg: login_msg,
         logout_msg: logout_msg,
@@ -57,9 +56,8 @@ module LoginGov::OidcSinatra
       }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
-    rescue Errno::ECONNREFUSED => e
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       [500, erb(:errors, locals: { error: e.inspect })]
-
     end
 
     get '/auth/request' do
@@ -94,7 +92,6 @@ module LoginGov::OidcSinatra
           redirect to('https://www.example.com/')
         else
           session[:login_msg] = 'ok'
-          session[:logout_uri] = logout_uri(token_response[:id_token])
           session[:userinfo] = userinfo_response
           session[:email] = session[:userinfo][:email]
 
@@ -113,7 +110,6 @@ module LoginGov::OidcSinatra
 
     get '/logout' do
       session[:logout_msg] = 'ok'
-      session.delete(:logout_uri)
       session.delete(:userinfo)
       session.delete(:email)
       session.delete(:step_up_enabled)
@@ -201,7 +197,6 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        '2-strict' => 'http://idmanagement.gov/ns/assurance/ial/2?strict=true',
       }[ial]
 
       values << {
@@ -210,7 +205,7 @@ module LoginGov::OidcSinatra
         '3-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true',
       }[aal]
 
-      values.join(' ')
+      values.compact.join(' ')
     end
 
     def openid_configuration
@@ -258,10 +253,10 @@ module LoginGov::OidcSinatra
         with_indifferent_access
     end
 
-    def logout_uri(id_token)
+    def logout_uri
       endpoint = openid_configuration[:end_session_endpoint]
       request_params = {
-        id_token_hint: id_token,
+        client_id: config.client_id,
         post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
         state: SecureRandom.hex,
       }.to_query
