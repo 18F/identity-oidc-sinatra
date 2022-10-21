@@ -102,14 +102,12 @@
                 </label>
                 <select name="aal" id="aal" class="usa-select">
                   <% [
-                    ['', 'Default'],
-                    ['2', 'AAL2'],
-                    ['3', 'Phishing-resistant AAL2'],
-                    ['3-hspd12', 'HSPD12 required'],
-                  ].each do |value, label| %>
-                    <option value="<%= value %>"
-                            <%= 'selected="true"' if aal == value %>
-                            >
+                       ['', 'Default'],
+                       ['2', 'AAL2'],
+                       ['3', 'Phishing-resistant AAL2'],
+                       ['3-hspd12', 'HSPD12 required'],
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if aal == value %> >
                       <%= label %>
                     </option>
                   <% end %>
@@ -120,14 +118,12 @@
                 </label>
                 <select name="ial" id="ial" class="usa-select">
                   <% [
-                    ['1', 'Authentication only (default)'],
-                    ['2', 'Identity-verified'],
-                    ['0', 'IALMax'],
-                    ['step-up', 'Step-up Flow']
-                  ].each do |value, label| %>
-                    <option value="<%= value %>"
-                            <%= 'selected="true"' if ial == value %>
-                            >
+                       ['1', 'Authentication only (default)'],
+                       ['2', 'Identity-verified'],
+                       ['0', 'IALMax'],
+                       ['step-up', 'Step-up Flow']
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if ial == value %> >
                       <%= label %>
                     </option>
                   <% end %>
@@ -138,13 +134,11 @@
                 </label>
                 <select name="ip_auth_option" id="ip-auth-option" class="usa-select">
                   <% [
-                    ['', 'Disabled'],
-                    ['mocked-auth-code-for-testing', 'Enabled'],
-                    ['mocked-auth-code-for-failure', 'Simulate failure'],
-                  ].each do |value, label| %>
-                    <option value="<%= value %>"
-                            <%= 'selected="true"' if ip_auth_option == value %>
-                            >
+                       ['', 'Disabled'],
+                       ['mocked-auth-code-for-testing', 'Enabled'],
+                       ['mocked-auth-code-for-failure', 'Simulate failure'],
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if ip_auth_option == value %> >
                       <%= label %>
                     </option>
                   <% end %>
@@ -207,8 +201,7 @@
           Received user info:<br/>
           <% case userinfo.fetch('acr')
              when 'http://idmanagement.gov/ns/assurance/loa/3' %>
-            Login type: <strong>LOA3</strong><br/>
-            < class="ml1 mr1">|<br/>
+            Login type: <strong>LOA3 |</strong>
             SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong><br/>
           <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
             Login type: <strong>LOA1</strong><br/>

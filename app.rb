@@ -205,7 +205,7 @@ module LoginGov::OidcSinatra
         '3-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true',
       }[aal]
 
-      values.join(' ')
+      values.compact.join(' ')
     end
 
     def openid_configuration
