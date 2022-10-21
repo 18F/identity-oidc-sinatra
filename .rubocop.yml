@@ -3,9 +3,10 @@ AllCops:
     - 'node_modules/**/*'
     - 'public/**/*'
   TargetRubyVersion: 3.0.4
+  TargetRailsVersion: 7.0
   UseCache: true
+  DisabledByDefault: true
   SuggestExtensions: false
-  NewCops: disable
 
 Layout/ParameterAlignment:
   Description: >-
