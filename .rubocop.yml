@@ -2,6 +2,7 @@ AllCops:
   Exclude:
     - 'node_modules/**/*'
     - 'public/**/*'
+    - 'vendor/**/*'
   TargetRubyVersion: 3.0.4
   UseCache: true
   DisabledByDefault: true
