@@ -29,4 +29,5 @@ end
 group :development, :test do
   gem 'byebug'
   gem 'rubocop', require: false
+  gem 'rubocop-rspec', require: false
 end
