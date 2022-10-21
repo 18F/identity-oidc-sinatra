@@ -45,6 +45,7 @@ module LoginGov::OidcSinatra
       erb :index, locals: {
         ial: params[:ial],
         aal: params[:aal],
+        ip_auth_option: params[:ip_auth_option],
         ial_url: authorization_url(ial: ial, aal: params[:aal]),
         login_msg: login_msg,
         logout_msg: logout_msg,
@@ -55,9 +56,8 @@ module LoginGov::OidcSinatra
       }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
-    rescue Errno::ECONNREFUSED => e
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       [500, erb(:errors, locals: { error: e.inspect })]
-
     end
 
     get '/auth/request' do
@@ -65,7 +65,11 @@ module LoginGov::OidcSinatra
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
 
-      idp_url = authorization_url(ial: ial, aal: params[:aal], enable_attempts_api: params[:enable_attempts_api])
+      idp_url = authorization_url(
+        ial: ial,
+        aal: params[:aal],
+        enable_attempts_api: params[:enable_attempts_api]
+      )
 
       settings.logger.info("Redirecting to #{idp_url}")
 
@@ -201,7 +205,7 @@ module LoginGov::OidcSinatra
         '3-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true',
       }[aal]
 
-      values.join(' ')
+      values.compact.join(' ')
     end
 
     def openid_configuration

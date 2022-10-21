@@ -102,14 +102,12 @@
                 </label>
                 <select name="aal" id="aal" class="usa-select">
                   <% [
-                    ['', 'Default'],
-                    ['2', 'AAL2'],
-                    ['3', 'Phishing-resistant AAL2'],
-                    ['3-hspd12', 'HSPD12 required'],
-                  ].each do |value, label| %>
-                    <option value="<%= value %>"
-                            <%= 'selected="true"' if aal == value %>
-                            >
+                       ['', 'Default'],
+                       ['2', 'AAL2'],
+                       ['3', 'Phishing-resistant AAL2'],
+                       ['3-hspd12', 'HSPD12 required'],
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if aal == value %> >
                       <%= label %>
                     </option>
                   <% end %>
@@ -120,18 +118,33 @@
                 </label>
                 <select name="ial" id="ial" class="usa-select">
                   <% [
-                    ['1', 'Authentication only (default)'],
-                    ['2', 'Identity-verified'],
-                    ['0', 'IALMax'],
-                    ['step-up', 'Step-up Flow']
-                  ].each do |value, label| %>
-                    <option value="<%= value %>"
-                            <%= 'selected="true"' if ial == value %>
-                            >
+                       ['1', 'Authentication only (default)'],
+                       ['2', 'Identity-verified'],
+                       ['0', 'IALMax'],
+                       ['step-up', 'Step-up Flow']
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if ial == value %> >
                       <%= label %>
                     </option>
                   <% end %>
                 </select>
+
+                <label class="usa-label" for="ip-auth-option">
+                  Inherited Proofing
+                </label>
+                <select name="ip_auth_option" id="ip-auth-option" class="usa-select">
+                  <% [
+                       ['', 'Disabled'],
+                       ['mocked-auth-code-for-testing', 'Enabled'],
+                       ['mocked-auth-code-for-failure', 'Simulate failure'],
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if ip_auth_option == value %> >
+                      <%= label %>
+                    </option>
+                  <% end %>
+                </select>
+
+                <hr/>
                 <div class="usa-checkbox">
                   <input class="usa-checkbox__input"
                          id="check-simulate_csp"
@@ -152,17 +165,6 @@
                     />
                   <label class="usa-checkbox__label" for="check_enable_attempts_api">
                     Enable attempts api
-                  </label>
-                </div>
-                <div class="usa-checkbox">
-                  <input class="usa-checkbox__input"
-                         id="ip-auth-option"
-                         type="checkbox"
-                         name="ip_auth_option"
-                         value="mocked-auth-code-for-testing"
-                  />
-                  <label class="usa-checkbox__label" for="ip-auth-option">
-                    Enable inherited proofing
                   </label>
                 </div>
               </details>
@@ -193,29 +195,32 @@
         <% end %>
       </div>
     </div>
-        <% if userinfo %>
-          <div class="userinfo">
-            <div class="p2 clearfix bg-white fg-black">
-              <span>Received user info:</span>
-                <% case userinfo.fetch('acr')
-                     when 'http://idmanagement.gov/ns/assurance/loa/3' %>
-                  <span>Login type: <strong>LOA3</strong></span>
-                  <span class="ml1 mr1">|</span>
-                  <span>SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong></span>
-                <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
-                  <span>Login type: <strong>LOA1</strong></span>
-                <% else %>
-                  <span>Login type: <strong>Unexpected ACR: <%= userinfo.fetch('acr') %></strong></span>
-                <% end %>
-              <ul>
+    <% if userinfo %>
+      <div class="userinfo">
+        <div class="p2 clearfix bg-white fg-black">
+          Received user info:<br/>
+          <% case userinfo.fetch('acr')
+             when 'http://idmanagement.gov/ns/assurance/loa/3' %>
+            Login type: <strong>LOA3 |</strong>
+            SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong><br/>
+          <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
+            Login type: <strong>LOA1</strong><br/>
+          <% else %>
+            Login type: <strong>Unexpected ACR: <%= userinfo.fetch('acr') %></strong><br/>
+          <% end %>
+          <div>
+            <ul>
               <% userinfo.each_pair do |key, val| %>
                 <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
-                <li><pre><%= key.inspect %>: <%= val.inspect %></pre></li>
+                <li>
+                  <pre><%= key.inspect %>: <%= val.inspect %></pre>
+                </li>
               <% end %>
-              </ul>
-            </div>
+            </ul>
           </div>
-        <% end %>
+        </div>
+      </div>
+    <% end %>
   </section>
   <section class="grid-container usa-section">
     <div class="grid-row grid-gap">
