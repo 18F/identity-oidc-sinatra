@@ -138,8 +138,9 @@ module LoginGov::OidcSinatra
     def authorization_url(ial:, aal: nil, enable_attempts_api: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       irs_attempts_api_session_id = enable_attempts_api ? random_value : nil
+      issuer = enable_attempts_api ? config.mock_irs_client_id : config.client_id
       request_params = {
-        client_id: config.client_id,
+        client_id: issuer,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
         scope: scopes_for(ial),

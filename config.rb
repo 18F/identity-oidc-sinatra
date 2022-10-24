@@ -37,6 +37,10 @@ module LoginGov
         @config.fetch('client_id')
       end
 
+      def mock_irs_client_id
+        @config.fetch('mock_irs_client_id')
+      end
+
       def redact_ssn?
         @config.fetch('redact_ssn')
       end
@@ -62,6 +66,8 @@ module LoginGov
         data = {
           'acr_values' => ENV['acr_values'] || 'http://idmanagement.gov/ns/assurance/ial/1',
           'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:sinatra',
+          'mock_irs_client_id' => ENV['mock_irs_client_id'] ||
+                                  'urn:gov:gsa:openidconnect:sp:mock_irs',
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
           'redact_ssn' => true,
