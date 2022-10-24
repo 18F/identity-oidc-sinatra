@@ -114,6 +114,7 @@ module LoginGov::OidcSinatra
       session.delete(:email)
       session.delete(:step_up_enabled)
       session.delete(:step_up_aal)
+      session.delete(:irs)
       redirect to('/')
     end
 
@@ -138,9 +139,9 @@ module LoginGov::OidcSinatra
     def authorization_url(ial:, aal: nil, enable_attempts_api: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       irs_attempts_api_session_id = enable_attempts_api ? random_value : nil
-      issuer = enable_attempts_api ? config.mock_irs_client_id : config.client_id
+      session[:irs] = enable_attempts_api
       request_params = {
-        client_id: issuer,
+        client_id: client_id,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
         scope: scopes_for(ial),
@@ -237,8 +238,8 @@ module LoginGov::OidcSinatra
 
     def client_assertion_jwt
       jwt_payload = {
-        iss: config.client_id,
-        sub: config.client_id,
+        iss: client_id,
+        sub: client_id,
         aud: openid_configuration[:token_endpoint],
         jti: random_value,
         nonce: random_value,
@@ -254,10 +255,16 @@ module LoginGov::OidcSinatra
         with_indifferent_access
     end
 
+    def client_id
+      return config.mock_irs_client_id if session[:irs]
+
+      config.client_id
+    end
+
     def logout_uri
       endpoint = openid_configuration[:end_session_endpoint]
       request_params = {
-        client_id: config.client_id,
+        client_id: client_id,
         post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
         state: SecureRandom.hex,
       }.to_query
