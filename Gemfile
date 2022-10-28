@@ -14,6 +14,7 @@ gem 'nokogiri', '>= 1.11.0'
 gem 'puma', '~> 5.6'
 gem 'rake'
 gem 'sinatra', '~> 2.2'
+gem 'newrelic_rpm'
 
 group :development do
   gem 'pry-byebug'
