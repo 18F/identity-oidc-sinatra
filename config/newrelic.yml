@@ -229,7 +229,7 @@ common: &default_settings
 # error_collector.capture_events: true
 
 # If true, the agent captures traced errors and error count metrics.
-# error_collector.enabled: true
+error_collector.enabled: true
 
 # A list of error classes that the agent should treat as expected.
 # error_collector.expected_classes: []
@@ -388,7 +388,7 @@ common: &default_settings
 
 # Controls auto-instrumentation of Sinatra at start up.
 # May be one of [auto|prepend|chain|disabled].
-# instrumentation.sinatra: auto
+instrumentation.sinatra: auto
 
 # Controls auto-instrumentation of Tilt at start up.
 # May be one of [auto|prepend|chain|disabled].
@@ -432,7 +432,7 @@ common: &default_settings
 # mongo.obfuscate_queries: true
 
 # When true, the agent transmits data about your app to the New Relic collector.
-# monitor_mode: true
+monitor_mode: true
 
 # If true, uses Module#prepend rather than alias_method for Active Record
 # instrumentation.
