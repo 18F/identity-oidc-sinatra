@@ -13,6 +13,9 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
+if ENV['NEWRELIC_LICENSE'] && ENV['NEWRELIC_APP_NAME']
+  require 'newrelic_rpm'
+end
 
 require_relative './config'
 require_relative './openid_configuration'
