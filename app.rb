@@ -13,7 +13,7 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
-if ENV['NEWRELIC_LICENSE'] && ENV['NEWRELIC_APP_NAME']
+if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
 end
