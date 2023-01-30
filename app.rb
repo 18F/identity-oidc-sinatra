@@ -65,6 +65,9 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
+      if params[:enable_attempts_api]
+        session[:irs] = params[:enable_attempts_api]
+      end
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
@@ -72,7 +75,7 @@ module LoginGov::OidcSinatra
       idp_url = authorization_url(
         ial: ial,
         aal: params[:aal],
-        enable_attempts_api: params[:enable_attempts_api],
+        enable_attempts_api: session[:irs],
       )
 
       settings.logger.info("Redirecting to #{idp_url}")
@@ -143,7 +146,6 @@ module LoginGov::OidcSinatra
     def authorization_url(ial:, aal: nil, enable_attempts_api: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       irs_attempts_api_session_id = enable_attempts_api ? random_value : nil
-      session[:irs] = enable_attempts_api
       request_params = {
         client_id: client_id,
         response_type: 'code',
