@@ -173,6 +173,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         '/aal/3?hspd12=true',
       )
     end
+
+    it 'redirects with an irs_attempts_api sign in link if enable_attempts_api param is true' do
+      get '/auth/request?enable_attempts_api=true'
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        'irs_attempts_api_session_id',
+      )
+    end
   end
 
   context '/auth/result' do
@@ -337,5 +346,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to include('123 Main St., Anytown, US 12345')
       end
     end
+
+    it 'redirects with an irs_attempts_api session link if enable_attempts_api param and step_up flow is true' do
+      get '/auth/request?enable_attempts_api=true&ial=step-up'
+      get '/auth/result', code: code
+      get last_response.location
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        'irs_attempts_api_session_id',
+      )
+    end
+
   end
 end
