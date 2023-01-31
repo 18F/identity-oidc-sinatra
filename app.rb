@@ -65,7 +65,7 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
-      if params[:enable_attempts_api]
+      if params.has_key?(:enable_attempts_api)
         session[:irs] = params[:enable_attempts_api]
       end
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
