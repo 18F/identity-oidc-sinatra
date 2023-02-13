@@ -209,8 +209,8 @@ module LoginGov::OidcSinatra
 
       values << {
         '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
-        '3' => 'http://idmanagement.gov/ns/assurance/aal/3',
-        '3-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/3?hspd12=true',
+        '2-phishing_resistant' => 'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
+        '2-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
       }[aal]
 
       values.compact.join(' ')
