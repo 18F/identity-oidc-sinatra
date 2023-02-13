@@ -54,13 +54,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(ial2_option[:selected]).to be
     end
 
-    it 'pre-fills AAL3 if the URL has ?aal=3' do
-      get '/?aal=3'
+    it 'pre-fills HSPD12 if the URL has ?aal=2-hspd12' do
+      get '/?aal=2-hspd12'
 
       expect(last_response).to be_ok
 
       doc = Nokogiri::HTML(last_response.body)
-      aal3_option = doc.at('select[name=aal] option[value=3]')
+      aal3_option = doc.at('select[name=aal] option[value="2-hspd12"]')
       expect(aal3_option[:selected]).to be
     end
 
@@ -156,21 +156,21 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
     end
 
-    it 'redirects to an aal3 sign in link if ial param is 3' do
-      get '/auth/request?aal=3'
+    it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
+      get '/auth/request?aal=2-phishing_resistant'
 
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
-        '/aal/3',
+        '/aal/2?phishing_resistant=true',
       )
     end
 
-    it 'redirects to an aal3 sign in link if ial param is 3' do
-      get '/auth/request?aal=3-hspd12'
+    it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
+      get '/auth/request?aal=2-hspd12'
 
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
-        '/aal/3?hspd12=true',
+        '/aal/2?hspd12=true',
       )
     end
 
