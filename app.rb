@@ -115,6 +115,10 @@ module LoginGov::OidcSinatra
       end
     end
 
+    get '/failure_to_proof' do
+      erb :failure_to_proof
+    end
+
     get '/logout' do
       session[:logout_msg] = 'ok'
       session.delete(:userinfo)
