@@ -39,3 +39,11 @@
 .details-popup .usa-select {
   width: 70%;
 }
+
+@media all and (max-width: 63.99em) {
+  .details-popup[open] {
+    width: initial;
+    right: 0;
+    margin: 5px;
+  }
+}
