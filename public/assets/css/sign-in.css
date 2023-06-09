@@ -34,6 +34,7 @@
   border-radius: 3px;
   padding: 10px;
   box-shadow: 0 0 10px #fff;
+  z-index: 1;
 }
 
 .details-popup .usa-select {
