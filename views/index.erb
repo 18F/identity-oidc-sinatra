@@ -199,15 +199,6 @@
       <div class="userinfo">
         <div class="p2 clearfix bg-white fg-black">
           Received user info:<br/>
-          <% case userinfo.fetch('acr')
-             when 'http://idmanagement.gov/ns/assurance/loa/3' %>
-            Login type: <strong>LOA3 |</strong>
-            SSN: <strong><%= maybe_redact_ssn(userinfo[:social_security_number]) %></strong><br/>
-          <% when 'http://idmanagement.gov/ns/assurance/loa/1' %>
-            Login type: <strong>LOA1</strong><br/>
-          <% else %>
-            Login type: <strong>Unexpected ACR: <%= userinfo.fetch('acr') %></strong><br/>
-          <% end %>
           <div>
             <ul>
               <% userinfo.each_pair do |key, val| %>

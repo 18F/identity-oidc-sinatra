@@ -44,13 +44,16 @@ module LoginGov::OidcSinatra
       user_email = session[:email]
       userinfo = session.delete(:userinfo)
 
-      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      ial = params[:ial]
+      aal = params[:aal]
+
+      ial = prepare_step_up_flow(session: session, ial: ial, aal: aal)
 
       erb :index, locals: {
-        ial: params[:ial],
-        aal: params[:aal],
+        ial: ial,
+        aal: aal,
         ip_auth_option: params[:ip_auth_option],
-        ial_url: authorization_url(ial: ial, aal: params[:aal]),
+        ial_url: authorization_url(ial: ial, aal: aal),
         login_msg: login_msg,
         logout_msg: logout_msg,
         user_email: user_email,
@@ -88,8 +91,8 @@ module LoginGov::OidcSinatra
 
       if code
         token_response = token(code)
-        id_token = token_response[:id_token]
-        userinfo_response = userinfo(id_token)
+        access_token = token_response[:access_token]
+        userinfo_response = userinfo(access_token)
 
         if session.delete(:step_up_enabled)
           aal = session.delete(:step_up_aal)
@@ -209,13 +212,13 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-      }[ial]
+        }[ial]
 
       values << {
         '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
         '2-phishing_resistant' => 'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
         '2-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
-      }[aal]
+        }[aal]
 
       values.compact.join(' ')
     end
@@ -259,10 +262,11 @@ module LoginGov::OidcSinatra
       JWT.encode(jwt_payload, config.sp_private_key, 'RS256')
     end
 
-    def userinfo(id_token)
-      JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 5).
-        first.
-        with_indifferent_access
+    def userinfo(access_token)
+      url = openid_configuration[:userinfo_endpoint]
+
+      connection = Faraday.new(url: url, headers:{'Authorization' => "Bearer #{access_token}" })
+      JSON.parse(connection.get('').body).with_indifferent_access
     end
 
     def client_id
