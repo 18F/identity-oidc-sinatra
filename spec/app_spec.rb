@@ -7,7 +7,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
   let(:authorization_endpoint) { "#{host}/openid/authorize" }
   let(:token_endpoint) { "#{host}/api/openid/token" }
-  let(:jwks_uri) { "#{host}/api/openid/certs" }
+  let(:userinfo_endpoint) { "#{host}/api/openid/userinfo" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
 
@@ -17,7 +17,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
-        jwks_uri: jwks_uri,
+        userinfo_endpoint: userinfo_endpoint,
         end_session_endpoint: end_session_endpoint,
       }.to_json)
   end
@@ -185,178 +185,94 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/result' do
-    let(:code) { SecureRandom.uuid }
+    context 'errors happen before the auth token exchange' do
+      it 'redirects to root with an error param when there is an access denied' do
+        get '/auth/result', error: 'access_denied'
 
-    let(:email) { 'foobar@bar.com' }
-    let(:id_token) {
-      JWT.encode(
-        { email: email, acr: 'http://idmanagement.gov/ns/assurance/loa/1' },
-        idp_private_key,
-        'RS256',
-      )
-    }
+        expect(last_response).to be_redirect
+        uri = URI.parse(last_response.location)
+        expect(uri.path).to eq('/')
+        expect(uri.query).to eq('error=access_denied')
+        follow_redirect!
+        expect(last_response.body).to include('You chose to exit before signing in')
+      end
 
-    let(:idp_private_key) { OpenSSL::PKey::RSA.new(2048) }
-    let(:idp_public_key) { idp_private_key.public_key }
+      it 'renders a default error message when no code or explicit error code' do
+        get '/auth/result'
 
-    before do
-      stub_request(:get, jwks_uri).
-        to_return(body: {
-          keys: [JSON::JWK.new(idp_public_key)],
-        }.to_json)
+        doc = Nokogiri::HTML(last_response.body)
 
-      stub_request(:post, token_endpoint).
-        with(
-          body: {
-            grant_type: 'authorization_code',
-            code: code,
-            client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-            client_assertion: kind_of(String),
-          },
-        ).
-        to_return(
-          body: {
-            id_token: id_token,
-          }.to_json,
+        expect(doc.text).to include('missing callback param: code')
+      end
+    end
+
+    context 'the token exchange moved forward' do
+      let(:code) { SecureRandom.uuid }
+      let(:connection) { double Faraday }
+
+      let(:email) { 'foobar@bar.com' }
+      let(:bearer_token) { SecureRandom.hex(10)}
+
+      before do
+        expect(Faraday).to receive(:post).with(token_endpoint,
+          grant_type: 'authorization_code',
+          code: code,
+          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: kind_of(String),
+        ) { Faraday::Response.new({body: { access_token: bearer_token}.to_json }) }
+
+        expect(Faraday).to receive(:new).with(url: userinfo_endpoint,
+          headers: {'Authorization' => "Bearer #{bearer_token}" },
+        ) { connection }
+
+        expect(connection).to receive(:get).with('') { Faraday::Response.new({body: { email: email}.to_json }) }
+      end
+
+      it 'takes an authorization code and gets a token, and renders the email from the token' do
+        get '/auth/result', code: code
+
+        expect(last_response).to be_redirect
+        follow_redirect!
+        expect(last_response.body).to include(email)
+      end
+
+      context 'with dangerous input' do
+        let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
+
+        it 'escapes dangerous HTML' do
+          get '/auth/result', code: code
+          follow_redirect!
+
+          expect(last_response.body).to_not include(email)
+          expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
+        end
+      end
+
+      it 'has a logout link back to the SP-initiated logout URL' do
+        get '/auth/result', code: code
+        follow_redirect!
+        doc = Nokogiri::HTML(last_response.body)
+
+        # logout_link = doc.at_xpath("//div[@class='sign-in-wrap']/a[text()='\n              Log out\n            ']")
+        logout_link = doc.at_css("div.sign-in-wrap a:contains('Log out')")
+        expect(logout_link).to be
+
+        href = logout_link[:href]
+        expect(href).to start_with(end_session_endpoint)
+        expect(href).to include("client_id=#{CGI.escape(client_id)}")
+      end
+
+
+      it 'redirects with an irs_attempts_api session link if enable_attempts_api param and step_up flow is true' do
+        get '/auth/request?enable_attempts_api=true&ial=step-up'
+        get '/auth/result', code: code
+        get last_response.location
+
+        expect(last_response).to be_redirect
+        expect(CGI.unescape(last_response.location)).to include(
+          'irs_attempts_api_session_id',
         )
-    end
-
-    it 'takes an authorization code and gets a token, and renders the email from the token' do
-      get '/auth/result', code: code
-
-      expect(last_response).to be_redirect
-      follow_redirect!
-      expect(last_response.body).to include(email)
-      # expect(last_response.body).to include(email)
-      # expect(last_response.body).to include('LOA1')
-    end
-
-    context 'with dangerous input' do
-      let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
-
-      it 'escapes dangerous HTML' do
-        get '/auth/result', code: code
-        follow_redirect!
-
-        expect(last_response.body).to_not include(email)
-        expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
       end
     end
-
-    it 'has a logout link back to the SP-initiated logout URL' do
-      get '/auth/result', code: code
-      follow_redirect!
-      doc = Nokogiri::HTML(last_response.body)
-
-      logout_link = doc.at_xpath("//div[@class='sign-in-wrap']/a[text()='\n              Log out\n            ']")
-      expect(logout_link).to be
-
-      href = logout_link[:href]
-      expect(href).to start_with(end_session_endpoint)
-      expect(href).to include("client_id=#{CGI.escape(client_id)}")
-    end
-
-    it 'redirects to root with an error param when there is an access denied' do
-      get '/auth/result', error: 'access_denied'
-
-      expect(last_response).to be_redirect
-      uri = URI.parse(last_response.location)
-      expect(uri.path).to eq('/')
-      expect(uri.query).to eq('error=access_denied')
-      follow_redirect!
-      expect(last_response.body).to include('You chose to exit before signing in')
-    end
-
-    it 'renders a default error message when no code or explicit error code' do
-      get '/auth/result'
-
-      doc = Nokogiri::HTML(last_response.body)
-
-      expect(doc.text).to include('missing callback param: code')
-    end
-
-    context 'LOA3 /auth/result' do
-      let(:id_token) {
-        JWT.encode(
-          {
-            email: email,
-            acr: 'http://idmanagement.gov/ns/assurance/loa/3',
-            social_security_number: '012-34-5678',
-            phone: '0125551212',
-            address: '123 Main St., Anytown, US 12345',
-          },
-          idp_private_key,
-          'RS256',
-        )
-      }
-
-      it 'renders expected LOA3 data when redaction is not enabled' do
-        # disable redaction
-        expect_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:redact_ssn?).at_least(:once).and_return(false)
-
-        get '/auth/result', code: code
-        follow_redirect!
-
-        expect(last_response.body).to include('012-34-5678')
-        expect(last_response.body).to include('0125551212')
-        expect(last_response.body).to include('LOA3')
-        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
-      end
-
-      it 'renders redacted SSN LOA3 data when redaction is enabled' do
-        # enable redaction
-        expect_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:redact_ssn?).at_least(:once).and_return(true)
-
-        get '/auth/result', code: code
-        follow_redirect!
-
-        expect(last_response.body).to_not include('012-34-5678')
-        expect(last_response.body).to include('###-##-####')
-        expect(last_response.body).to include('0125551212')
-        expect(last_response.body).to include('LOA3')
-        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
-      end
-    end
-
-    context 'LOA3 /auth/result without SSN' do
-      let(:id_token) {
-        JWT.encode(
-          {
-            email: email,
-            acr: 'http://idmanagement.gov/ns/assurance/loa/3',
-            phone: '0125551212',
-            address: '123 Main St., Anytown, US 12345',
-          },
-          idp_private_key,
-          'RS256',
-        )
-      }
-
-      it 'handles nil SSN when redaction is enabled' do
-        # enable redaction
-        expect_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:redact_ssn?).at_least(:once).and_return(true)
-
-        get '/auth/result', code: code
-        follow_redirect!
-
-        expect(last_response.body).to_not include('012-34-5678')
-        expect(last_response.body).to_not include('###-##-####')
-        expect(last_response.body).to include('0125551212')
-        expect(last_response.body).to include('LOA3')
-        expect(last_response.body).to include('123 Main St., Anytown, US 12345')
-      end
-    end
-
-    it 'redirects with an irs_attempts_api session link if enable_attempts_api param and step_up flow is true' do
-      get '/auth/request?enable_attempts_api=true&ial=step-up'
-      get '/auth/result', code: code
-      get last_response.location
-
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        'irs_attempts_api_session_id',
-      )
-    end
-
   end
 end
