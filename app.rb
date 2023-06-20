@@ -212,13 +212,13 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        }[ial]
+      }[ial]
 
       values << {
         '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
         '2-phishing_resistant' => 'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
         '2-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
-        }[aal]
+      }[aal]
 
       values.compact.join(' ')
     end
