@@ -94,7 +94,7 @@
               </button>
             </div>
             <div class="clearfix">
-              <details class="details-popup display-inline-block float-right">
+              <details class="details-popup display-inline-block float-right" open>
                 <summary class="float-right">Options</summary>
 
                 <label class="usa-label" for="aal">
@@ -129,21 +129,6 @@
                   <% end %>
                 </select>
 
-                <label class="usa-label" for="ip-auth-option">
-                  Inherited Proofing
-                </label>
-                <select name="ip_auth_option" id="ip-auth-option" class="usa-select">
-                  <% [
-                       ['', 'Disabled'],
-                       ['mocked-auth-code-for-testing', 'Enabled'],
-                       ['mocked-auth-code-for-failure', 'Simulate failure'],
-                     ].each do |value, label| %>
-                    <option value="<%= value %>" <%= 'selected' if ip_auth_option == value %> >
-                      <%= label %>
-                    </option>
-                  <% end %>
-                </select>
-
                 <hr/>
                 <div class="usa-checkbox">
                   <input class="usa-checkbox__input"
@@ -154,17 +139,6 @@
                   />
                   <label class="usa-checkbox__label" for="check-simulate_csp">
                     Simulate CSP Error
-                  </label>
-                </div>
-                <div class="usa-checkbox">
-                  <input class="usa-checkbox__input"
-                         id="check_enable_attempts_api"
-                         type="checkbox"
-                         name="enable_attempts_api"
-                         value="true"
-                    />
-                  <label class="usa-checkbox__label" for="check_enable_attempts_api">
-                    Enable attempts api
                   </label>
                 </div>
               </details>
