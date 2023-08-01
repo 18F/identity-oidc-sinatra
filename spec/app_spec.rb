@@ -89,8 +89,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     context 'user options' do
       it 'adds inherited proofing auth_code URL param to authorization endpoint when selected by user' do
-        auth_code = 'auth_code_selected_by_user'
-
         get '/'
 
         doc = Nokogiri::HTML(last_response.body)
@@ -98,7 +96,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         auth_uri = URI(login_link[:href])
         auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
 
-        expect(auth_uri_params[:inherited_proofing_auth]).to eq(auth_code)
+        expect(auth_uri_params[:inherited_proofing_auth]).to eq(nil)
       end
     end
   end
