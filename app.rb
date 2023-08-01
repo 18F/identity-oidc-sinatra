@@ -52,7 +52,6 @@ module LoginGov::OidcSinatra
       erb :index, locals: {
         ial: ial,
         aal: aal,
-        ip_auth_option: params[:ip_auth_option],
         ial_url: authorization_url(ial: ial, aal: aal),
         login_msg: login_msg,
         logout_msg: logout_msg,
@@ -68,9 +67,6 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
-      if params.has_key?(:enable_attempts_api)
-        session[:irs] = params[:enable_attempts_api]
-      end
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
@@ -78,7 +74,6 @@ module LoginGov::OidcSinatra
       idp_url = authorization_url(
         ial: ial,
         aal: params[:aal],
-        enable_attempts_api: session[:irs],
       )
 
       settings.logger.info("Redirecting to #{idp_url}")
@@ -150,9 +145,8 @@ module LoginGov::OidcSinatra
 
     private
 
-    def authorization_url(ial:, aal: nil, enable_attempts_api: nil)
+    def authorization_url(ial:, aal: nil)
       endpoint = openid_configuration[:authorization_endpoint]
-      irs_attempts_api_session_id = enable_attempts_api ? random_value : nil
       request_params = {
         client_id: client_id,
         response_type: 'code',
@@ -162,8 +156,6 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-        inherited_proofing_auth: params['ip_auth_option'].presence,
-        irs_attempts_api_session_id: irs_attempts_api_session_id,
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
