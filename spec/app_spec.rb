@@ -89,16 +89,14 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     context 'user options' do
       it 'adds inherited proofing auth_code URL param to authorization endpoint when selected by user' do
-        auth_code = 'auth_code_selected_by_user'
-
-        get '/', { ip_auth_option: auth_code }
+        get '/'
 
         doc = Nokogiri::HTML(last_response.body)
         login_link = doc.at("a[href*='#{authorization_endpoint}']")
         auth_uri = URI(login_link[:href])
         auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
 
-        expect(auth_uri_params[:inherited_proofing_auth]).to eq(auth_code)
+        expect(auth_uri_params[:inherited_proofing_auth]).to eq(nil)
       end
     end
   end
@@ -171,15 +169,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
         '/aal/2?hspd12=true',
-      )
-    end
-
-    it 'redirects with an irs_attempts_api sign in link if enable_attempts_api param is true' do
-      get '/auth/request?enable_attempts_api=true'
-
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        'irs_attempts_api_session_id',
       )
     end
   end
@@ -260,18 +249,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         href = logout_link[:href]
         expect(href).to start_with(end_session_endpoint)
         expect(href).to include("client_id=#{CGI.escape(client_id)}")
-      end
-
-
-      it 'redirects with an irs_attempts_api session link if enable_attempts_api param and step_up flow is true' do
-        get '/auth/request?enable_attempts_api=true&ial=step-up'
-        get '/auth/result', code: code
-        get last_response.location
-
-        expect(last_response).to be_redirect
-        expect(CGI.unescape(last_response.location)).to include(
-          'irs_attempts_api_session_id',
-        )
       end
     end
   end
