@@ -41,7 +41,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(auth_uri_params[:prompt]).to eq('select_account')
       expect(auth_uri_params[:nonce].length).to be >= 32
       expect(auth_uri_params[:state].length).to be >= 32
-      expect(auth_uri_params[:inherited_proofing_auth]).not_to be
     end
 
     it 'pre-fills IAL2 if the URL has ?ial=2 (used in smoke tests)' do
@@ -85,19 +84,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include(error_string)
       expect(stub).to have_been_requested.once
       expect(last_response.status).to eq 500
-    end
-
-    context 'user options' do
-      it 'adds inherited proofing auth_code URL param to authorization endpoint when selected by user' do
-        get '/'
-
-        doc = Nokogiri::HTML(last_response.body)
-        login_link = doc.at("a[href*='#{authorization_endpoint}']")
-        auth_uri = URI(login_link[:href])
-        auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
-
-        expect(auth_uri_params[:inherited_proofing_auth]).to eq(nil)
-      end
     end
   end
 
