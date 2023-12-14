@@ -98,6 +98,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.location).to_not include(
         'scope=openid+email+profile+social_security_number+phone+address',
       )
+      expect(last_response.location).to include(
+        'biometric_comparison_required=false',
+      )
     end
 
     it 'redirects to an ial2 signin if the ial is 2' do
@@ -106,6 +109,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(last_response.location).to include(
         'scope=openid+email+profile+social_security_number+phone+address',
+      )
+      expect(last_response.location).to include(
+        'biometric_comparison_required=false',
       )
     end
 
@@ -118,6 +124,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       )
       expect(last_response.location).to_not include(
         'scope=openid+email+profile+social_security_number+phone+address',
+      )
+      expect(last_response.location).to include(
+        'biometric_comparison_required=false',
       )
     end
 
@@ -155,6 +164,21 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_redirect
       expect(CGI.unescape(last_response.location)).to include(
         '/aal/2?hspd12=true',
+      )
+    end
+
+    it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
+      get '/auth/request?ial=biometric-comparison-required'
+
+      expect(last_response).to be_redirect
+      expect(CGI.unescape(last_response.location)).to include(
+        '/ial/2',
+      )
+      expect(last_response.location).to include(
+        'scope=openid+email+profile+social_security_number+phone+address',
+      )
+      expect(last_response.location).to include(
+        'biometric_comparison_required=true',
       )
     end
   end
