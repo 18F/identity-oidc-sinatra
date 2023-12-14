@@ -156,6 +156,7 @@ module LoginGov::OidcSinatra
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
+        biometric_comparison_required: ial == 'biometric-comparison-required',
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
@@ -183,12 +184,12 @@ module LoginGov::OidcSinatra
     end
 
     def scopes_for(ial)
-      case ial.to_i
-      when 0
+      case ial
+      when '0'
         'openid email social_security_number'
-      when 1
+      when '1', nil
         'openid email'
-      when 2
+      when '2', 'biometric-comparison-required'
         'openid email profile social_security_number phone address'
       else
         raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
@@ -204,6 +205,7 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
+        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
       }[ial]
 
       values << {
