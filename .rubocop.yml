@@ -3,7 +3,7 @@ AllCops:
     - 'node_modules/**/*'
     - 'public/**/*'
     - 'vendor/**/*'
-  TargetRubyVersion: 3.0.4
+  TargetRubyVersion: 3.2.2
   UseCache: true
   DisabledByDefault: true
   SuggestExtensions: false
