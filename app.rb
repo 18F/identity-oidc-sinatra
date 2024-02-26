@@ -151,12 +151,14 @@ module LoginGov::OidcSinatra
         client_id: client_id,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
+        vtr: vtr_value(ial: ial, aal: aal),
+        vtm: vtm_value,
         scope: scopes_for(ial),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-        biometric_comparison_required: ial == 'biometric-comparison-required',
+        biometric_comparison_required: biometric_comparison_required_value(ial),
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
@@ -197,6 +199,8 @@ module LoginGov::OidcSinatra
     end
 
     def acr_values(ial:, aal:)
+      return if config.vtr_enabled?
+
       values = []
 
       values << {
@@ -215,6 +219,35 @@ module LoginGov::OidcSinatra
       }[aal]
 
       values.compact.join(' ')
+    end
+
+    def vtr_value(ial:, aal:)
+      return unless config.vtr_enabled?
+
+      values = ['C1']
+
+      values << {
+        '2' => 'C2',
+        '2-phishing_resistant' => 'C2.Ca',
+        '2-hspd12' => 'C2.Cb',
+      }[aal]
+
+      values << {
+        '2' => 'P1',
+        'biometric-comparison-required' => 'P1.Pb',
+      }[ial]
+
+      [values.compact.join('.')].to_json
+    end
+
+    def vtm_value
+      return unless config.vtr_enabled?
+      'https://developer.login.gov/vot-trust-framework'
+    end
+
+    def biometric_comparison_required_value(ial)
+      return if config.vtr_enabled?
+      ial == 'biometric-comparison-required'
     end
 
     def openid_configuration

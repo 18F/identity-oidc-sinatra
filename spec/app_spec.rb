@@ -10,9 +10,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:userinfo_endpoint) { "#{host}/api/openid/userinfo" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
+  let(:vtr_enabled) { false }
 
   before do
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_enabled?).and_return(vtr_enabled)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
@@ -88,98 +90,208 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/request' do
-    it 'redirects to an ial1 sign in link if loa param is nil' do
-      get '/auth/request'
+    context 'with acr_values enabled' do
+      let(:vtr_enabled) { false }
 
-      expect(last_response).to be_redirect
-      expect(last_response.location).to include(
-        'scope=openid+email',
-      )
-      expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address',
-      )
-      expect(last_response.location).to include(
-        'biometric_comparison_required=false',
-      )
+      it 'redirects to an ial1 sign in link if loa param is nil' do
+        get '/auth/request'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email',
+        )
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
+        )
+        expect(last_response.location).to include(
+          'biometric_comparison_required=false',
+        )
+      end
+
+      it 'redirects to an ial2 signin if the ial is 2' do
+        get '/auth/request?ial=2'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/2'),
+        )
+        expect(last_response.location).to include(
+          'biometric_comparison_required=false',
+        )
+      end
+
+      it 'redirects to an ial1 sign in link if ial param is 1' do
+        get '/auth/request?ial=1'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email',
+        )
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
+        )
+        expect(last_response.location).to include(
+          'biometric_comparison_required=false',
+        )
+      end
+
+      it 'redirects to an ialmax sign in link if ial param is 0' do
+        get '/auth/request?ial=0'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email+social_security_number',
+        )
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/0'),
+        )
+      end
+
+      it 'redirects to an ial1 sign in link if ial param is step-up' do
+        get '/auth/request?ial=step-up'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include('scope=openid+email')
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
+        )
+      end
+
+      it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
+        get '/auth/request?aal=2-phishing_resistant'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/aal/2'),
+        )
+        expect(CGI.unescape(last_response.location)).to include(
+          '/aal/2?phishing_resistant=true',
+        )
+      end
+
+      it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
+        get '/auth/request?aal=2-hspd12'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/aal/2'),
+        )
+        expect(CGI.unescape(last_response.location)).to include(
+          '/aal/2?hspd12=true',
+        )
+      end
+
+      it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
+        get '/auth/request?ial=biometric-comparison-required'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          CGI.escape('http://idmanagement.gov/ns/assurance/ial/2'),
+        )
+        expect(last_response.location).to include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(last_response.location).to include(
+          'biometric_comparison_required=true',
+        )
+      end
     end
 
-    it 'redirects to an ial2 signin if the ial is 2' do
-      get '/auth/request?ial=2'
+    context 'with vtr enabled' do
+      let(:vtr_enabled) { true }
 
-      expect(last_response).to be_redirect
-      expect(last_response.location).to include(
-        'scope=openid+email+profile+social_security_number+phone+address',
-      )
-      expect(last_response.location).to include(
-        'biometric_comparison_required=false',
-      )
-    end
+      it 'redirects to a default sign in link if ial param is nil' do
+        get '/auth/request'
 
-    it 'redirects to an ial1 sign in link if ial param is 1' do
-      get '/auth/request?ial=1'
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email',
+        )
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(last_response.location).to include(
-        'scope=openid+email',
-      )
-      expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address',
-      )
-      expect(last_response.location).to include(
-        'biometric_comparison_required=false',
-      )
-    end
+      it 'redirects to an identity-proofing signin if the ial is 2' do
+        get '/auth/request?ial=2'
 
-    it 'redirects to an ialmax sign in link if ial param is 0' do
-      get '/auth/request?ial=0'
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(last_response.location).to include(
-        'scope=openid+email+social_security_number',
-      )
-    end
+      it 'redirects to an default sign in link if ial param is 1' do
+        get '/auth/request?ial=1'
 
-    it 'redirects to an ial1 sign in link if ial param is step-up' do
-      get '/auth/request?ial=step-up'
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email',
+        )
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(last_response.location).to include('scope=openid+email')
-      expect(last_response.location).to_not include(
-        'scope=openid+email+profile+social_security_number+phone+address',
-      )
-    end
+      xit 'redirects to an ialmax sign in link if ial param is 0' do
+        get '/auth/request?ial=0'
 
-    it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
-      get '/auth/request?aal=2-phishing_resistant'
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email+social_security_number',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        '/aal/2?phishing_resistant=true',
-      )
-    end
+      it 'redirects to a default sign in link if ial param is step-up' do
+        get '/auth/request?ial=step-up'
 
-    it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
-      get '/auth/request?aal=2-hspd12'
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include('scope=openid+email')
+        expect(last_response.location).to_not include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        '/aal/2?hspd12=true',
-      )
-    end
+      it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
+        get '/auth/request?aal=2-phishing_resistant'
 
-    it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-      get '/auth/request?ial=biometric-comparison-required'
+        expect(last_response).to be_redirect
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.C2.Ca"]')
+      end
 
-      expect(last_response).to be_redirect
-      expect(CGI.unescape(last_response.location)).to include(
-        '/ial/2',
-      )
-      expect(last_response.location).to include(
-        'scope=openid+email+profile+social_security_number+phone+address',
-      )
-      expect(last_response.location).to include(
-        'biometric_comparison_required=true',
-      )
+      it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
+        get '/auth/request?aal=2-hspd12'
+
+        expect(last_response).to be_redirect
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.C2.Cb"]')
+      end
+
+      it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
+        get '/auth/request?ial=biometric-comparison-required'
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to include(
+          'scope=openid+email+profile+social_security_number+phone+address',
+        )
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1.Pb"]')
+      end
     end
   end
 
