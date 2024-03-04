@@ -325,18 +325,18 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:bearer_token) { SecureRandom.hex(10)}
 
       before do
-        expect(Faraday).to receive(:post).with(token_endpoint,
-          grant_type: 'authorization_code',
-          code: code,
-          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-          client_assertion: kind_of(String),
-        ) { Faraday::Response.new({body: { access_token: bearer_token}.to_json }) }
+        stub_request(:post, token_endpoint).
+          with(body: {
+            grant_type: 'authorization_code',
+            code: code,
+            client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            client_assertion: kind_of(String),
+          }).
+          to_return(body: { access_token: bearer_token }.to_json)
 
-        expect(Faraday).to receive(:new).with(url: userinfo_endpoint,
-          headers: {'Authorization' => "Bearer #{bearer_token}" },
-        ) { connection }
-
-        expect(connection).to receive(:get).with('') { Faraday::Response.new({body: { email: email}.to_json }) }
+        stub_request(:get, userinfo_endpoint).
+          with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
+          to_return(body: { email: email }.to_json)
       end
 
       it 'takes an authorization code and gets a token, and renders the email from the token' do
