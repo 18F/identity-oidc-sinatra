@@ -199,7 +199,7 @@ module LoginGov::OidcSinatra
     end
 
     def acr_values(ial:, aal:)
-      return if config.vtr_enabled?
+      return unless config.vtr_disabled?
 
       values = []
 
@@ -222,7 +222,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtr_value(ial:, aal:)
-      return unless config.vtr_enabled?
+      return if config.vtr_disabled?
 
       values = ['C1']
 
@@ -241,12 +241,12 @@ module LoginGov::OidcSinatra
     end
 
     def vtm_value
-      return unless config.vtr_enabled?
+      return if config.vtr_disabled?
       'https://developer.login.gov/vot-trust-framework'
     end
 
     def biometric_comparison_required_value(ial)
-      return if config.vtr_enabled?
+      return unless config.vtr_disabled?
       ial == 'biometric-comparison-required'
     end
 

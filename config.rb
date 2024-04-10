@@ -49,8 +49,8 @@ module LoginGov
         @config.fetch('cache_oidc_config')
       end
 
-      def vtr_enabled?
-        @config.fetch('vtr_enabled')
+      def vtr_disabled?
+        @config.fetch('vtr_disabled')
       end
 
       # @return [OpenSSL::PKey::RSA]
@@ -76,7 +76,7 @@ module LoginGov
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
           'redact_ssn' => true,
           'cache_oidc_config' => true,
-          'vtr_enabled' => ENV.fetch('VTR_ENABLED', 'false') == 'true',
+          'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
         }
 
         # EC2 deployment defaults
