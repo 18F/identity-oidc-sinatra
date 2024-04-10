@@ -10,11 +10,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:userinfo_endpoint) { "#{host}/api/openid/userinfo" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
-  let(:vtr_enabled) { false }
+  let(:vtr_disabled) { false }
 
   before do
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
-    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_enabled?).and_return(vtr_enabled)
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_disabled?).and_return(vtr_disabled)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
@@ -90,8 +90,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/request' do
-    context 'with acr_values enabled' do
-      let(:vtr_enabled) { false }
+    context 'with vtr disabled' do
+      let(:vtr_disabled) { true }
 
       it 'redirects to an ial1 sign in link if loa param is nil' do
         get '/auth/request'
@@ -210,7 +210,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'with vtr enabled' do
-      let(:vtr_enabled) { true }
+      let(:vtr_disabled) { false }
 
       it 'redirects to a default sign in link if ial param is nil' do
         get '/auth/request'
