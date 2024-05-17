@@ -248,14 +248,14 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(CGI.unescape(last_response.location)).to include('vtr=["C1"]')
       end
 
-      xit 'redirects to an ialmax sign in link if ial param is 0' do
+      it 'redirects to an ialmax sign in link if ial param is 0' do
         get '/auth/request?ial=0'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
           'scope=openid+email+social_security_number',
         )
-        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1"]')
+        expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1","C1"]')
       end
 
       it 'redirects to a default sign in link if ial param is step-up' do
