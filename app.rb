@@ -49,6 +49,9 @@ module LoginGov::OidcSinatra
 
       ial = prepare_step_up_flow(session: session, ial: ial, aal: aal)
 
+      is_eipp_allowed = is_eipp_allowed()
+      ial_select_options = get_ial_select_options(is_eipp_allowed: is_eipp_allowed)
+
       erb :index, locals: {
         ial: ial,
         aal: aal,
@@ -59,6 +62,7 @@ module LoginGov::OidcSinatra
         logout_uri: logout_uri,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
+        ial_select_options: ial_select_options,
       }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
@@ -144,6 +148,28 @@ module LoginGov::OidcSinatra
     end
 
     private
+
+    def get_ial_select_options(is_eipp_allowed:)
+      enhanced_ipp_option = ['enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)']
+      option = [
+        ['1', 'Authentication only (default)'],
+        ['2', 'Identity-verified'],
+        ['0', 'IALMax'],
+        ['step-up', 'Step-up Flow'],
+        ['biometric-comparison-required', 'Biometric Comparison (Disabled in prod)'],
+      ]
+
+      if is_eipp_allowed
+        option.push(enhanced_ipp_option)
+      else
+        option
+      end      
+    end 
+
+    def is_eipp_allowed()
+      env = ENV['idp_environment']
+      is_eipp_allowed = (env == 'dev' || env == 'staging')
+    end
 
     def authorization_url(ial:, aal: nil)
       endpoint = openid_configuration[:authorization_endpoint]
