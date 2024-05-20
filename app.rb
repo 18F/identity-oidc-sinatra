@@ -150,7 +150,9 @@ module LoginGov::OidcSinatra
     private
 
     def get_ial_select_options(is_eipp_allowed:)
-      enhanced_ipp_option = ['enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)']
+      enhanced_ipp_option = [
+        'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
+      ]
       option = [
         ['1', 'Authentication only (default)'],
         ['2', 'Identity-verified'],
@@ -292,7 +294,6 @@ module LoginGov::OidcSinatra
       return unless config.vtr_disabled?
       ial == 'enhanced-ipp-required'
     end
-
 
     def openid_configuration
       if config.cache_oidc_config?
