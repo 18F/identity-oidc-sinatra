@@ -153,7 +153,7 @@ module LoginGov::OidcSinatra
         ['2', 'Identity-verified'],
         ['0', 'IALMax'],
         ['step-up', 'Step-up Flow'],
-        ['biometric-comparison-required', 'Biometric Comparison (Disabled in prod)'],
+        ['biometric-comparison-required', 'Biometric Comparison'],
       ]
       
       if eipp_allowed == 'true'
