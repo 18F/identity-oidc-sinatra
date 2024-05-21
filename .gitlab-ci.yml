@@ -1,0 +1,102 @@
+# Jobs defined here use the idp/ci docker image from ECR by default. 
+# Images are built via the identity-devops GitLab pipeline.
+
+variables:
+  BUNDLER_VERSION: "2.3.13"
+  ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
+  IDP_WORKER_IMAGE_TAG: 'main'
+  IDP_IMAGE_TAG: 'main'
+  PKI_IMAGE_TAG: 'main'
+  CF_API: "https://api.fr.cloud.gov"
+  CF_USER: "e1fdd211-f191-40e8-99c7-4e7164d9ae76"
+  CF_PASS: $CF_PASS
+  CF_ORG: "gsa-login-prototyping"
+
+default:
+  image: '${ECR_REGISTRY}/dashboard/ci:latest'
+
+.bundle_install: &bundle_install
+  - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/ruby
+
+.yarn_install: &yarn_install
+  - yarn install --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
+
+.yarn_production_install: &yarn_production_install
+  - yarn install --production --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
+
+.build_cache:
+  - &ruby_cache
+    key:
+      files:
+        - Gemfile.lock
+    paths:
+      - vendor/ruby
+    policy: pull
+
+  - &yarn_cache
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - .yarn-cache/
+    policy: pull
+
+  - &yarn_production_cache
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - .yarn-cache/
+    policy: pull
+
+stages:
+  - .pre
+  - test
+  - deploy
+
+install_dependencies:
+  stage: .pre
+  variables:
+    RAILS_ENV: test
+    SKIP_YARN_INSTALL: 'true'
+  cache:
+    - <<: *ruby_cache
+      policy: pull-push
+    - <<: *yarn_cache
+      policy: pull-push
+  script:
+    - *bundle_install
+    - *yarn_install
+    - bundle exec rake login:deploy_json
+
+test_release:
+  stage: test
+  needs:
+    - job: install_dependencies
+  cache:
+    - <<: *ruby_cache
+    - <<: *yarn_cache
+  script:
+    - *bundle_install
+    - *yarn_install
+    - make test
+  artifacts:
+    paths:
+      - /tmp/test-results
+
+deploy_to_cloudgov:
+  stage: deploy
+  image: '${ECR_REGISTRY}/dashboard/ci:latest'
+  script:
+    - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" 
+    - tar -xvzf cf8-cli_linux_x86-64.tgz
+    - mv cf8 /usr/local/bin
+    - cf8 --version
+    - curl -o /usr/share/bash-completion/completions/cf8 https://raw.githubusercontent.com/cloudfoundry/cli-ci/master/ci/installers/completion/cf8
+    - *bundle_install
+    - bundle exec rake login:deploy_json
+    - CF_TRACE=true cf8 login -a https://api.fr.cloud.gov -u "e1fdd211-f191-40e8-99c7-4e7164d9ae76" -p $CF8_PASS -o "gsa-login-prototyping" -s "$SPACE"
+    - cf8 push $SPACE-identity-saml-sinatra -b ruby_buildpack
+  parallel:
+    matrix:
+      - SPACE: [prod, staging, int, dev, dm] 
