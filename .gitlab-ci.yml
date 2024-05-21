@@ -75,7 +75,7 @@ test_release:
   script:
     - *bundle_install
     - *yarn_install
-    - make test
+    - make check
   artifacts:
     paths:
       - /tmp/test-results
