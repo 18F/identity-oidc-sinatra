@@ -11,6 +11,9 @@ variables:
 default:
   image: '${ECR_REGISTRY}/dashboard/ci:latest'
 
+before_script:
+  - gem install bundler --version $BUNDLER_VERSION
+
 .bundle_install: &bundle_install
   - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
 
@@ -75,6 +78,7 @@ test_release:
   script:
     - *bundle_install
     - *yarn_install
+    - make .env
     - make check
   artifacts:
     paths:
