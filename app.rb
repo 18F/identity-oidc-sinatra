@@ -147,7 +147,6 @@ module LoginGov::OidcSinatra
     private
 
     def get_ial_select_options
-      eipp_allowed = ENV['eipp_allowed']
       options = [
         ['1', 'Authentication only (default)'],
         ['2', 'Identity-verified'],
@@ -155,10 +154,10 @@ module LoginGov::OidcSinatra
         ['step-up', 'Step-up Flow'],
         ['biometric-comparison-required', 'Biometric Comparison'],
       ]
-      
-      if eipp_allowed == 'true'
+
+      if config.eipp_allowed?
         options << [
-          'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
+          'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
         ]
       else
         options
