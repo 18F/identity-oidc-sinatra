@@ -53,6 +53,12 @@ stages:
   - test
   - deploy
 
+workflow:
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: never
+  - if: $CI_COMMIT_BRANCH == 'main'
+
 install_dependencies:
   stage: .pre
   variables:
