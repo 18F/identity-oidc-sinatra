@@ -102,7 +102,7 @@ deploy_to_cloudgov:
     - *bundle_install
     - bundle exec rake login:deploy_json
     - cf8 login -a https://api.fr.cloud.gov -u "e1fdd211-f191-40e8-99c7-4e7164d9ae76" -p $CF8_PASS -o "gsa-login-prototyping" -s "$SPACE"
-    - cf8 push $SPACE-identity-saml-sinatra -b ruby_buildpack -s cflinuxfs4
+    - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
   parallel:
     matrix:
       - SPACE: [prod, staging, int, dev, dm] 
