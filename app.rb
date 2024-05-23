@@ -178,7 +178,7 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
         biometric_comparison_required: biometric_comparison_required_value(ial),
-        enhanced_ipp_required: enhanced_ipp_required_value(ial),
+        enhanced_ipp_required: requires_enhanced_ipp?(ial),
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
@@ -279,7 +279,7 @@ module LoginGov::OidcSinatra
       ial == 'biometric-comparison-required'
     end
 
-    def enhanced_ipp_required_value(ial)
+    def requires_enhanced_ipp?(ial)
       return unless config.vtr_disabled?
       ial == 'enhanced-ipp-required'
     end
