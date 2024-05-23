@@ -237,7 +237,14 @@ module LoginGov::OidcSinatra
         'biometric-comparison-required' => 'P1.Pb',
       }[ial]
 
-      [values.compact.join('.')].to_json
+      vtr_list = [values.compact.join('.')]
+
+      if ial == '0'
+        proofing_vector = values.dup + ['P1']
+        vtr_list = [proofing_vector.compact.join('.'), *vtr_list]
+      end
+
+      vtr_list.to_json
     end
 
     def vtm_value
