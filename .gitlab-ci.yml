@@ -108,4 +108,5 @@ deploy_to_cloudgov:
     - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
   parallel:
     matrix:
-      - SPACE: [prod, staging, int, dev, dm] 
+      # - SPACE: [prod, staging, int, dev, dm]
+      - SPACE: [dev]
