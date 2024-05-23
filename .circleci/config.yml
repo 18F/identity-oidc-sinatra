@@ -111,7 +111,7 @@ workflows:
             - build
           filters:
             branches:
-              only: move-oidc-sinatra-from-gh-to-gl
+              only: main
           matrix:
             parameters:
               space:
