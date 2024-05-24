@@ -13,6 +13,9 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
+require 'uri'
+require 'net/http'
+
 if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
@@ -57,6 +60,9 @@ module LoginGov::OidcSinatra
         logout_msg: logout_msg,
         user_email: user_email,
         logout_uri: logout_uri,
+        client_id: client_id,
+        redirect_uri: File.join(config.redirect_uri, 'logout'),
+        state: SecureRandom.hex,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
       }
@@ -115,6 +121,16 @@ module LoginGov::OidcSinatra
 
     get '/failure_to_proof' do
       erb :failure_to_proof
+    end
+
+    get '/signout' do
+      erb :signout, locals: {
+        authenticity_token: env['rack.session'][:csrf],
+        logout_uri: openid_configuration[:end_session_endpoint],
+        client_id: client_id,
+        redirect_uri: File.join(config.redirect_uri, 'logout'),
+        state: SecureRandom.hex,
+      }
     end
 
     get '/logout' do
@@ -320,6 +336,16 @@ module LoginGov::OidcSinatra
       "#{endpoint}?#{request_params}"
     end
 
+    def logout_config
+      {
+        end_session_endpoint: openid_configuration[:end_session_endpoint],
+        params: {
+          client_id: client_id,
+          post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
+          state: SecureRandom.hex,
+        }
+      }
+    end
     def json(response)
       JSON.parse(response.to_s).with_indifferent_access
     end
