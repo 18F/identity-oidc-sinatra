@@ -62,6 +62,8 @@ module LoginGov::OidcSinatra
         logout_uri: logout_uri,
         client_id: client_id,
         redirect_uri: File.join(config.redirect_uri, 'logout'),
+        authenticity_token: env['rack.session'][:csrf],
+        signout_uri: openid_configuration[:end_session_endpoint],
         state: SecureRandom.hex,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
