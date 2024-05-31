@@ -77,6 +77,7 @@ module LoginGov
           'redact_ssn' => true,
           'cache_oidc_config' => true,
           'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
+          'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
         }
 
         # EC2 deployment defaults
