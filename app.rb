@@ -40,6 +40,7 @@ module LoginGov::OidcSinatra
     def config
       @config ||= Config.new
     end
+
     # rubocop: disable Metrics/BlockLength
     get '/' do
       login_msg = session.delete(:login_msg)
@@ -66,7 +67,7 @@ module LoginGov::OidcSinatra
         state: SecureRandom.hex,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
-      },
+      }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
@@ -338,16 +339,6 @@ module LoginGov::OidcSinatra
       "#{endpoint}?#{request_params}"
     end
 
-    def logout_config
-      {
-        end_session_endpoint: openid_configuration[:end_session_endpoint],
-        params: {
-          client_id: client_id,
-          post_logout_redirect_uri: File.join(config.redirect_uri, 'logout'),
-          state: SecureRandom.hex,
-        }
-      }
-    end
     def json(response)
       JSON.parse(response.to_s).with_indifferent_access
     end
