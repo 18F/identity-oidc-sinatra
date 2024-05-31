@@ -40,7 +40,7 @@ module LoginGov::OidcSinatra
     def config
       @config ||= Config.new
     end
-
+    # rubocop: disable Metrics/BlockLength
     get '/' do
       login_msg = session.delete(:login_msg)
       logout_msg = session.delete(:logout_msg)
@@ -62,17 +62,17 @@ module LoginGov::OidcSinatra
         logout_uri: logout_uri,
         client_id: client_id,
         redirect_uri: File.join(config.redirect_uri, 'logout'),
-        authenticity_token: env['rack.session'][:csrf],
         signout_uri: openid_configuration[:end_session_endpoint],
         state: SecureRandom.hex,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
-      }
+      },
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       [500, erb(:errors, locals: { error: e.inspect })]
     end
+    # rubocop: enable Metrics/BlockLength
 
     get '/auth/request' do
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
