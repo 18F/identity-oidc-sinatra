@@ -89,10 +89,6 @@ module LoginGov
         env = ENV['idp_environment'] || 'int'
         domain = ENV['idp_domain'] || 'identitysandbox.gov'
 
-        if env == 'staging'
-          data['eipp_allowed'] = true
-        end
-
         data['idp_url'] = ENV.fetch('idp_url', nil)
         unless data['idp_url']
           if env == 'prod'
