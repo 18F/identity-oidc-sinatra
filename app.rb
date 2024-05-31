@@ -13,6 +13,9 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
+require 'uri'
+require 'net/http'
+
 if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
@@ -38,6 +41,7 @@ module LoginGov::OidcSinatra
       @config ||= Config.new
     end
 
+    # rubocop: disable Metrics/BlockLength
     get '/' do
       login_msg = session.delete(:login_msg)
       logout_msg = session.delete(:logout_msg)
@@ -57,6 +61,10 @@ module LoginGov::OidcSinatra
         logout_msg: logout_msg,
         user_email: user_email,
         logout_uri: logout_uri,
+        client_id: client_id,
+        redirect_uri: File.join(config.redirect_uri, 'logout'),
+        signout_uri: openid_configuration[:end_session_endpoint],
+        state: SecureRandom.hex,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
         ial_select_options: get_ial_select_options,
@@ -66,6 +74,7 @@ module LoginGov::OidcSinatra
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       [500, erb(:errors, locals: { error: e.inspect })]
     end
+    # rubocop: enable Metrics/BlockLength
 
     get '/auth/request' do
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
@@ -116,6 +125,16 @@ module LoginGov::OidcSinatra
 
     get '/failure_to_proof' do
       erb :failure_to_proof
+    end
+
+    get '/signout' do
+      erb :signout, locals: {
+        authenticity_token: env['rack.session'][:csrf],
+        logout_uri: openid_configuration[:end_session_endpoint],
+        client_id: client_id,
+        redirect_uri: File.join(config.redirect_uri, 'logout'),
+        state: SecureRandom.hex,
+      }
     end
 
     get '/logout' do
