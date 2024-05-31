@@ -53,10 +53,6 @@ module LoginGov
         @config.fetch('vtr_disabled')
       end
 
-      def eipp_allowed?
-        @config.fetch('eipp_allowed')
-      end
-
       # @return [OpenSSL::PKey::RSA]
       def sp_private_key
         return @sp_private_key if @sp_private_key
@@ -81,7 +77,7 @@ module LoginGov
           'redact_ssn' => true,
           'cache_oidc_config' => true,
           'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
-          'eipp_allowed' => false,
+          'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
         }
 
         # EC2 deployment defaults

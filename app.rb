@@ -155,7 +155,7 @@ module LoginGov::OidcSinatra
         ['biometric-comparison-required', 'Biometric Comparison'],
       ]
 
-      if config.eipp_allowed?
+      if ENV.fetch('eipp_allowed', 'false') == 'true'
         options << [
           'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
         ]
