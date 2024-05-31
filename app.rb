@@ -280,7 +280,7 @@ module LoginGov::OidcSinatra
     end
 
     def requires_enhanced_ipp?(ial)
-      return unless config.vtr_disabled?
+      return false unless config.vtr_disabled?
       ial == 'enhanced-ipp-required'
     end
 
