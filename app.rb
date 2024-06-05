@@ -59,6 +59,7 @@ module LoginGov::OidcSinatra
         logout_uri: logout_uri,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
+        ial_select_options: get_ial_select_options,
       }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
@@ -145,6 +146,24 @@ module LoginGov::OidcSinatra
 
     private
 
+    def get_ial_select_options
+      options = [
+        ['1', 'Authentication only (default)'],
+        ['2', 'Identity-verified'],
+        ['0', 'IALMax'],
+        ['step-up', 'Step-up Flow'],
+        ['biometric-comparison-required', 'Biometric Comparison'],
+      ]
+
+      if ENV.fetch('eipp_allowed', 'false') == 'true'
+        options << [
+          'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
+        ]
+      else
+        options
+      end
+    end
+
     def authorization_url(ial:, aal: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
@@ -159,6 +178,7 @@ module LoginGov::OidcSinatra
         nonce: random_value,
         prompt: 'select_account',
         biometric_comparison_required: biometric_comparison_required_value(ial),
+        enhanced_ipp_required: requires_enhanced_ipp?(ial),
       }.compact.to_query
 
       "#{endpoint}?#{request_params}"
@@ -191,7 +211,7 @@ module LoginGov::OidcSinatra
         'openid email social_security_number x509'
       when '1', nil
         'openid email x509'
-      when '2', 'biometric-comparison-required'
+      when '2', 'biometric-comparison-required', 'enhanced-ipp-required'
         'openid email profile social_security_number phone address x509'
       else
         raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
@@ -210,6 +230,7 @@ module LoginGov::OidcSinatra
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
         'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
+        'enhanced-ipp-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
       }[ial]
 
       values << {
@@ -235,9 +256,17 @@ module LoginGov::OidcSinatra
       values << {
         '2' => 'P1',
         'biometric-comparison-required' => 'P1.Pb',
+        'enhanced-ipp-required' => 'P1.Pe',
       }[ial]
 
-      [values.compact.join('.')].to_json
+      vtr_list = [values.compact.join('.')]
+
+      if ial == '0'
+        proofing_vector = values.dup + ['P1']
+        vtr_list = [proofing_vector.compact.join('.'), *vtr_list]
+      end
+
+      vtr_list.to_json
     end
 
     def vtm_value
@@ -248,6 +277,11 @@ module LoginGov::OidcSinatra
     def biometric_comparison_required_value(ial)
       return unless config.vtr_disabled?
       ial == 'biometric-comparison-required'
+    end
+
+    def requires_enhanced_ipp?(ial)
+      return false unless config.vtr_disabled?
+      ial == 'enhanced-ipp-required'
     end
 
     def openid_configuration
