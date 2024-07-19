@@ -244,7 +244,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtr_value(ial:, aal:)
-      return if config.vtr_disabled? || !requires_enhanced_ipp?(ial)
+      return if does_not_require_eipp?(ial)
 
       values = ['C1']
 
@@ -271,13 +271,17 @@ module LoginGov::OidcSinatra
     end
 
     def vtm_value(ial)
-      return if config.vtr_disabled? || !requires_enhanced_ipp?(ial)
+      return if does_not_require_eipp?(ial)
       'https://developer.login.gov/vot-trust-framework'
     end
 
     def requires_enhanced_ipp?(ial)
       return false if config.vtr_disabled?
       ial == 'enhanced-ipp-required'
+    end
+
+    def does_not_require_eipp?(ial)
+      !requires_enhanced_ipp?(ial)
     end
 
     def openid_configuration
