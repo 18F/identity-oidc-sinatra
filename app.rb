@@ -206,13 +206,20 @@ module LoginGov::OidcSinatra
     end
 
     def scopes_for(ial)
+      ial2_options = [
+        '2',
+        'biometric-comparison-preferred',
+        'biometric-comparison-required',
+        'enhanced-ipp-required',
+      ]
+
       case ial
       when '0'
         'openid email social_security_number x509'
       when '1', nil
         'openid email x509'
-      when '2', 'biometric-comparison-preferred', 'biometric-comparison-required', 'enhanced-ipp-required'
-        'openid email profile social_security_number phone address x509'
+      when *ial2_options
+          'openid email profile social_security_number phone address x509'
       else
         raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
       end
