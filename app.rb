@@ -152,7 +152,8 @@ module LoginGov::OidcSinatra
         ['2', 'Identity-verified'],
         ['0', 'IALMax'],
         ['step-up', 'Step-up Flow'],
-        ['biometric-comparison-required', 'Biometric Comparison'],
+        ['biometric-comparison-preferred', 'Biometric Comparison Preferred'],
+        ['biometric-comparison-required', 'Biometric Comparison Required'],
       ]
 
       if ENV.fetch('eipp_allowed', 'false') == 'true'
@@ -171,13 +172,12 @@ module LoginGov::OidcSinatra
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
         vtr: vtr_value(ial: ial, aal: aal),
-        vtm: vtm_value,
+        vtm: vtm_value(ial:),
         scope: scopes_for(ial),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: random_value,
         nonce: random_value,
         prompt: 'select_account',
-        biometric_comparison_required: biometric_comparison_required_value(ial),
         enhanced_ipp_required: requires_enhanced_ipp?(ial),
       }.compact.to_query
 
@@ -206,20 +206,27 @@ module LoginGov::OidcSinatra
     end
 
     def scopes_for(ial)
+      ial2_options = [
+        '2',
+        'biometric-comparison-preferred',
+        'biometric-comparison-required',
+        'enhanced-ipp-required',
+      ]
+
       case ial
       when '0'
         'openid email social_security_number x509'
       when '1', nil
         'openid email x509'
-      when '2', 'biometric-comparison-required', 'enhanced-ipp-required'
-        'openid email profile social_security_number phone address x509'
+      when *ial2_options
+          'openid email profile social_security_number phone address x509'
       else
         raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
       end
     end
 
     def acr_values(ial:, aal:)
-      return unless config.vtr_disabled?
+      return if requires_enhanced_ipp?(ial)
 
       values = []
 
@@ -229,7 +236,8 @@ module LoginGov::OidcSinatra
         '' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
+        'biometric-comparison-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
+        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
         'enhanced-ipp-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
       }[ial]
 
@@ -243,7 +251,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtr_value(ial:, aal:)
-      return if config.vtr_disabled?
+      return if does_not_require_enhanced_ipp?(ial)
 
       values = ['C1']
 
@@ -269,19 +277,18 @@ module LoginGov::OidcSinatra
       vtr_list.to_json
     end
 
-    def vtm_value
-      return if config.vtr_disabled?
+    def vtm_value(ial)
+      return if does_not_require_enhanced_ipp?(ial)
       'https://developer.login.gov/vot-trust-framework'
     end
 
-    def biometric_comparison_required_value(ial)
-      return unless config.vtr_disabled?
-      ial == 'biometric-comparison-required'
+    def requires_enhanced_ipp?(ial)
+      return false if config.vtr_disabled?
+      ial == 'enhanced-ipp-required'
     end
 
-    def requires_enhanced_ipp?(ial)
-      return false unless config.vtr_disabled?
-      ial == 'enhanced-ipp-required'
+    def does_not_require_enhanced_ipp?(ial)
+      !requires_enhanced_ipp?(ial)
     end
 
     def openid_configuration
