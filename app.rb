@@ -251,7 +251,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtr_value(ial:, aal:)
-      return if does_not_require_eipp?(ial)
+      return if does_not_require_enhanced_ipp?(ial)
 
       values = ['C1']
 
@@ -278,7 +278,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtm_value(ial)
-      return if does_not_require_eipp?(ial)
+      return if does_not_require_enhanced_ipp?(ial)
       'https://developer.login.gov/vot-trust-framework'
     end
 
@@ -287,7 +287,7 @@ module LoginGov::OidcSinatra
       ial == 'enhanced-ipp-required'
     end
 
-    def does_not_require_eipp?(ial)
+    def does_not_require_enhanced_ipp?(ial)
       !requires_enhanced_ipp?(ial)
     end
 
