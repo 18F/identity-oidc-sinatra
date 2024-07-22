@@ -1,4 +1,4 @@
-# Jobs defined here use the idp/ci docker image from ECR by default. 
+# Jobs defined here use the idp/ci docker image from ECR by default.
 # Images are built via the identity-devops GitLab pipeline.
 
 variables:
@@ -95,7 +95,7 @@ deploy_to_cloudgov:
   stage: deploy
   image: '${ECR_REGISTRY}/dashboard/ci:latest'
   script:
-    - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" 
+    - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
     - tar -xvzf cf8-cli_linux_x86-64.tgz
     - mv cf8 /usr/local/bin
     - cf8 --version
@@ -108,5 +108,4 @@ deploy_to_cloudgov:
     - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
   parallel:
     matrix:
-      # - SPACE: [prod, staging, int, dev, dm]
-      - SPACE: [dev]
+      - SPACE: [prod, staging, int, dev, dm]
