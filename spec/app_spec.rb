@@ -229,6 +229,23 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
+      context 'when the ial is biometric-comparison-vot' do
+
+        it 'redirects to a default sign in link if ial param is nil' do
+          get '/auth/request?ial=biometric-comparison-vot'
+
+          expect(last_response).to be_redirect
+          expect(last_response.location).to include(
+            'scope=openid+email',
+          )
+
+          expect(last_response.location).to include(
+            'scope=openid+email+profile+social_security_number+phone+address',
+          )
+          expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1.Pb"]')
+        end
+      end
+
       context 'all other ials' do
         it 'redirects to an ial2 signin if the ial is 2' do
           get '/auth/request?ial=2'

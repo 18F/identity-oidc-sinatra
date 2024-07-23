@@ -152,8 +152,9 @@ module LoginGov::OidcSinatra
         ['2', 'Identity-verified'],
         ['0', 'IALMax'],
         ['step-up', 'Step-up Flow'],
-        ['biometric-comparison-preferred', 'Biometric Comparison Preferred'],
-        ['biometric-comparison-required', 'Biometric Comparison Required'],
+        ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
+        ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
+        ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
       ]
 
       if ENV.fetch('eipp_allowed', 'false') == 'true'
@@ -210,6 +211,7 @@ module LoginGov::OidcSinatra
         '2',
         'biometric-comparison-preferred',
         'biometric-comparison-required',
+        'biometric-comparison-vot',
         'enhanced-ipp-required',
       ]
 
@@ -226,7 +228,7 @@ module LoginGov::OidcSinatra
     end
 
     def acr_values(ial:, aal:)
-      return if requires_enhanced_ipp?(ial)
+      return if requires_enhanced_ipp?(ial) || requires_biometric_vot?(ial)
 
       values = []
 
@@ -251,7 +253,7 @@ module LoginGov::OidcSinatra
     end
 
     def vtr_value(ial:, aal:)
-      return if does_not_require_enhanced_ipp?(ial)
+      return if does_not_require_enhanced_ipp?(ial) && does_not_require_biometric_vot?(ial)
 
       values = ['C1']
 
@@ -263,7 +265,7 @@ module LoginGov::OidcSinatra
 
       values << {
         '2' => 'P1',
-        'biometric-comparison-required' => 'P1.Pb',
+        'biometric-comparison-vot' => 'P1.Pb',
         'enhanced-ipp-required' => 'P1.Pe',
       }[ial]
 
@@ -280,6 +282,15 @@ module LoginGov::OidcSinatra
     def vtm_value(ial)
       return if does_not_require_enhanced_ipp?(ial)
       'https://developer.login.gov/vot-trust-framework'
+    end
+
+    def requires_biometric_vot?(ial)
+      return false if config.vtr_disabled?
+      ial == 'biometric-comparison-vot'
+    end
+
+    def does_not_require_biometric_vot?(ial)
+      !requires_biometric_vot?(ial)
     end
 
     def requires_enhanced_ipp?(ial)
