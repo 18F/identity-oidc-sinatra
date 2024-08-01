@@ -25,26 +25,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/' do
-    it 'renders a link to the authorize endpoint' do
-      get '/'
-
-      expect(last_response).to be_ok
-
-      doc = Nokogiri::HTML(last_response.body)
-      login_link = doc.at("a[href*='#{authorization_endpoint}']")
-
-      auth_uri = URI(login_link[:href])
-      auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
-
-      expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
-      expect(auth_uri_params[:client_id]).to_not be_empty
-      expect(auth_uri_params[:client_id]).to eq(client_id)
-      expect(auth_uri_params[:response_type]).to eq('code')
-      expect(auth_uri_params[:prompt]).to eq('select_account')
-      expect(auth_uri_params[:nonce].length).to be >= 32
-      expect(auth_uri_params[:state].length).to be >= 32
-    end
-
     it 'pre-fills IAL2 if the URL has ?ial=2 (used in smoke tests)' do
       get '/?ial=2'
 
