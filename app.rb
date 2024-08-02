@@ -69,13 +69,18 @@ module LoginGov::OidcSinatra
     get '/auth/request' do
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
 
-      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      session[:state] = random_value
+      session[:nonce] = random_value
 
-      idp_url = authorization_url(
+      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      auth_url = authorization_url(
+        state: session[:state],
+        nonce: session[:nonce],
         ial: ial,
         aal: params[:aal],
       )
 
+      idp_url = auth_url
       settings.logger.info("Redirecting to #{idp_url}")
 
       redirect to(idp_url)
@@ -83,33 +88,36 @@ module LoginGov::OidcSinatra
 
     get '/auth/result' do
       code = params[:code]
+      error = params[:error]
 
-      if code
-        token_response = token(code)
-        access_token = token_response[:access_token]
-        userinfo_response = userinfo(access_token)
+      redirect to('/?error=access_denied') if error == 'access_denied'
 
-        if session.delete(:step_up_enabled)
-          aal = session.delete(:step_up_aal)
+      return render_error(error || 'missing callback param: code') unless code
+      return render_error('invalid state') if session[:state] != params[:state]
 
-          redirect to("/auth/request?aal=#{aal}&ial=2")
-        elsif session.delete(:simulate_csp)
-          redirect to('https://www.example.com/')
-        else
-          session[:login_msg] = 'ok'
-          session[:userinfo] = userinfo_response
-          session[:email] = session[:userinfo][:email]
+      token_response = token(code)
+      access_token = token_response[:access_token]
+      id_token = token_response[:id_token]
+      jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
 
-          redirect to('/')
-        end
+      return render_error('invalid nonce') if jwt['nonce'] != session[:nonce]
+
+      userinfo_response = userinfo(access_token)
+      session.delete(:nonce)
+      session.delete(:state)
+
+      if session.delete(:step_up_enabled)
+        aal = session.delete(:step_up_aal)
+
+        redirect to("/auth/request?aal=#{aal}&ial=2")
+      elsif session.delete(:simulate_csp)
+        redirect to('https://www.example.com/')
       else
-        error = params[:error] || 'missing callback param: code'
+        session[:login_msg] = 'ok'
+        session[:userinfo] = userinfo_response
+        session[:email] = session[:userinfo][:email]
 
-        if error == 'access_denied'
-          redirect to('/?error=access_denied')
-        else
-          erb :errors, locals: { error: error }
-        end
+        redirect to('/')
       end
     end
 
@@ -165,7 +173,11 @@ module LoginGov::OidcSinatra
       end
     end
 
-    def authorization_url(ial:, aal: nil)
+    def render_error(error)
+      erb :errors, locals: { error: error }
+    end
+
+    def authorization_url(state:, nonce:, ial:, aal: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -175,8 +187,8 @@ module LoginGov::OidcSinatra
         vtm: vtm_value(ial:),
         scope: scopes_for(ial),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
-        state: random_value,
-        nonce: random_value,
+        state: state,
+        nonce: nonce,
         prompt: 'select_account',
         enhanced_ipp_required: requires_enhanced_ipp?(ial),
       }.compact.to_query
@@ -333,7 +345,6 @@ module LoginGov::OidcSinatra
         sub: client_id,
         aud: openid_configuration[:token_endpoint],
         jti: random_value,
-        nonce: random_value,
         exp: Time.now.to_i + 1000,
       }
 
