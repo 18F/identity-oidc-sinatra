@@ -92,7 +92,8 @@ GEM
     rainbow (3.1.1)
     rake (13.0.6)
     regexp_parser (2.6.0)
-    rexml (3.2.5)
+    rexml (3.3.3)
+      strscan
     rspec (3.11.0)
       rspec-core (~> 3.11.0)
       rspec-expectations (~> 3.11.0)
@@ -127,6 +128,7 @@ GEM
       rack (~> 2.2)
       rack-protection (= 2.2.3)
       tilt (~> 2.0)
+    strscan (3.1.0)
     tilt (2.0.11)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
