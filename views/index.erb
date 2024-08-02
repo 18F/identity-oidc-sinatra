@@ -83,7 +83,8 @@
           </div>
         </div>
       <% else %>
-        <form action="/auth/request">
+        <form action="/auth/request" method="post">
+          <input type="hidden" name="authenticity_token" value="<%= Rack::Protection::AuthenticityToken.token(session, path: '/auth/request') %>" />
           <div class="usa-nav__secondary">
             <div class="sign-in-wrap clearfix">
               <button type="submit" class="usa-button usa-button--outline sign-in-bttn float-right">

@@ -29,6 +29,8 @@ module LoginGov::OidcSinatra
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
     enable :sessions
+    use Rack::Protection
+    use Rack::Protection::AuthenticityToken
 
     configure :development do
       require 'byebug'
@@ -67,7 +69,7 @@ module LoginGov::OidcSinatra
       [500, erb(:errors, locals: { error: e.inspect })]
     end
 
-    get '/auth/request' do
+    post '/auth/request' do
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])

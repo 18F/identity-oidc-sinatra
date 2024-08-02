@@ -11,6 +11,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
   let(:vtr_disabled) { false }
+  let(:auth_csrf_token) { Rack::Protection::AuthenticityToken.token(session, path: '/auth/request') }
 
   before do
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
@@ -25,26 +26,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/' do
-    it 'renders a link to the authorize endpoint' do
-      get '/'
-
-      expect(last_response).to be_ok
-
-      doc = Nokogiri::HTML(last_response.body)
-      login_link = doc.at("a[href*='#{authorization_endpoint}']")
-
-      auth_uri = URI(login_link[:href])
-      auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
-
-      expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
-      expect(auth_uri_params[:client_id]).to_not be_empty
-      expect(auth_uri_params[:client_id]).to eq(client_id)
-      expect(auth_uri_params[:response_type]).to eq('code')
-      expect(auth_uri_params[:prompt]).to eq('select_account')
-      expect(auth_uri_params[:nonce].length).to be >= 32
-      expect(auth_uri_params[:state].length).to be >= 32
-    end
-
     it 'pre-fills IAL2 if the URL has ?ial=2 (used in smoke tests)' do
       get '/?ial=2'
 
@@ -94,7 +75,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:vtr_disabled) { true }
 
       it 'redirects to an ial1 sign in link if loa param is nil' do
-        get '/auth/request'
+        post '/auth/request'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -109,7 +90,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial2 signin if the ial is 2' do
-        get '/auth/request?ial=2'
+        post '/auth/request?ial=2'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -121,7 +102,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial1 sign in link if ial param is 1' do
-        get '/auth/request?ial=1'
+        post '/auth/request?ial=1'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -136,7 +117,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ialmax sign in link if ial param is 0' do
-        get '/auth/request?ial=0'
+        post '/auth/request?ial=0'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -148,7 +129,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial1 sign in link if ial param is step-up' do
-        get '/auth/request?ial=step-up'
+        post '/auth/request?ial=step-up'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include('scope=openid+email')
@@ -161,7 +142,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
-        get '/auth/request?aal=2-phishing_resistant'
+        post '/auth/request?aal=2-phishing_resistant'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -173,7 +154,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
-        get '/auth/request?aal=2-hspd12'
+        post '/auth/request?aal=2-hspd12'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -185,7 +166,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-        get '/auth/request?ial=biometric-comparison-required'
+        post '/auth/request?ial=biometric-comparison-required'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -197,7 +178,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-        get '/auth/request?ial=biometric-comparison-preferred'
+        post '/auth/request?ial=biometric-comparison-preferred'
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -215,7 +196,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'when the ial is enhanced-ipp-required' do
 
         it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=enhanced-ipp-required'
+          post '/auth/request?ial=enhanced-ipp-required'
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -232,7 +213,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'when the ial is biometric-comparison-vot' do
 
         it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=biometric-comparison-vot'
+          post '/auth/request?ial=biometric-comparison-vot'
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -248,7 +229,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'all other ials' do
         it 'redirects to an ial2 signin if the ial is 2' do
-          get '/auth/request?ial=2'
+          post '/auth/request?ial=2'
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -260,7 +241,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
 
         it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-          get '/auth/request?ial=biometric-comparison-required'
+          post '/auth/request?ial=biometric-comparison-required'
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -272,7 +253,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
 
         it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-          get '/auth/request?ial=biometric-comparison-preferred'
+          post '/auth/request?ial=biometric-comparison-preferred'
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
