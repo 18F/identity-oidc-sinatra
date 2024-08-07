@@ -9,8 +9,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:token_endpoint) { "#{host}/api/openid/token" }
   let(:userinfo_endpoint) { "#{host}/api/openid/userinfo" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
+  let(:jwks_endpoint) { "#{host}/api/openid_connect/certs" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
   let(:vtr_disabled) { false }
+  let(:idp_private_key) { OpenSSL::PKey::RSA.new(read_fixture_file('idp.key')) }
+  let(:nonce) { 'abc' }
 
   before do
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
@@ -21,30 +24,18 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         token_endpoint: token_endpoint,
         userinfo_endpoint: userinfo_endpoint,
         end_session_endpoint: end_session_endpoint,
+        jwks_uri: jwks_endpoint,
       }.to_json)
+
+    stub_request(:get, jwks_endpoint).
+      to_return(body: { keys: [{
+        alg: 'RS256',
+        use: 'sig',}.merge(JWT::JWK.new(OpenSSL::PKey::RSA.new(read_fixture_file('idp.key.pub'))).export)],
+      }.to_json,
+    )
   end
 
   context '/' do
-    it 'renders a link to the authorize endpoint' do
-      get '/'
-
-      expect(last_response).to be_ok
-
-      doc = Nokogiri::HTML(last_response.body)
-      login_link = doc.at("a[href*='#{authorization_endpoint}']")
-
-      auth_uri = URI(login_link[:href])
-      auth_uri_params = Rack::Utils.parse_nested_query(auth_uri.query).with_indifferent_access
-
-      expect(auth_uri_params[:redirect_uri]).to eq('http://localhost:9292/auth/result')
-      expect(auth_uri_params[:client_id]).to_not be_empty
-      expect(auth_uri_params[:client_id]).to eq(client_id)
-      expect(auth_uri_params[:response_type]).to eq('code')
-      expect(auth_uri_params[:prompt]).to eq('select_account')
-      expect(auth_uri_params[:nonce].length).to be >= 32
-      expect(auth_uri_params[:state].length).to be >= 32
-    end
-
     it 'pre-fills IAL2 if the URL has ?ial=2 (used in smoke tests)' do
       get '/?ial=2'
 
@@ -309,60 +300,120 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'the token exchange moved forward' do
-      let(:code) { SecureRandom.uuid }
+      let(:code) { 'abc-code' }
       let(:connection) { double Faraday }
 
       let(:email) { 'foobar@bar.com' }
-      let(:bearer_token) { SecureRandom.hex(10)}
+      let(:bearer_token) { 'abc' }
 
-      before do
-        stub_request(:post, token_endpoint).
-          with(body: {
-            grant_type: 'authorization_code',
+      context 'with valid token' do
+        before do
+        end
+
+        it 'takes an authorization code and gets a token, and renders the email from the token' do
+          get '/auth/request'
+
+          stub_token_response(
             code: code,
-            client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-            client_assertion: kind_of(String),
-          }).
-          to_return(body: { access_token: bearer_token }.to_json)
+            bearer_token: bearer_token,
+            id_token: generate_id_token(nonce: last_request.session['nonce']),
+          )
+          stub_userinfo_response(bearer_token: bearer_token, email: email)
 
-        stub_request(:get, userinfo_endpoint).
-          with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
-          to_return(body: { email: email }.to_json)
-      end
+          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
-      it 'takes an authorization code and gets a token, and renders the email from the token' do
-        get '/auth/result', code: code
-
-        expect(last_response).to be_redirect
-        follow_redirect!
-        expect(last_response.body).to include(email)
-      end
-
-      context 'with dangerous input' do
-        let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
-
-        it 'escapes dangerous HTML' do
-          get '/auth/result', code: code
+          expect(last_response).to be_redirect
           follow_redirect!
+          expect(last_response.body).to include(email)
+        end
 
-          expect(last_response.body).to_not include(email)
-          expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
+        context 'with dangerous input' do
+          let(:email) { '<script>alert("hi")</script> mallory@bar.com' }
+
+          it 'escapes dangerous HTML' do
+            get '/auth/request'
+            stub_token_response(
+              code: code,
+              bearer_token: bearer_token,
+              id_token: generate_id_token(nonce: last_request.session['nonce']),
+            )
+            stub_userinfo_response(bearer_token: bearer_token, email: email)
+            get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+            follow_redirect!
+
+            expect(last_response.body).to_not include(email)
+            expect(last_response.body).to include('&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; mallory@bar.com')
+          end
+        end
+
+        it 'has a logout link back to the SP-initiated logout URL' do
+          get '/auth/request'
+          stub_token_response(
+            code: code,
+            bearer_token: bearer_token,
+            id_token: generate_id_token(nonce: last_request.session['nonce']),
+          )
+          stub_userinfo_response(bearer_token: bearer_token, email: email)
+          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+          follow_redirect!
+          doc = Nokogiri::HTML(last_response.body)
+
+          # logout_link = doc.at_xpath("//div[@class='sign-in-wrap']/a[text()='\n              Log out\n            ']")
+          logout_link = doc.at_css("div.sign-in-wrap a:contains('Log out')")
+          expect(logout_link).to be
+
+          href = logout_link[:href]
+          expect(href).to start_with(end_session_endpoint)
+          expect(href).to include("client_id=#{CGI.escape(client_id)}")
         end
       end
 
-      it 'has a logout link back to the SP-initiated logout URL' do
-        get '/auth/result', code: code
-        follow_redirect!
-        doc = Nokogiri::HTML(last_response.body)
+      context 'with invalid state' do
+        it 'fails auth and shows error message' do
+          get '/auth/request'
+          get '/auth/result', { code: code, state: 'fake-state' }, 'rack.session' => last_request.session
 
-        # logout_link = doc.at_xpath("//div[@class='sign-in-wrap']/a[text()='\n              Log out\n            ']")
-        logout_link = doc.at_css("div.sign-in-wrap a:contains('Log out')")
-        expect(logout_link).to be
+          expect(last_response.body).to include('invalid state')
+          expect(last_response.body).to_not include(email)
+        end
+      end
 
-        href = logout_link[:href]
-        expect(href).to start_with(end_session_endpoint)
-        expect(href).to include("client_id=#{CGI.escape(client_id)}")
+      context 'with invalid nonce' do
+        it 'fails auth and shows error message' do
+          get '/auth/request'
+          stub_token_response(
+            code: code,
+            bearer_token: bearer_token,
+            id_token: generate_id_token(nonce: 'fake-nonce'),
+          )
+          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+          expect(last_response.body).to include('invalid nonce')
+          expect(last_response.body).to_not include(email)
+        end
       end
     end
+  end
+
+  def generate_id_token(nonce:)
+    JWT.encode({ nonce: nonce }, idp_private_key, 'RS256', kid: JWT::JWK.new(idp_private_key))
+  end
+
+  def stub_token_response(code:, bearer_token:, id_token: )
+    stub_request(:post, token_endpoint).
+      with(body: {
+        grant_type: 'authorization_code',
+        code: code,
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: kind_of(String),
+      }).
+      to_return(body: { access_token: bearer_token, id_token: id_token }.to_json)
+  end
+
+  def stub_userinfo_response(bearer_token:, email: )
+    stub_request(:get, userinfo_endpoint).
+      with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
+      to_return(body: { email: email }.to_json)
   end
 end
