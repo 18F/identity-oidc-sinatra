@@ -391,8 +391,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
   end
 
-  context 'handle-logout' do
-    let(:redirect_uri) { "localhost:9292/logout" }
+  context 'GET /handle-logout' do
+    let(:redirect_uri) { 'localhost:9292/logout' }
 
     before do
       get '/'

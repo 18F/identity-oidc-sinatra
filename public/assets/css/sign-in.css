@@ -9,6 +9,10 @@
   height: 1rem;
 }
 
+.usa-nav__secondary {
+  padding-bottom: 10px;
+}
+
 .details-popup {
   position: absolute;
   margin-top: 5px;
