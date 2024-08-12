@@ -125,13 +125,18 @@ module LoginGov::OidcSinatra
       erb :failure_to_proof
     end
 
-    get '/logout' do
-      session[:logout_msg] = 'ok'
+    get '/handle-logout' do
       session.delete(:userinfo)
       session.delete(:email)
       session.delete(:step_up_enabled)
       session.delete(:step_up_aal)
       session.delete(:irs)
+
+      redirect to(logout_uri)
+    end
+
+    get '/logout' do
+      session[:logout_msg] = 'ok'
       redirect to('/')
     end
 

@@ -307,9 +307,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:bearer_token) { 'abc' }
 
       context 'with valid token' do
-        before do
-        end
-
         it 'takes an authorization code and gets a token, and renders the email from the token' do
           get '/auth/request'
 
@@ -347,7 +344,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           end
         end
 
-        it 'has a logout link back to the SP-initiated logout URL' do
+        it 'has a logout link to the handle-logout endpoint' do
           get '/auth/request'
           stub_token_response(
             code: code,
@@ -359,13 +356,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           follow_redirect!
           doc = Nokogiri::HTML(last_response.body)
 
-          # logout_link = doc.at_xpath("//div[@class='sign-in-wrap']/a[text()='\n              Log out\n            ']")
           logout_link = doc.at_css("div.sign-in-wrap a:contains('Log out')")
-          expect(logout_link).to be
+          expect(logout_link).not_to be_nil
 
           href = logout_link[:href]
-          expect(href).to start_with(end_session_endpoint)
-          expect(href).to include("client_id=#{CGI.escape(client_id)}")
+          expect(href).to start_with('/handle-logout')
         end
       end
 
@@ -393,6 +388,36 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           expect(last_response.body).to_not include(email)
         end
       end
+    end
+  end
+
+  context 'GET /handle-logout' do
+    let(:redirect_uri) { 'localhost:9292/logout' }
+
+    before do
+      get '/'
+      last_request.session[:userinfo] = 'userinfo'
+      last_request.session[:email] = 'user@example.com'
+      last_request.session[:step_up_enabled] = false
+      last_request.session[:step_up_aal] = false
+      last_request.session[:irs] = false
+      last_request.session[:state] = 'abc123'
+
+      get '/handle-logout'
+    end
+
+    it 'deletes the session objects' do
+      expect(last_request.session.keys).to_not include('userinfo')
+      expect(last_request.session.keys).to_not include('email')
+      expect(last_request.session.keys).to_not include('step_up_enabled')
+      expect(last_request.session.keys).to_not include('step_up_aal')
+      expect(last_request.session.keys).to_not include('irs')
+    end
+
+    it 'redirects to Login.gov logout' do
+      expect(last_response.location).to include(end_session_endpoint)
+      expect(last_response.location).to include("client_id=#{CGI.escape(client_id)}")
+      expect(last_response.location).to include(CGI.escape(redirect_uri))
     end
   end
 
