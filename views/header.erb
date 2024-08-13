@@ -62,17 +62,20 @@
         </li>
       </ul>
       <% if user_email %>
-        <div class="usa-nav__secondary">
-          <%= user_email %>
-          <div class="sign-in-wrap">
-            <a class="usa-button usa-button--outline sign-in-bttn" href="/handle-logout">
-              <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                <use xlink:href="/vendor/uswds/img/sprite.svg#logout"></use>
-              </svg>
-              Log out
-            </a>
+        <form action="/handle-logout" method="post">
+          <div class="usa-nav__secondary">
+            <%= user_email %>
+            <div class="sign-in-wrap clearfix">
+              <button type="submit" class="usa-button usa-button--outline sign-in-bttn float-right">
+                <%== csrf_tag %>
+                <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                  <use xlink:href="/vendor/uswds/img/sprite.svg#login"></use>
+                </svg>
+                Log out
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
       <% else %>
         <form action="/auth/request">
           <div class="usa-nav__secondary">

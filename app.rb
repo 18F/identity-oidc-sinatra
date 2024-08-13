@@ -29,6 +29,8 @@ module LoginGov::OidcSinatra
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
     enable :sessions
+    use Rack::Protection
+    use Rack::Protection::AuthenticityToken
 
     configure :development do
       require 'byebug'
@@ -53,6 +55,10 @@ module LoginGov::OidcSinatra
         else
           options
         end
+      end
+
+      def csrf_tag
+        "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
     end
 
@@ -146,7 +152,7 @@ module LoginGov::OidcSinatra
       erb :failure_to_proof
     end
 
-    get '/handle-logout' do
+    post '/handle-logout' do
       session.delete(:userinfo)
       session.delete(:email)
       session.delete(:step_up_enabled)
