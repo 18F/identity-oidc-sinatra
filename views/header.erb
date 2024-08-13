@@ -3,11 +3,11 @@
     <div class="clearfix">
       <div class="col-12 sm-col-6 mx-auto">
       <% if logout_msg == 'ok' %>
-        <div class="h5 p1 bg-green white center">
+        <div class="h5 p1 bg-green text-base-lightest text-center">
           <span class="bold caps">You have been logged out.</span>
         </div>
       <% else %>
-        <div class="h5 p1 bg-red white center">
+        <div class="h5 p1 bg-red text-base-lightest text-center ">
           <span class="bold caps">Logout failed!</span>
         </div>
       <% end %>
@@ -17,7 +17,7 @@
   <% if login_msg %>
     <div class="clearfix">
       <div class="col-12 sm-col-6 mx-auto">
-        <div class="h5 p1 bg-green white center">
+        <div class="h5 p1 bg-green text-base-lightest text-center ">
           <span class="bold caps">Login was a Success!</span>
         </div>
       </div>
@@ -63,11 +63,11 @@
       </ul>
       <% if user_email %>
         <div class="usa-nav__secondary">
-          <div class="fright"><%= user_email %></div>
+          <%= user_email %>
           <div class="sign-in-wrap">
             <a class="usa-button usa-button--outline sign-in-bttn" href="/handle-logout">
-              <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-                <path fill="currentColor" d="M416 448h-84c-6.6 0-12-5.4-12-12v-40c0-6.6 5.4-12 12-12h84c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32h-84c-6.6 0-12-5.4-12-12V76c0-6.6 5.4-12 12-12h84c53 0 96 43 96 96v192c0 53-43 96-96 96zm-47-201L201 79c-15-15-41-4.5-41 17v96H24c-13.3 0-24 10.7-24 24v96c0 13.3 10.7 24 24 24h136v96c0 21.5 26 32 41 17l168-168c9.3-9.4 9.3-24.6 0-34z"></path>
+              <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                <use xlink:href="/vendor/uswds/img/sprite.svg#logout"></use>
               </svg>
               Log out
             </a>
@@ -78,8 +78,8 @@
           <div class="usa-nav__secondary">
             <div class="sign-in-wrap clearfix">
               <button type="submit" class="usa-button usa-button--outline sign-in-bttn float-right">
-                <svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-                  <path fill="currentColor" d="M416 448h-84c-6.6 0-12-5.4-12-12v-40c0-6.6 5.4-12 12-12h84c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32h-84c-6.6 0-12-5.4-12-12V76c0-6.6 5.4-12 12-12h84c53 0 96 43 96 96v192c0 53-43 96-96 96zm-47-201L201 79c-15-15-41-4.5-41 17v96H24c-13.3 0-24 10.7-24 24v96c0 13.3 10.7 24 24 24h136v96c0 21.5 26 32 41 17l168-168c9.3-9.4 9.3-24.6 0-34z"></path>
+                <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                  <use xlink:href="/vendor/uswds/img/sprite.svg#login"></use>
                 </svg>
                 Sign in
               </button>
