@@ -34,6 +34,28 @@ module LoginGov::OidcSinatra
       require 'byebug'
     end
 
+    helpers do
+      def ial_select_options
+        options = [
+          ['1', 'Authentication only (default)'],
+          ['2', 'Identity-verified'],
+          ['0', 'IALMax'],
+          ['step-up', 'Step-up Flow'],
+          ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
+          ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
+          ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
+        ]
+
+        if ENV.fetch('eipp_allowed', 'false') == 'true'
+          options << [
+            'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
+          ]
+        else
+          options
+        end
+      end
+    end
+
     def config
       @config ||= Config.new
     end
@@ -58,7 +80,6 @@ module LoginGov::OidcSinatra
         logout_uri: logout_uri,
         userinfo: userinfo,
         access_denied: params[:error] == 'access_denied',
-        ial_select_options: get_ial_select_options,
       }
     rescue AppError => e
       [500, erb(:errors, locals: { error: e.message })]
@@ -156,27 +177,10 @@ module LoginGov::OidcSinatra
 
     end
 
+
+
+
     private
-
-    def get_ial_select_options
-      options = [
-        ['1', 'Authentication only (default)'],
-        ['2', 'Identity-verified'],
-        ['0', 'IALMax'],
-        ['step-up', 'Step-up Flow'],
-        ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
-        ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
-        ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
-      ]
-
-      if ENV.fetch('eipp_allowed', 'false') == 'true'
-        options << [
-          'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
-        ]
-      else
-        options
-      end
-    end
 
     def render_error(error)
       erb :errors, locals: { error: error }
