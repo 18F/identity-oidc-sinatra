@@ -20,7 +20,7 @@ install_dependencies:
 	yarn install
 
 copy_vendor: public/vendor
-	cp -R node_modules/uswds/dist public/vendor/uswds
+	cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
 
 setup: .env install_dependencies copy_vendor
 

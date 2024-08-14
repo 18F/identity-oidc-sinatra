@@ -356,11 +356,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           follow_redirect!
           doc = Nokogiri::HTML(last_response.body)
 
-          logout_link = doc.at_css("div.sign-in-wrap a:contains('Log out')")
-          expect(logout_link).not_to be_nil
 
-          href = logout_link[:href]
-          expect(href).to start_with('/handle-logout')
+          logout_form = doc.at_css('form')
+          expect(logout_form).not_to be_nil
+
+          expect(logout_form[:action]).to eq '/handle-logout'
+          expect(logout_form[:method]).to eq 'post'
         end
       end
 
@@ -391,7 +392,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
   end
 
-  context 'GET /handle-logout' do
+  context 'POST /handle-logout' do
     let(:redirect_uri) { 'localhost:9292/logout' }
 
     before do
@@ -403,7 +404,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       last_request.session[:irs] = false
       last_request.session[:state] = 'abc123'
 
-      get '/handle-logout'
+      post '/handle-logout', authenticity_token: last_request.session[:csrf]
     end
 
     it 'deletes the session objects' do

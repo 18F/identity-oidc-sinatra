@@ -1,0 +1,140 @@
+<header class="usa-header usa-header--extended" role="banner">
+  <% if logout_msg %>
+    <div class="clearfix">
+      <div class="col-12 sm-col-6 mx-auto">
+      <% if logout_msg == 'ok' %>
+        <div class="h5 p1 bg-green text-base-lightest text-center">
+          <span class="text-bold">You have been logged out.</span>
+        </div>
+      <% else %>
+        <div class="h5 p1 bg-red text-base-lightest text-center ">
+          <span class="text-bold">Logout failed!</span>
+        </div>
+      <% end %>
+      </div>
+    </div>
+  <% end %>
+  <% if login_msg %>
+    <div class="clearfix">
+      <div class="col-12 sm-col-6 mx-auto">
+        <div class="h5 p1 bg-green text-base-lightest text-center ">
+          <span class="text-bold">Login was a Success!</span>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  <div class="usa-navbar">
+    <% if access_denied %>
+      <div class="usa-alert usa-alert--warning">
+        <div class="usa-alert__body">
+          <div class="usa-alert__text">You chose to exit before signing in</div>
+        </div>
+      </div>
+    <% end %>
+    <div class="usa-logo" id="extended-logo">
+       <em class="usa-logo__text"><a href="/" title="Home" aria-label="Home">OpenID Connect Sinatra Example</a></em>
+    </div>
+    <button class="usa-menu-btn">Menu</button>
+  </div>
+  <nav role="navigation" class="usa-nav">
+    <div class="usa-nav__inner">
+      <button class="usa-nav__close"><img src="/vendor/uswds/img/close.svg" alt="close"></button>
+      <ul class="usa-nav__primary usa-accordion">
+        <li class="usa-nav__primary-item">
+          <button class="usa-accordion__button usa-nav__link  usa-current" aria-expanded="false" aria-controls="extended-nav-section-one"><span>Our process</span></button>
+          <ul id="extended-nav-section-one" class="usa-nav__submenu">
+            <li class="usa-nav__submenu-item">
+               <a href="#">Navigation link</a>
+            </li>
+            <li class="usa-nav__submenu-item">
+               <a href="#">Navigation link</a>
+            </li>
+            <li class="usa-nav__submenu-item">
+               <a href="#">Navigation link</a>
+            </li>
+          </ul>
+        </li>
+        <li class="usa-nav__primary-item">
+          <a class="usa-nav__link" href="javascript:void(0)"><span>Explore</span></a>
+        </li>
+        <li class="usa-nav__primary-item">
+          <a class="usa-nav__link" href="javascript:void(0)"><span>News</span></a>
+        </li>
+      </ul>
+      <% if user_email %>
+        <form action="/handle-logout" method="post">
+          <div class="usa-nav__secondary">
+            <%= user_email %>
+            <div class="sign-in-wrap clearfix">
+              <button type="submit" class="usa-button usa-button--outline sign-in-bttn float-right">
+                <%== csrf_tag %>
+                <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                  <use xlink:href="/vendor/uswds/img/sprite.svg#login"></use>
+                </svg>
+                Log out
+              </button>
+            </div>
+          </div>
+        </form>
+      <% else %>
+        <form action="/auth/request">
+          <div class="usa-nav__secondary">
+            <div class="sign-in-wrap clearfix">
+              <button type="submit" class="usa-button usa-button--outline sign-in-bttn float-right">
+                <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                  <use xlink:href="/vendor/uswds/img/sprite.svg#login"></use>
+                </svg>
+                Sign in
+              </button>
+            </div>
+            <div class="clearfix">
+              <details class="details-popup display-inline-block float-right" open>
+                <summary class="float-right">Options</summary>
+
+                <label class="usa-label" for="aal">
+                  Authentication Assurance Level (AAL)
+                </label>
+                <select name="aal" id="aal" class="usa-select">
+                  <% [
+                       ['', 'Default'],
+                       ['2', 'AAL2'],
+                       ['2-phishing_resistant', 'Phishing-resistant AAL2'],
+                       ['2-hspd12', 'HSPD12 required'],
+                     ].each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if aal == value %> >
+                      <%= label %>
+                    </option>
+                  <% end %>
+                </select>
+
+                <label class="usa-label" for="ial">
+                  Level of Service
+                </label>
+                <select name="ial" id="ial" class="usa-select">
+                  <% ial_select_options.each do |value, label| %>
+                    <option value="<%= value %>" <%= 'selected' if ial == value %> >
+                      <%= label %>
+                    </option>
+                  <% end %>
+                </select>
+
+                <hr/>
+                <div class="usa-checkbox">
+                  <input class="usa-checkbox__input"
+                         id="check-simulate_csp"
+                         type="checkbox"
+                         name="simulate_csp"
+                         value="true"
+                  />
+                  <label class="usa-checkbox__label" for="check-simulate_csp">
+                    Simulate CSP Error
+                  </label>
+                </div>
+              </details>
+            </div>
+          </div>
+        </form>
+      <% end %>
+    </div>
+  </nav>
+</header>
