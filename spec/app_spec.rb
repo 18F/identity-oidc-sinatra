@@ -357,7 +357,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           doc = Nokogiri::HTML(last_response.body)
 
 
-          logout_form = doc.at_css("form")
+          logout_form = doc.at_css('form')
           expect(logout_form).not_to be_nil
 
           expect(logout_form[:action]).to eq '/handle-logout'
