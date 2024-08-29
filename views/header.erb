@@ -118,6 +118,23 @@
                   <% end %>
                 </select>
 
+                <script type="application/json" id="default-scopes">
+                  <%== default_scopes_by_ial.to_json %>
+                </script>
+                <fieldset class="usa-fieldset margin-top-2">
+                  <legend class="usa-legend">
+                    Requested Scopes
+                  </legend>
+                  <% scope_options.each do |scope| %>
+                    <lg-scope scope="<%= scope %>" default-scopes-element="default-scopes" ial-element="ial" class="display-block">
+                      <label>
+                        <input type="checkbox" name="requested_scopes[]" value="<%= scope %>">
+                        <%= scope %>
+                      </label>
+                    </lg-scope>
+                  <% end %>
+                </fieldset>
+
                 <hr/>
                 <div class="usa-checkbox">
                   <input class="usa-checkbox__input"
