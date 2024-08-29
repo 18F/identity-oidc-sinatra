@@ -34,6 +34,6 @@ class ScopeElement extends HTMLElement {
   }
 }
 
-if (!customElements.get('lg-scope')) {
-  customElements.define('lg-scope', ScopeElement);
+if (!window.customElements.get('lg-scope')) {
+  window.customElements.define('lg-scope', ScopeElement);
 }
