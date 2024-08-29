@@ -1,7 +1,7 @@
 class ScopeElement extends HTMLElement {
   connectedCallback() {
-    this.syncCheckedToIal();
-    this.ial.addEventListener('input', () => this.syncCheckedToIal());
+    this.syncCheckedToIAL();
+    this.ial.addEventListener('input', () => this.syncCheckedToIAL());
   }
 
   /**
@@ -28,7 +28,7 @@ class ScopeElement extends HTMLElement {
     return JSON.parse(defaultScopes.textContent);
   }
 
-  syncCheckedToIal() {
+  syncCheckedToIAL() {
     const defaultScopes = this.defaultScopesByIAL[this.ial.value];
     this.checkbox.checked = defaultScopes.includes(this.checkbox.value);
   }
