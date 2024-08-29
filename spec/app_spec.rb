@@ -84,9 +84,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/request' do
+    let(:params) {}
+
     shared_examples 'redirects to IDP with legacy IAL1' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -98,7 +100,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -110,7 +112,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL0' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -122,7 +124,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2 and bio=preferred' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -134,7 +136,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified-facial-match-preferred' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -146,7 +148,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2 and bio=required' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -158,7 +160,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified-facial-match-required' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -170,7 +172,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
         scope, acr_values = extract_scope_and_acr_values(last_response.location)
@@ -182,7 +184,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic auth-only' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -194,8 +196,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'PKCE auth request' do
       it 'sends the PKCE parameters' do
-
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
         expect(parameter_value(last_response.location, 'client_id')).to eq('urn:gov:gsa:openidconnect:sp:sinatra_pkce')
@@ -220,6 +221,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when there is no ial parameter' do
         let(:request_path) { '/auth/request' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -234,6 +236,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 2' do
         let(:request_path) { '/auth/request?ial=2' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2'
 
@@ -248,6 +251,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 1' do
         let(:request_path) { '/auth/request?ial=1' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -262,6 +266,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 0' do
         let(:request_path) { '/auth/request?ial=0' }
+        let(:params) { { requested_scopes: %w[openid email social_security_number x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL0'
 
@@ -276,6 +281,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is step-up' do
         let(:request_path) { '/auth/request?ial=step-up' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -318,6 +324,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is facial-match-required' do
         let(:request_path) { '/auth/request?ial=facial-match-required' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -332,6 +339,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is facial-match-preferred' do
         let(:request_path) { '/auth/request?ial=facial-match-preferred' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 
@@ -351,9 +359,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'when the ial is enhanced-ipp-required' do
         context 'when eipp is not allowed' do
           let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+          let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
           it 'does not set a vtr value' do
-            get request_path
+            get request_path, **params
 
             expect(last_response).to be_redirect
 
@@ -368,8 +377,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           after {  ENV['eipp_allowed'] = 'false' }
 
           let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+          let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
+
           it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
-            get request_path
+            get request_path, **params
 
             expect(last_response).to be_redirect
 
@@ -377,14 +388,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
             expect(vtr).to include('C1.P1.Pe')
           end
-
         end
       end
 
       context 'when the ial is facial-match-vot' do
         let(:request_path) { '/auth/request?ial=facial-match-vot' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
+
         it 'redirects to IDP with vtr=["C1.P1.Pb"]' do
-          get request_path
+          get request_path, **params
 
           expect(last_response).to be_redirect
 
@@ -396,6 +408,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 2' do
         let(:request_path) { '/auth/request?ial=2' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2'
 
@@ -410,6 +423,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is facial-match-required' do
         let(:request_path) { '/auth/request?ial=facial-match-required' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -424,6 +438,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is facial-match-preferred' do
         let(:request_path) { '/auth/request?ial=facial-match-preferred' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 

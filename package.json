@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "license": "CC0-1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --require=jsdom-global/register --test spec/**/*.spec.js"
+  },
   "dependencies": {
     "@uswds/uswds": "3.8.2"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1",
+    "jsdom-global": "^3.0.2"
   }
 }
