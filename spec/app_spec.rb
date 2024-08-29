@@ -85,7 +85,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:vtr_disabled) { true }
 
       it 'redirects to an ial1 sign in link if loa param is nil' do
-        get '/auth/request'
+        get '/auth/request', requested_scopes: %w[openid email]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -100,7 +100,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial2 signin if the ial is 2' do
-        get '/auth/request?ial=2'
+        get '/auth/request?ial=2',
+            requested_scopes: %w[openid email profile social_security_number phone address]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -112,22 +113,17 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial1 sign in link if ial param is 1' do
-        get '/auth/request?ial=1'
+        get '/auth/request?ial=1', requested_scopes: %w[openid email]
 
         expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          'scope=openid+email',
-        )
-        expect(last_response.location).to_not include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
+        expect(last_response.location).to include('scope=openid+email')
         expect(last_response.location).to include(
           CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
         )
       end
 
       it 'redirects to an ialmax sign in link if ial param is 0' do
-        get '/auth/request?ial=0'
+        get '/auth/request?ial=0', requested_scopes: %w[openid email social_security_number]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -139,13 +135,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to an ial1 sign in link if ial param is step-up' do
-        get '/auth/request?ial=step-up'
+        get '/auth/request?ial=step-up', requested_scopes: %w[openid email]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include('scope=openid+email')
-        expect(last_response.location).to_not include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
         expect(last_response.location).to include(
           CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
         )
@@ -176,7 +169,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-        get '/auth/request?ial=biometric-comparison-required'
+        get '/auth/request?ial=biometric-comparison-required',
+            requested_scopes: %w[openid email profile social_security_number phone address]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -188,7 +182,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-        get '/auth/request?ial=biometric-comparison-preferred'
+        get '/auth/request?ial=biometric-comparison-preferred',
+            requested_scopes: %w[openid email profile social_security_number phone address]
 
         expect(last_response).to be_redirect
         expect(last_response.location).to include(
@@ -206,7 +201,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'when the ial is enhanced-ipp-required' do
 
         it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=enhanced-ipp-required'
+          get '/auth/request?ial=enhanced-ipp-required',
+              requested_scopes: %w[openid email profile social_security_number phone address]
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -221,9 +217,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       context 'when the ial is biometric-comparison-vot' do
-
         it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=biometric-comparison-vot'
+          get '/auth/request?ial=biometric-comparison-vot',
+              requested_scopes: %w[openid email profile social_security_number phone address]
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -239,7 +235,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'all other ials' do
         it 'redirects to an ial2 signin if the ial is 2' do
-          get '/auth/request?ial=2'
+          get '/auth/request?ial=2',
+              requested_scopes: %w[openid email profile social_security_number phone address]
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -251,7 +248,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
 
         it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-          get '/auth/request?ial=biometric-comparison-required'
+          get '/auth/request?ial=biometric-comparison-required',
+              requested_scopes: %w[openid email profile social_security_number phone address]
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
@@ -263,7 +261,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
 
         it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-          get '/auth/request?ial=biometric-comparison-preferred'
+          get '/auth/request?ial=biometric-comparison-preferred',
+              requested_scopes: %w[openid email profile social_security_number phone address]
 
           expect(last_response).to be_redirect
           expect(last_response.location).to include(
