@@ -1,21 +1,21 @@
 class ScopeElement extends HTMLElement {
   connectedCallback() {
     this.syncCheckedToIal();
-    this.ial.addEventListener("input", () => this.syncCheckedToIal());
+    this.ial.addEventListener('input', () => this.syncCheckedToIal());
   }
 
   /**
    * @return {HTMLInputElement}
    */
   get checkbox() {
-    return this.querySelector("[type=checkbox]");
+    return this.querySelector('[type=checkbox]');
   }
 
   /**
    * @return {HTMLSelectElement}
    */
   get ial() {
-    return this.ownerDocument.getElementById(this.getAttribute("ial-element"));
+    return this.ownerDocument.getElementById(this.getAttribute('ial-element'));
   }
 
   /**
@@ -23,7 +23,7 @@ class ScopeElement extends HTMLElement {
    */
   get defaultScopesByIAL() {
     const defaultScopes = this.ownerDocument.getElementById(
-      this.getAttribute("default-scopes-element")
+      this.getAttribute('default-scopes-element')
     );
     return JSON.parse(defaultScopes.textContent);
   }
@@ -34,6 +34,6 @@ class ScopeElement extends HTMLElement {
   }
 }
 
-if (!customElements.get("lg-scope")) {
-  customElements.define("lg-scope", ScopeElement);
+if (!customElements.get('lg-scope')) {
+  customElements.define('lg-scope', ScopeElement);
 }
