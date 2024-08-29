@@ -160,7 +160,7 @@ module LoginGov::OidcSinatra
         nonce: session[:nonce],
         ial: ial,
         aal: params[:aal],
-        scopes: params[:requested_scopes],
+        scopes: params[:requested_scopes] || [],
       )
 
       idp_url = auth_url
