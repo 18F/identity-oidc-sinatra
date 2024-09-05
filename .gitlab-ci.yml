@@ -23,6 +23,19 @@ before_script:
 .yarn_production_install: &yarn_production_install
   - yarn install --production --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
 
+.deploy_script: &deploy_script
+  - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
+  - tar -xvzf cf8-cli_linux_x86-64.tgz
+  - mv cf8 /usr/local/bin
+  - cf8 --version
+  - curl -o /usr/share/bash-completion/completions/cf8 https://raw.githubusercontent.com/cloudfoundry/cli-ci/master/ci/installers/completion/cf8
+  - *bundle_install
+  - *yarn_install
+  - bundle exec rake login:deploy_json
+  - make copy_vendor
+  - cf8 login -a https://api.fr.cloud.gov -u "e1fdd211-f191-40e8-99c7-4e7164d9ae76" -p $CF8_PASS -o "gsa-login-prototyping" -s "$SPACE"
+  - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
+
 .build_cache:
   - &ruby_cache
     key:
@@ -55,7 +68,7 @@ stages:
 
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "external_pull_request_event" || $CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: $CI_COMMIT_TAG
       when: never
@@ -93,19 +106,19 @@ test_release:
 
 deploy_to_cloudgov:
   stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
   image: '${ECR_REGISTRY}/dashboard/ci:latest'
-  script:
-    - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
-    - tar -xvzf cf8-cli_linux_x86-64.tgz
-    - mv cf8 /usr/local/bin
-    - cf8 --version
-    - curl -o /usr/share/bash-completion/completions/cf8 https://raw.githubusercontent.com/cloudfoundry/cli-ci/master/ci/installers/completion/cf8
-    - *bundle_install
-    - *yarn_install
-    - bundle exec rake login:deploy_json
-    - make copy_vendor
-    - cf8 login -a https://api.fr.cloud.gov -u "e1fdd211-f191-40e8-99c7-4e7164d9ae76" -p $CF8_PASS -o "gsa-login-prototyping" -s "$SPACE"
-    - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
+  script: *deploy_script
   parallel:
     matrix:
       - SPACE: [prod, staging, int, dev, dm]
+
+deploy_to_dev:
+  stage: deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
+  variables:
+    SPACE: dev
+  image: '${ECR_REGISTRY}/dashboard/ci:latest'
+  script: *deploy_script
