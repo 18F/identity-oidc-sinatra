@@ -2,6 +2,7 @@ require 'spec_helper'
 require 'nokogiri'
 require 'securerandom'
 require 'cgi'
+require 'byebug'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:host) { 'http://localhost:3000' }
@@ -16,6 +17,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:nonce) { 'abc' }
 
   before do
+    ENV['semantic_ial_values_enabled'] = 'false'
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_disabled?).and_return(vtr_disabled)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
@@ -81,122 +83,241 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/request' do
+    shared_examples 'redirects to IDP with legacy IAL1' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'x509')
+        expect(acr_values).to include('http://idmanagement.gov/ns/assurance/ial/1')
+      end
+    end
+
+    shared_examples 'redirects to IDP with legacy IAL2' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('http://idmanagement.gov/ns/assurance/ial/2')
+      end
+    end
+
+    shared_examples 'redirects to IDP with legacy IAL0' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'social_security_number', 'x509')
+        expect(acr_values).to include('http://idmanagement.gov/ns/assurance/ial/0')
+      end
+    end
+
+    shared_examples 'redirects to IDP with legacy IAL2 and bio=preferred' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('http://idmanagement.gov/ns/assurance/ial/2?bio=preferred')
+      end
+    end
+
+    shared_examples 'redirects to IDP with semantic verified-facial-match-preferred' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('urn:acr.login.gov:verified-facial-match-preferred')
+      end
+    end
+
+    shared_examples 'redirects to IDP with legacy IAL2 and bio=required' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('http://idmanagement.gov/ns/assurance/ial/2?bio=required')
+      end
+    end
+
+    shared_examples 'redirects to IDP with semantic verified-facial-match-required' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('urn:acr.login.gov:verified-facial-match-required')
+      end
+    end
+
+    shared_examples 'redirects to IDP with semantic verified' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+
+        expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+        expect(acr_values).to include('urn:acr.login.gov:verified')
+      end
+    end
+
+    shared_examples 'redirects to IDP with semantic auth-only' do
+      it 'sends the correct acr_values and scopes' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        scope, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(scope).to include('openid', 'email', 'x509')
+        expect(acr_values).to include('urn:acr.login.gov:auth-only')
+      end
+    end
+
     context 'with vtr disabled' do
       let(:vtr_disabled) { true }
 
-      it 'redirects to an ial1 sign in link if loa param is nil' do
-        get '/auth/request'
+      context 'when there is no ial parameter' do
+        let(:request_path) { '/auth/request' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          'scope=openid+email',
-        )
-        expect(last_response.location).to_not include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL1'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic auth-only'
+        end
       end
 
-      it 'redirects to an ial2 signin if the ial is 2' do
-        get '/auth/request?ial=2'
+      context 'when the ial parameter is 2' do
+        let(:request_path) { '/auth/request?ial=2' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/2'),
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL2'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified'
+        end
       end
 
-      it 'redirects to an ial1 sign in link if ial param is 1' do
-        get '/auth/request?ial=1'
+      context 'when the ial parameter is 1' do
+        let(:request_path) { '/auth/request?ial=1' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          'scope=openid+email',
-        )
-        expect(last_response.location).to_not include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL1'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic auth-only'
+        end
       end
 
-      it 'redirects to an ialmax sign in link if ial param is 0' do
-        get '/auth/request?ial=0'
+      context 'when the ial parameter is 0' do
+        let(:request_path) { '/auth/request?ial=0' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          'scope=openid+email+social_security_number',
-        )
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/0'),
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL0'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with legacy IAL0'
+        end
       end
 
-      it 'redirects to an ial1 sign in link if ial param is step-up' do
-        get '/auth/request?ial=step-up'
+      context 'when the ial parameter is step-up' do
+        let(:request_path) { '/auth/request?ial=step-up' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include('scope=openid+email')
-        expect(last_response.location).to_not include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/1'),
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL1'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic auth-only'
+        end
       end
 
-      it 'redirects to a phishing-resistant AAL2 sign in link if aal param is 2-phishing_resistant' do
-        get '/auth/request?aal=2-phishing_resistant'
+      context 'when the aal parameter is 2-phishing_resistant' do
+        let(:request_path) { '/auth/request?aal=2-phishing_resistant' }
+        it 'redirects to IDP with legacy AAL2 and phishing_resistant=true' do
+          get request_path
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/aal/2'),
-        )
-        expect(CGI.unescape(last_response.location)).to include(
-          '/aal/2?phishing_resistant=true',
-        )
+          expect(last_response).to be_redirect
+
+          _, acr_values = extract_scope_and_acr_values(last_response.location)
+          expect(acr_values).to include(
+            'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
+          )
+        end
       end
 
-      it 'redirects to an HSPD12 AAL2 sign in link if aal param is 2-hspd12' do
-        get '/auth/request?aal=2-hspd12'
+      context 'when the aal parameter is 2-hspd12' do
+        let(:request_path) { '/auth/request?aal=2-hspd12' }
+        it 'redirects to IDP with legacy AAL2 and hspd12=true' do
+          get request_path
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/aal/2'),
-        )
-        expect(CGI.unescape(last_response.location)).to include(
-          '/aal/2?hspd12=true',
-        )
+          expect(last_response).to be_redirect
+
+          _, acr_values = extract_scope_and_acr_values(last_response.location)
+          expect(acr_values).to include(
+            'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
+          )
+        end
       end
 
-      it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-        get '/auth/request?ial=biometric-comparison-required'
+      context 'when the ial parameter is biometric-comparison-required' do
+        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/2?bio=required'),
-        )
-        expect(last_response.location).to include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified-facial-match-required'
+        end
       end
 
-      it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-        get '/auth/request?ial=biometric-comparison-preferred'
+      context 'when the ial parameter is biometric-comparison-preferred' do
+        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
 
-        expect(last_response).to be_redirect
-        expect(last_response.location).to include(
-          CGI.escape('http://idmanagement.gov/ns/assurance/ial/2?bio=preferred'),
-        )
-        expect(last_response.location).to include(
-          'scope=openid+email+profile+social_security_number+phone+address',
-        )
+        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified-facial-match-preferred'
+        end
       end
     end
 
@@ -204,74 +325,70 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:vtr_disabled) { false }
 
       context 'when the ial is enhanced-ipp-required' do
-
-        it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=enhanced-ipp-required'
+        let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+        it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
+          get request_path
 
           expect(last_response).to be_redirect
-          expect(last_response.location).to include(
-            'scope=openid+email',
-          )
 
-          expect(last_response.location).to include(
-            'scope=openid+email+profile+social_security_number+phone+address',
-          )
-          expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1.Pe"]')
+          scope, vtr = extract_scope_and_vtr(last_response.location)
+          expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+          expect(vtr).to include('C1.P1.Pe')
         end
       end
 
       context 'when the ial is biometric-comparison-vot' do
-
-        it 'redirects to a default sign in link if ial param is nil' do
-          get '/auth/request?ial=biometric-comparison-vot'
+        let(:request_path) { '/auth/request?ial=biometric-comparison-vot' }
+        it 'redirects to IDP with vtr=["C1.P1.Pb"]' do
+          get request_path
 
           expect(last_response).to be_redirect
-          expect(last_response.location).to include(
-            'scope=openid+email',
-          )
 
-          expect(last_response.location).to include(
-            'scope=openid+email+profile+social_security_number+phone+address',
-          )
-          expect(CGI.unescape(last_response.location)).to include('vtr=["C1.P1.Pb"]')
+          scope, vtr = extract_scope_and_vtr(last_response.location)
+          expect(scope).to include( 'openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+          expect(vtr).to include('C1.P1.Pb')
         end
       end
 
-      context 'all other ials' do
-        it 'redirects to an ial2 signin if the ial is 2' do
-          get '/auth/request?ial=2'
+      context 'when the ial parameter is 2' do
+        let(:request_path) { '/auth/request?ial=2' }
 
-          expect(last_response).to be_redirect
-          expect(last_response.location).to include(
-            'scope=openid+email+profile+social_security_number+phone+address',
-          )
-          expect(last_response.location).to include(
-            CGI.escape('http://idmanagement.gov/ns/assurance/ial/2'),
-          )
+        it_behaves_like 'redirects to IDP with legacy IAL2'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified'
         end
+      end
 
-        it 'redirects to ial2 with the flag if the ial param is biometric-comparison-required' do
-          get '/auth/request?ial=biometric-comparison-required'
+      context 'when the ial parameter is biometric-comparison-required' do
+        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
 
-          expect(last_response).to be_redirect
-          expect(last_response.location).to include(
-            CGI.escape('http://idmanagement.gov/ns/assurance/ial/2'),
-          )
-          expect(last_response.location).to include(
-            'scope=openid+email+profile+social_security_number+phone+address',
-          )
+        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified-facial-match-required'
         end
+      end
 
-        it 'redirects to ial2 with the flag if the ial param is biometric-comparison-preferred' do
-          get '/auth/request?ial=biometric-comparison-preferred'
+      context 'when the ial parameter is biometric-comparison-preferred' do
+        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
 
-          expect(last_response).to be_redirect
-          expect(last_response.location).to include(
-            CGI.escape('http://idmanagement.gov/ns/assurance/ial/2?bio=preferred'),
-          )
-          expect(last_response.location).to include(
-            'scope=openid+email+profile+social_security_number+phone+address',
-          )
+        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
+
+        context 'when semantic ial values are enabled' do
+          before do
+            ENV['semantic_ial_values_enabled'] = 'true'
+          end
+
+          it_behaves_like 'redirects to IDP with semantic verified-facial-match-preferred'
         end
       end
     end
@@ -441,5 +558,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     stub_request(:get, userinfo_endpoint).
       with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
       to_return(body: { email: email }.to_json)
+  end
+
+  def extract_scope_and_acr_values(url)
+    params = CGI.parse(URI(url).query)
+    [params['scope'].first.split, params['acr_values'].first.split]
+  end
+
+  def extract_scope_and_vtr(url)
+    params = CGI.parse(URI(url).query)
+    [params['scope'].first.split, params['vtr'].first]
   end
 end

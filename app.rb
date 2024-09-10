@@ -258,16 +258,7 @@ module LoginGov::OidcSinatra
 
       values = []
 
-      values << {
-        '0' => 'http://idmanagement.gov/ns/assurance/ial/0',
-        nil => 'http://idmanagement.gov/ns/assurance/ial/1',
-        '' => 'http://idmanagement.gov/ns/assurance/ial/1',
-        '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
-        '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        'biometric-comparison-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
-        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
-        'enhanced-ipp-required' => 'http://idmanagement.gov/ns/assurance/ial/2',
-      }[ial]
+      values << (semantic_ial_values_enabled? ? semantic_ial_values[ial] : legacy_ial_values[ial])
 
       values << {
         '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
@@ -276,6 +267,28 @@ module LoginGov::OidcSinatra
       }[aal]
 
       values.compact.join(' ')
+    end
+
+    def legacy_ial_values
+      {
+        '0' => 'http://idmanagement.gov/ns/assurance/ial/0',
+        '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
+        nil => 'http://idmanagement.gov/ns/assurance/ial/1',
+        '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
+        'biometric-comparison-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
+        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
+      }
+    end
+
+    def semantic_ial_values
+      {
+        '0' => 'http://idmanagement.gov/ns/assurance/ial/0',
+        '1' => 'urn:acr.login.gov:auth-only',
+        nil => 'urn:acr.login.gov:auth-only',
+        '2' => 'urn:acr.login.gov:verified',
+        'biometric-comparison-required' => 'urn:acr.login.gov:verified-facial-match-required',
+        'biometric-comparison-preferred' => 'urn:acr.login.gov:verified-facial-match-preferred',
+      }
     end
 
     def vtr_value(ial:, aal:)
@@ -303,6 +316,10 @@ module LoginGov::OidcSinatra
       end
 
       vtr_list.to_json
+    end
+
+    def semantic_ial_values_enabled?
+      ENV['semantic_ial_values_enabled'] == 'true'
     end
 
     def vtm_value(ial)
