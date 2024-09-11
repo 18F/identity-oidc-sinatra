@@ -7,18 +7,10 @@ require 'yaml'
 module LoginGov
   module OidcSinatra
     # Class holding configuration for this sample app. Defaults come from
-    # `#default_config`, with keys overridden by data from
-    # `config/application.yml` if it exists.
+    # .env via `#default_config`
     class Config
-      # @param [String] config_file Location of application.yml
-      def initialize(config_file: nil)
+      def initialize()
         @config = default_config
-
-        config_file ||= "#{File.dirname(__FILE__)}/config/application.yml"
-        if File.exist?(config_file)
-          # STDERR.puts("Loading config from #{config_file.inspect}")
-          @config.merge!(YAML.safe_load(File.read(config_file)))
-        end
       end
 
       def idp_url
@@ -35,6 +27,10 @@ module LoginGov
 
       def client_id
         @config.fetch('client_id')
+      end
+
+      def client_id_pkce
+        @config.fetch('client_id_pkce')
       end
 
       def mock_irs_client_id
@@ -61,8 +57,7 @@ module LoginGov
         @sp_private_key = OpenSSL::PKey::RSA.new(key)
       end
 
-      # Define the default configuration values. If application.yml exists, those
-      # values will be merged in overriding defaults.
+      # Define the default configuration values.
       #
       # @return [Hash]
       #
@@ -70,6 +65,7 @@ module LoginGov
         data = {
           'acr_values' => ENV['acr_values'] || 'http://idmanagement.gov/ns/assurance/ial/1',
           'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:sinatra',
+          'client_id_pkce' => ENV['client_id_pkce'] || 'urn:gov:gsa:openidconnect:sp:sinatra_pkce',
           'mock_irs_client_id' => ENV['mock_irs_client_id'] ||
                                   'urn:gov:gsa:openidconnect:sp:mock_irs',
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',

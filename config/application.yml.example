@@ -1,8 +1,0 @@
----
-idp_url: 'http://localhost:3000'
-acr_values: 'http://idmanagement.gov/ns/assurance/loa/1'
-redirect_uri: 'http://localhost:9292/'
-client_id: 'urn:gov:gsa:openidconnect:sp:sinatra'
-mock_irs_client_id: 'urn:gov:gsa:openidconnect:sp:mock_irs'
-sp_private_key_path: 'config/demo_sp.key'
-cache_oidc_config: true

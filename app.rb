@@ -22,6 +22,8 @@ require_relative './config'
 require_relative './openid_configuration'
 
 module LoginGov::OidcSinatra
+  JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
@@ -98,6 +100,7 @@ module LoginGov::OidcSinatra
 
       session[:state] = random_value
       session[:nonce] = random_value
+      session[:code_verifier] = random_value if use_pkce?
 
       ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
       auth_url = authorization_url(
@@ -105,14 +108,15 @@ module LoginGov::OidcSinatra
         nonce: session[:nonce],
         ial: ial,
         aal: params[:aal],
+        code_verifier: session[:code_verifier],
       )
 
-      idp_url = auth_url
-      settings.logger.info("Redirecting to #{idp_url}")
+      settings.logger.info("Redirecting to #{auth_url}")
 
-      redirect to(idp_url)
+      redirect to(auth_url)
     end
 
+    # rubocop:disable Metrics/BlockLength
     get '/auth/result' do
       code = params[:code]
       error = params[:error]
@@ -146,6 +150,8 @@ module LoginGov::OidcSinatra
 
         redirect to('/')
       end
+    rescue AppError => e
+      [500, erb(:errors, locals: { error: e.message })]
     end
 
     get '/failure_to_proof' do
@@ -192,7 +198,7 @@ module LoginGov::OidcSinatra
       erb :errors, locals: { error: error }
     end
 
-    def authorization_url(state:, nonce:, ial:, aal: nil)
+    def authorization_url(state:, nonce:, ial:, aal:, code_verifier:)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -206,9 +212,14 @@ module LoginGov::OidcSinatra
         nonce: nonce,
         prompt: 'select_account',
         enhanced_ipp_required: requires_enhanced_ipp?(ial),
-      }.compact.to_query
+      }
 
-      "#{endpoint}?#{request_params}"
+      if code_verifier
+        request_params[:code_challenge] = url_safe_code_challenge(code_verifier)
+        request_params[:code_challenge_method] = 'S256'
+      end
+
+      "#{endpoint}?#{request_params.compact.to_query}"
     end
 
     def simulate_csp_issue_if_selected(session:, simulate_csp:)
@@ -322,6 +333,10 @@ module LoginGov::OidcSinatra
       ENV['semantic_ial_values_enabled'] == 'true'
     end
 
+    def use_pkce?
+      ENV['PKCE'] == 'true'
+    end
+
     def vtm_value(ial)
       return if does_not_require_enhanced_ipp?(ial)
       'https://developer.login.gov/vot-trust-framework'
@@ -362,13 +377,24 @@ module LoginGov::OidcSinatra
     end
 
     def token(code)
-      json Faraday.post(
-        openid_configuration[:token_endpoint],
+      token_params = {
         grant_type: 'authorization_code',
         code: code,
-        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion: client_assertion_jwt,
-      ).body
+      }
+
+      if use_pkce?
+        token_params[:code_verifier] = session[:code_verifier]
+      else
+        token_params[:client_assertion_type] = JWT_CLIENT_ASSERTION_TYPE
+        token_params[:client_assertion] = client_assertion_jwt
+      end
+
+      response = Faraday.post(
+        openid_configuration[:token_endpoint],
+        token_params,
+      )
+      raise AppError.new(response.body) if response.status != 200
+      json response.body
     end
 
     def client_assertion_jwt
@@ -393,7 +419,7 @@ module LoginGov::OidcSinatra
     def client_id
       return config.mock_irs_client_id if session[:irs]
 
-      config.client_id
+      use_pkce? ? config.client_id_pkce : config.client_id
     end
 
     def logout_uri
@@ -413,6 +439,10 @@ module LoginGov::OidcSinatra
 
     def random_value
       SecureRandom.hex
+    end
+
+    def url_safe_code_challenge(code_verifier)
+      Base64.urlsafe_encode64(Digest::SHA256.digest(code_verifier))
     end
 
     def maybe_redact_ssn(ssn)
