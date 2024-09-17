@@ -4,8 +4,6 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 
 ## Running locally
 
-These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) is also running locally at http://localhost:3000 .
-
 1. Set up the environment with:
 
   ```
@@ -24,7 +22,21 @@ These instructions assume [`identity-idp`](https://github.com/18F/identity-idp) 
   $ make test
   ```
 
-This sample service provider is configured to run on http://localhost:9292 by default. Optionally, you can assign a custom hostname or port by passing `HOST=` or `PORT=` environment variables when starting the application server.
+## Configuring
+
+1. This sample service provider is configured to run on http://localhost:9292 by default. Optionally, you can assign a custom hostname or port by passing `HOST=` or `PORT=` environment variables when starting the application server. However, when you do this, you also have to make corresponding changes to the `redirect_uri` environment variable and also configure the identity provider appropriately.
+
+2. Some other key environment variables that affect configuration:
+
+   | Environment Variable        | Description                                                                                  | Default                                   |
+   |-----------------------------|----------------------------------------------------------------------------------------------|-------------------------------------------|
+   | client_id                   | Identifier for this app as configured with the identity provider. Used unless `PKCE` is true | urn:gov:gsa:openidconnect:sp:sinatra      |
+   | client_id_pkce              | Identifier for this app as configured with the identity provider. Used if `PKCE` is true     | urn:gov:gsa:openidconnect:sp:sinatra_pkce |
+   | eipp_allowed                | Enhanced In Person Proofing allowed                                                          | false                                     |
+   | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
+   | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
+   | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
+   | vtr_disabled                | Vectors of Trust disabled                                                                    | false                                     |
 
 ## Contributing
 

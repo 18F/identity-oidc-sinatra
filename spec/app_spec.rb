@@ -18,6 +18,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   before do
     ENV['semantic_ial_values_enabled'] = 'false'
+    ENV['PKCE'] = 'false'
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_disabled?).and_return(vtr_disabled)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
@@ -189,6 +190,29 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(scope).to include('openid', 'email', 'x509')
         expect(acr_values).to include('urn:acr.login.gov:auth-only')
       end
+    end
+
+    shared_examples 'PKCE auth request' do
+      it 'sends the PKCE parameters' do
+
+        get request_path
+
+        expect(last_response).to be_redirect
+        expect(parameter_value(last_response.location, 'client_id')).to eq('urn:gov:gsa:openidconnect:sp:sinatra_pkce')
+        expect(parameter_value(last_response.location, 'code_challenge')).to eq('CODE_CHALLENGE')
+        expect(parameter_value(last_response.location, 'code_challenge_method')).to eq('S256')
+      end
+    end
+
+    context 'with PKCE enabled' do
+      before do
+        ENV['PKCE'] = 'true'
+        allow_any_instance_of(LoginGov::OidcSinatra::OpenidConnectRelyingParty).to receive(:url_safe_code_challenge).and_return('CODE_CHALLENGE')
+      end
+
+      let(:request_path) { '/auth/request' }
+
+      it_behaves_like 'PKCE auth request'
     end
 
     context 'with vtr disabled' do
@@ -395,28 +419,32 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/result' do
-    context 'errors happen before the auth token exchange' do
-      it 'redirects to root with an error param when there is an access denied' do
-        get '/auth/result', error: 'access_denied'
+    context 'when errors happen before the auth token exchange' do
+      context 'when access is denied' do
+        it 'redirects to root with an access_denied error parameter' do
+          get '/auth/result', error: 'access_denied'
 
-        expect(last_response).to be_redirect
-        uri = URI.parse(last_response.location)
-        expect(uri.path).to eq('/')
-        expect(uri.query).to eq('error=access_denied')
-        follow_redirect!
-        expect(last_response.body).to include('You chose to exit before signing in')
+          expect(last_response).to be_redirect
+          uri = URI.parse(last_response.location)
+          expect(uri.path).to eq('/')
+          expect(uri.query).to eq('error=access_denied')
+          follow_redirect!
+          expect(last_response.body).to include('You chose to exit before signing in')
+        end
       end
 
-      it 'renders a default error message when no code or explicit error code' do
-        get '/auth/result'
+      context 'when there is no code parameter' do
+        it 'errors with a missing code parameter message' do
+          get '/auth/result'
 
-        doc = Nokogiri::HTML(last_response.body)
+          doc = Nokogiri::HTML(last_response.body)
 
-        expect(doc.text).to include('missing callback param: code')
+          expect(doc.text).to include('missing callback param: code')
+        end
       end
     end
 
-    context 'the token exchange moved forward' do
+    context 'when the token exchange takes place' do
       let(:code) { 'abc-code' }
       let(:connection) { double Faraday }
 
@@ -428,13 +456,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           get '/auth/request'
 
           stub_token_response(
-            code: code,
+            code:,
             bearer_token: bearer_token,
             id_token: generate_id_token(nonce: last_request.session['nonce']),
           )
           stub_userinfo_response(bearer_token: bearer_token, email: email)
 
-          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+          get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
           expect(last_response).to be_redirect
           follow_redirect!
@@ -447,12 +475,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           it 'escapes dangerous HTML' do
             get '/auth/request'
             stub_token_response(
-              code: code,
+              code:,
               bearer_token: bearer_token,
               id_token: generate_id_token(nonce: last_request.session['nonce']),
             )
             stub_userinfo_response(bearer_token: bearer_token, email: email)
-            get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+            get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
             follow_redirect!
 
@@ -464,12 +492,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         it 'has a logout link to the handle-logout endpoint' do
           get '/auth/request'
           stub_token_response(
-            code: code,
+            code:,
             bearer_token: bearer_token,
             id_token: generate_id_token(nonce: last_request.session['nonce']),
           )
           stub_userinfo_response(bearer_token: bearer_token, email: email)
-          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+          get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
           follow_redirect!
           doc = Nokogiri::HTML(last_response.body)
 
@@ -485,7 +513,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'with invalid state' do
         it 'fails auth and shows error message' do
           get '/auth/request'
-          get '/auth/result', { code: code, state: 'fake-state' }, 'rack.session' => last_request.session
+          get '/auth/result', { code:, state: 'fake-state' }, 'rack.session' => last_request.session
 
           expect(last_response.body).to include('invalid state')
           expect(last_response.body).to_not include(email)
@@ -496,21 +524,71 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         it 'fails auth and shows error message' do
           get '/auth/request'
           stub_token_response(
-            code: code,
+            code:,
             bearer_token: bearer_token,
             id_token: generate_id_token(nonce: 'fake-nonce'),
           )
-          get '/auth/result', { code: code, state: last_request.session['state'] }, 'rack.session' => last_request.session
+          get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
           expect(last_response.body).to include('invalid nonce')
           expect(last_response.body).to_not include(email)
+        end
+      end
+
+      context 'with PKCE enabled' do
+        before do
+          ENV['PKCE'] = 'true'
+          allow_any_instance_of(LoginGov::OidcSinatra::OpenidConnectRelyingParty).to receive(:url_safe_code_challenge).and_return('CODE_CHALLENGE')
+        end
+
+        context 'with valid token' do
+          context 'when the code_verifier is valid' do
+            it 'takes an authorization code and gets a token, and renders the email from the token' do
+              get '/auth/request'
+
+              stub_request(:post, token_endpoint).
+                with(body: {
+                  grant_type: 'authorization_code',
+                  code:,
+                  code_verifier: last_request.session['code_verifier'],
+                }).
+                to_return(body: { access_token: bearer_token, id_token: generate_id_token(nonce: last_request.session['nonce'])}.to_json)
+
+              stub_userinfo_response(bearer_token:, email:)
+
+              get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+              expect(last_response).to be_redirect
+              follow_redirect!
+              expect(last_response.body).to include(email)
+            end
+          end
+
+          context 'when the code_verifier is invalid' do
+            it 'takes an authorization code and gets a token, and renders the email from the token' do
+              get '/auth/request'
+
+              stub_request(:post, token_endpoint).
+                with(body: {
+                  grant_type: 'authorization_code',
+                  code:,
+                  code_verifier: kind_of(String),
+                }).
+                to_return(status: 400, body: {'error': 'Code verifier code_verifier did not match code_challenge'}.to_json)
+
+              get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+              expect(last_response.body).to include('Code verifier code_verifier did not match code_challenge')
+              expect(last_response.body).to_not include(email)
+            end
+          end
         end
       end
     end
   end
 
   context 'POST /handle-logout' do
-    let(:redirect_uri) { 'localhost:9292/logout' }
+    let(:redirect_uri) { 'http://localhost:9292/logout' }
 
     before do
       get '/'
@@ -534,8 +612,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     it 'redirects to Login.gov logout' do
       expect(last_response.location).to include(end_session_endpoint)
-      expect(last_response.location).to include("client_id=#{CGI.escape(client_id)}")
-      expect(last_response.location).to include(CGI.escape(redirect_uri))
+      expect(parameter_value(last_response.location, 'client_id')).to eq(client_id)
+      expect(parameter_value(last_response.location, 'post_logout_redirect_uri')).to eq(redirect_uri)
     end
   end
 
@@ -547,7 +625,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     stub_request(:post, token_endpoint).
       with(body: {
         grant_type: 'authorization_code',
-        code: code,
+        code:,
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: kind_of(String),
       }).
@@ -558,6 +636,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     stub_request(:get, userinfo_endpoint).
       with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
       to_return(body: { email: email }.to_json)
+  end
+
+  def parameter_value(url, parameter_name)
+    params = CGI.parse(URI(url).query)
+    params[parameter_name].first
   end
 
   def extract_scope_and_acr_values(url)
