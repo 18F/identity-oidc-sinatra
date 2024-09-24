@@ -1,8 +1,13 @@
 require 'rack/test'
 require 'rspec'
+require 'simplecov'
 require 'webmock/rspec'
 
 ENV['RACK_ENV'] = 'test'
+
+SimpleCov.start do
+  add_filter '/spec'
+end
 
 require_relative '../app'
 
