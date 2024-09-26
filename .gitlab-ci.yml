@@ -106,7 +106,7 @@ test_release:
       - /tmp/test-results
 
 build-ci-image:
-  stage: build
+  stage: .pre
   interruptible: true
   needs: []
   tags:
