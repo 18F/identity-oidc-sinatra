@@ -9,7 +9,7 @@ variables:
   PKI_IMAGE_TAG: 'main'
 
 default:
-  image: '${ECR_REGISTRY}/dashboard/ci:latest'
+  image: '${ECR_REGISTRY}/oidc_sinatra/ci:latest'
 
 #before_script:
 #  - gem install bundler --version $BUNDLER_VERSION
