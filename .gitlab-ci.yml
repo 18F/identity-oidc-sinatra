@@ -138,8 +138,6 @@ build-ci-image:
       --destination "${ECR_REGISTRY}/oidc_sinatra/ci:${CI_COMMIT_SHA}"
       --build-arg "http_proxy=${http_proxy}" --build-arg "https_proxy=${https_proxy}" --build-arg "no_proxy=${no_proxy}"
 
-
-
 deploy_to_cloudgov:
   stage: deploy
   rules:
