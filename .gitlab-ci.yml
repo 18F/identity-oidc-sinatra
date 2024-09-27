@@ -158,7 +158,8 @@ deploy_to_dev:
     CF8_HOST: https://api.fr.cloud.gov
     CF8_USER: e1fdd211-f191-40e8-99c7-4e7164d9ae76
     CF8_USER_PASS: $CF8_PASS
-    CF8_STACK: dev
+    CF8_SPACE: dev
+    CF8_STACK: $CF8_SPACE-identity-oidc-sinatra
   image: '${ECR_REGISTRY}/cloudfoundry/cd:latest'
   cache:
     - <<: *ruby_cache
