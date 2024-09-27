@@ -138,6 +138,7 @@ build-ci-image:
       --destination "${ECR_REGISTRY}/oidc_sinatra/ci:latest"
       --destination "${ECR_REGISTRY}/oidc_sinatra/ci:${CI_COMMIT_SHA}"
       --build-arg "http_proxy=${http_proxy}" --build-arg "https_proxy=${https_proxy}" --build-arg "no_proxy=${no_proxy}"
+ 
 
 deploy_to_cloudgov:
   stage: deploy
@@ -154,6 +155,8 @@ deploy_to_dev:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_BRANCH == "build-ci-image"'
   variables:
-    SPACE: dev
-  image: '${ECR_REGISTRY}/oidc_sinatra/ci:latest'
-  script: *deploy_script
+    CF8_HOST: https://api.fr.cloud.gov
+    CF8_USER: e1fdd211-f191-40e8-99c7-4e7164d9ae76
+    CF8_USER_PASS: $CF8_PASS
+    CF8_STACK: dev
+  image: '${ECR_REGISTRY}/cloudfoundry/cd:latest'
