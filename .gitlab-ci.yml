@@ -160,3 +160,11 @@ deploy_to_dev:
     CF8_USER_PASS: $CF8_PASS
     CF8_STACK: dev
   image: '${ECR_REGISTRY}/cloudfoundry/cd:latest'
+  cache:
+    - <<: *ruby_cache
+    - <<: *yarn_cache
+  script:
+    - *bundle_install
+    - *yarn_install
+    - bundle exec rake login:deploy_json
+    - make copy_vendor
