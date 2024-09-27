@@ -26,11 +26,6 @@ default:
 
 
 .deploy_script: &deploy_script
-  - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
-  - tar -xvzf cf8-cli_linux_x86-64.tgz
-  - mv cf8 /usr/local/bin
-  - cf8 --version
-  - curl -o /usr/share/bash-completion/completions/cf8 https://raw.githubusercontent.com/cloudfoundry/cli-ci/master/ci/installers/completion/cf8
   - *bundle_install
   - *yarn_install
   - bundle exec rake login:deploy_json
@@ -154,18 +149,4 @@ deploy_to_dev:
   stage: deploy
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_BRANCH == "build-ci-image"'
-  variables:
-    CF8_HOST: https://api.fr.cloud.gov
-    CF8_USER: e1fdd211-f191-40e8-99c7-4e7164d9ae76
-    CF8_USER_PASS: $CF8_PASS
-    CF8_SPACE: dev
-    CF8_STACK: $CF8_SPACE-identity-oidc-sinatra
-  image: '${ECR_REGISTRY}/cloudfoundry/cd:latest'
-  cache:
-    - <<: *ruby_cache
-    - <<: *yarn_cache
-  script:
-    - *bundle_install
-    - *yarn_install
-    - bundle exec rake login:deploy_json
-    - make copy_vendor
+  script: *deploy_script
