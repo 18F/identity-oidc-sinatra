@@ -149,4 +149,6 @@ deploy_to_dev:
   stage: deploy
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web" || $CI_COMMIT_BRANCH == "build-ci-image"'
+  variables:
+    SPACE: dev
   script: *deploy_script
