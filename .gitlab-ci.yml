@@ -143,7 +143,7 @@ deploy_to_cloudgov:
 deploy_to_dev:
   stage: deploy
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web" '
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
   variables:
     SPACE: dev
   script: *deploy_script
