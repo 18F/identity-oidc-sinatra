@@ -4,13 +4,11 @@
 variables:
   BUNDLER_VERSION: "2.3.13"
   ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
- 
+  OIDC_SINATRA_CI_SHA: 'sha256:fc49828b6a7b03a65bf286eed4c0fd4de0b0e83169dc60cfd024920d60faa8a8'
 
 default:
-  image: '${ECR_REGISTRY}/oidc_sinatra/ci:latest'
+  image: '${ECR_REGISTRY}/oidc_sinatra/ci@${OIDC_SINATRA_CI_SHA}'
 
-#before_script:
-#  - gem install bundler --version $BUNDLER_VERSION
 
 .bundle_install: &bundle_install
   - gem install bundler --version $BUNDLER_VERSION
