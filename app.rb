@@ -52,7 +52,7 @@ module LoginGov::OidcSinatra
 
         if ENV.fetch('eipp_allowed', 'false') == 'true'
           options << [
-            'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
+            'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
           ]
         else
           options
