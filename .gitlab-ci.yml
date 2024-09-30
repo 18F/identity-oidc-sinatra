@@ -4,9 +4,7 @@
 variables:
   BUNDLER_VERSION: "2.3.13"
   ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-  IDP_WORKER_IMAGE_TAG: 'main'
-  IDP_IMAGE_TAG: 'main'
-  PKI_IMAGE_TAG: 'main'
+ 
 
 default:
   image: '${ECR_REGISTRY}/oidc_sinatra/ci:latest'
@@ -139,7 +137,6 @@ deploy_to_cloudgov:
   stage: deploy
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-  image: '${ECR_REGISTRY}/dashboard/ci:latest'
   script: *deploy_script
   parallel:
     matrix:
