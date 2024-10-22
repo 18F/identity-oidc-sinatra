@@ -45,18 +45,21 @@ module LoginGov::OidcSinatra
           ['2', 'Identity-verified'],
           ['0', 'IALMax'],
           ['step-up', 'Step-up Flow'],
-          ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
           ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
           ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
         ]
 
-        if ENV.fetch('eipp_allowed', 'false') == 'true'
+        if config.eipp_allowed?
           options << [
             'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
           ]
-        else
-          options
         end
+
+        if config.vtr_enabled?
+          options.push ['biometric-comparison-vot', 'Biometric Comparison (VoT)']
+        end
+
+        options
       end
 
       def csrf_tag
@@ -344,6 +347,7 @@ module LoginGov::OidcSinatra
 
     def requires_biometric_vot?(ial)
       return false if config.vtr_disabled?
+
       ial == 'biometric-comparison-vot'
     end
 
@@ -352,7 +356,8 @@ module LoginGov::OidcSinatra
     end
 
     def requires_enhanced_ipp?(ial)
-      return false if config.vtr_disabled?
+      return false unless config.eipp_allowed?
+
       ial == 'enhanced-ipp-required'
     end
 

@@ -49,6 +49,14 @@ module LoginGov
         @config.fetch('vtr_disabled')
       end
 
+      def vtr_enabled?
+        !vtr_disabled?
+      end
+
+      def eipp_allowed?
+        @config.fetch('eipp_allowed')
+      end
+
       # @return [OpenSSL::PKey::RSA]
       def sp_private_key
         return @sp_private_key if @sp_private_key
