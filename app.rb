@@ -45,18 +45,21 @@ module LoginGov::OidcSinatra
           ['2', 'Identity-verified'],
           ['0', 'IALMax'],
           ['step-up', 'Step-up Flow'],
-          ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
-          ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
-          ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
+          ['facial-match-preferred', 'Facial Match Preferred (ACR)'],
+          ['facial-match-required', 'Facial Match Required (ACR)'],
         ]
 
-        if ENV.fetch('eipp_allowed', 'false') == 'true'
+        if config.eipp_allowed?
           options << [
             'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
           ]
-        else
-          options
         end
+
+        if config.vtr_enabled?
+          options.push ['facial-match-vot', 'Facial Match (VoT)']
+        end
+
+        options
       end
 
       def csrf_tag
@@ -189,9 +192,6 @@ module LoginGov::OidcSinatra
 
     end
 
-
-
-
     private
 
     def render_error(error)
@@ -246,9 +246,9 @@ module LoginGov::OidcSinatra
     def scopes_for(ial)
       ial2_options = [
         '2',
-        'biometric-comparison-preferred',
-        'biometric-comparison-required',
-        'biometric-comparison-vot',
+        'facial-match-preferred',
+        'facial-match-required',
+        'facial-match-vot',
         'enhanced-ipp-required',
       ]
 
@@ -265,7 +265,7 @@ module LoginGov::OidcSinatra
     end
 
     def acr_values(ial:, aal:)
-      return if requires_enhanced_ipp?(ial) || requires_biometric_vot?(ial)
+      return if requires_enhanced_ipp?(ial) || requires_facial_match_vot?(ial)
 
       values = []
 
@@ -286,8 +286,8 @@ module LoginGov::OidcSinatra
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         nil => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        'biometric-comparison-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
-        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
+        'facial-match-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
+        'facial-match-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
       }
     end
 
@@ -297,13 +297,13 @@ module LoginGov::OidcSinatra
         '1' => 'urn:acr.login.gov:auth-only',
         nil => 'urn:acr.login.gov:auth-only',
         '2' => 'urn:acr.login.gov:verified',
-        'biometric-comparison-required' => 'urn:acr.login.gov:verified-facial-match-required',
-        'biometric-comparison-preferred' => 'urn:acr.login.gov:verified-facial-match-preferred',
+        'facial-match-required' => 'urn:acr.login.gov:verified-facial-match-required',
+        'facial-match-preferred' => 'urn:acr.login.gov:verified-facial-match-preferred',
       }
     end
 
     def vtr_value(ial:, aal:)
-      return if does_not_require_enhanced_ipp?(ial) && does_not_require_biometric_vot?(ial)
+      return if does_not_require_enhanced_ipp?(ial) && does_not_require_facial_match_vot?(ial)
 
       values = ['C1']
 
@@ -315,7 +315,7 @@ module LoginGov::OidcSinatra
 
       values << {
         '2' => 'P1',
-        'biometric-comparison-vot' => 'P1.Pb',
+        'facial-match-vot' => 'P1.Pb',
         'enhanced-ipp-required' => 'P1.Pe',
       }[ial]
 
@@ -342,17 +342,19 @@ module LoginGov::OidcSinatra
       'https://developer.login.gov/vot-trust-framework'
     end
 
-    def requires_biometric_vot?(ial)
+    def requires_facial_match_vot?(ial)
       return false if config.vtr_disabled?
-      ial == 'biometric-comparison-vot'
+
+      ial == 'facial-match-vot'
     end
 
-    def does_not_require_biometric_vot?(ial)
-      !requires_biometric_vot?(ial)
+    def does_not_require_facial_match_vot?(ial)
+      !requires_facial_match_vot?(ial)
     end
 
     def requires_enhanced_ipp?(ial)
-      return false if config.vtr_disabled?
+      return false unless config.eipp_allowed?
+
       ial == 'enhanced-ipp-required'
     end
 
