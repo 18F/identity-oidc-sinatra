@@ -316,8 +316,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-required' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
+      context 'when the ial parameter is facial-match-required' do
+        let(:request_path) { '/auth/request?ial=facial-match-required' }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -330,8 +330,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-preferred' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
+      context 'when the ial parameter is facial-match-preferred' do
+        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 
@@ -361,8 +361,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial is biometric-comparison-vot' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-vot' }
+      context 'when the ial is facial-match-vot' do
+        let(:request_path) { '/auth/request?ial=facial-match-vot' }
         it 'redirects to IDP with vtr=["C1.P1.Pb"]' do
           get request_path
 
@@ -388,8 +388,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-required' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
+      context 'when the ial parameter is facial-match-required' do
+        let(:request_path) { '/auth/request?ial=facial-match-required' }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -402,8 +402,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-preferred' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
+      context 'when the ial parameter is facial-match-preferred' do
+        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 
