@@ -349,15 +349,35 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:vtr_disabled) { false }
 
       context 'when the ial is enhanced-ipp-required' do
-        let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
-        it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
-          get request_path
+        context 'when eipp is not allowed' do
+          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
 
-          expect(last_response).to be_redirect
+          it 'does not set a vtr value' do
+            get request_path
 
-          scope, vtr = extract_scope_and_vtr(last_response.location)
-          expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
-          expect(vtr).to include('C1.P1.Pe')
+            expect(last_response).to be_redirect
+
+            scope, vtr = extract_scope_and_vtr(last_response.location)
+            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+            expect(vtr).to be nil
+          end
+        end
+
+        context 'when eipp is allowed' do
+          before { ENV['eipp_allowed'] = 'true' }
+          after {  ENV['eipp_allowed'] = 'false' }
+
+          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+          it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
+            get request_path
+
+            expect(last_response).to be_redirect
+
+            scope, vtr = extract_scope_and_vtr(last_response.location)
+            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+            expect(vtr).to include('C1.P1.Pe')
+          end
+
         end
       end
 
