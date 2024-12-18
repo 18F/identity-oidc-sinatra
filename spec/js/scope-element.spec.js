@@ -15,55 +15,73 @@ describe('ScopeElement', () => {
     `;
   });
 
-  it('is checked when connected if value is in default scope for selected ial value', () => {
-    document.body.innerHTML += `
-      <lg-scope ial-element="ial" default-scopes-element="default-scopes">
-        <input type="checkbox" value="a">
-      </lg-scope>
-    `;
+  describe('if the value is in default scope for selected ial value', () => {
+    beforeEach(() => {
+      document.body.innerHTML += `
+        <lg-scope ial-element="ial" default-scopes-element="default-scopes">
+          <input type="checkbox" value="a">
+        </lg-scope>
+      `;
+    });
 
-    const checkbox = document.querySelector('[type=checkbox]');
-    assert(checkbox.checked);
+    it('is checked when connected', () => {
+      const checkbox = document.querySelector('[type=checkbox]');
+      assert(checkbox.checked);
+    });
   });
 
-  it('is not checked when connected if value is not in default scope for selected ial value', () => {
-    document.body.innerHTML += `
-      <lg-scope ial-element="ial" default-scopes-element="default-scopes">
-        <input type="checkbox" value="c">
-      </lg-scope>
-    `;
+  describe('if value is not in default scope for selected ial value', () => {
+    beforeEach(() => {
+      document.body.innerHTML += `
+        <lg-scope ial-element="ial" default-scopes-element="default-scopes">
+          <input type="checkbox" value="c">
+        </lg-scope>
+      `;
+    });
 
-    const checkbox = document.querySelector('[type=checkbox]');
-    assert(!checkbox.checked);
+    it('is not checked when connected', () => {
+      const checkbox = document.querySelector('[type=checkbox]');
+      assert(!checkbox.checked);
+    });
   });
 
-  it('is checked if in default scope when selected ial value changes', () => {
-    document.body.innerHTML += `
-      <lg-scope ial-element="ial" default-scopes-element="default-scopes">
-        <input type="checkbox" value="c">
-      </lg-scope>
-    `;
+  describe('selected ial value changes', () => {
+    describe('if in default scope', () => {
+      beforeEach(() => {
+        document.body.innerHTML += `
+          <lg-scope ial-element="ial" default-scopes-element="default-scopes">
+            <input type="checkbox" value="c">
+          </lg-scope>
+        `;
 
-    const select = document.querySelector('select');
-    select.value = '2';
-    select.dispatchEvent(new window.InputEvent('input'));
+        const select = document.querySelector('select');
+        select.value = '2';
+        select.dispatchEvent(new window.InputEvent('input'));
+      });
 
-    const checkbox = document.querySelector('[type=checkbox]');
-    assert(checkbox.checked);
-  });
+      it('is checked', () => {
+        const checkbox = document.querySelector('[type=checkbox]');
+        assert(checkbox.checked);
+      });
+    });
 
-  it('is unchecked if not in default scope when selected ial value changes', () => {
-    document.body.innerHTML += `
-      <lg-scope ial-element="ial" default-scopes-element="default-scopes">
-        <input type="checkbox" value="a">
-      </lg-scope>
-    `;
+    describe('if not in default scope', () => {
+      beforeEach(() => {
+        document.body.innerHTML += `
+          <lg-scope ial-element="ial" default-scopes-element="default-scopes">
+            <input type="checkbox" value="a">
+          </lg-scope>
+        `;
 
-    const select = document.querySelector('select');
-    select.value = '2';
-    select.dispatchEvent(new window.InputEvent('input'));
+        const select = document.querySelector('select');
+        select.value = '2';
+        select.dispatchEvent(new window.InputEvent('input'));
+      });
 
-    const checkbox = document.querySelector('[type=checkbox]');
-    assert(!checkbox.checked);
+      it('is unchecked', () => {
+        const checkbox = document.querySelector('[type=checkbox]');
+        assert(!checkbox.checked);
+      });
+    });
   });
 });
