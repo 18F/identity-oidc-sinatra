@@ -35,3 +35,4 @@ run:
 
 test: $(CONFIG)
 	bundle exec rspec
+	yarn test

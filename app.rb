@@ -38,6 +38,7 @@ module LoginGov::OidcSinatra
       require 'byebug'
     end
 
+    # rubocop:disable Metrics/BlockLength
     helpers do
       def ial_select_options
         options = [
@@ -62,10 +63,64 @@ module LoginGov::OidcSinatra
         options
       end
 
+      def scope_options
+        # https://developers.login.gov/attributes/
+        %w[
+          openid
+          sub
+          email
+          all_emails
+          ial
+          aal
+          given_name
+          family_name
+          address
+          phone
+          birthdate
+          social_security_number
+          verified_at
+          x509
+          x509_issuer
+          x509_subject
+          x509_presented
+        ]
+      end
+
+      def default_scopes_by_ial
+        ial2_options = [
+          '2',
+          'facial-match-preferred',
+          'facial-match-required',
+          'facial-match-vot',
+          'enhanced-ipp-required',
+        ]
+
+        default_scopes_by_ial = {
+          nil => %w[openid email x509],
+          '0' => %w[openid email social_security_number x509],
+          '1' => %w[openid email x509],
+        }
+
+        ial2_options.each do |ial2_option|
+          default_scopes_by_ial[ial2_option] = %w[
+            openid
+            email
+            profile
+            social_security_number
+            phone
+            address
+            x509
+          ]
+        end
+
+        default_scopes_by_ial
+      end
+
       def csrf_tag
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
     end
+    # rubocop:enable Metrics/BlockLength
 
     def config
       @config ||= Config.new
@@ -111,6 +166,7 @@ module LoginGov::OidcSinatra
         nonce: session[:nonce],
         ial: ial,
         aal: params[:aal],
+        scopes: params[:requested_scopes] || [],
         code_verifier: session[:code_verifier],
       )
 
@@ -198,7 +254,7 @@ module LoginGov::OidcSinatra
       erb :errors, locals: { error: error }
     end
 
-    def authorization_url(state:, nonce:, ial:, aal:, code_verifier:)
+    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -206,7 +262,7 @@ module LoginGov::OidcSinatra
         acr_values: acr_values(ial: ial, aal: aal),
         vtr: vtr_value(ial: ial, aal: aal),
         vtm: vtm_value(ial:),
-        scope: scopes_for(ial),
+        scope: scopes.join(' '),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
         nonce: nonce,
@@ -241,27 +297,6 @@ module LoginGov::OidcSinatra
       end
 
       ial
-    end
-
-    def scopes_for(ial)
-      ial2_options = [
-        '2',
-        'facial-match-preferred',
-        'facial-match-required',
-        'facial-match-vot',
-        'enhanced-ipp-required',
-      ]
-
-      case ial
-      when '0'
-        'openid email social_security_number x509'
-      when '1', nil
-        'openid email x509'
-      when *ial2_options
-          'openid email profile social_security_number phone address x509'
-      else
-        raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
-      end
     end
 
     def acr_values(ial:, aal:)
