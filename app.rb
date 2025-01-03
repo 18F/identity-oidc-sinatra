@@ -267,7 +267,6 @@ module LoginGov::OidcSinatra
         state: state,
         nonce: nonce,
         prompt: 'select_account',
-        enhanced_ipp_required: requires_enhanced_ipp?(ial),
       }
 
       if code_verifier
