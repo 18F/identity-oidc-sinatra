@@ -30,6 +30,11 @@ module LoginGov::OidcSinatra
     set :erb, escape_html: true
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
+    if ENV['ENABLE_LOGGING'] == "true"
+        enable :logging
+        puts 'enabling logging'
+    end
+
     enable :sessions
     use Rack::Protection
     use Rack::Protection::AuthenticityToken
