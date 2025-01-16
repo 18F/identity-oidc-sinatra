@@ -32,7 +32,7 @@ module LoginGov::OidcSinatra
 
     if ENV['ENABLE_LOGGING'] == 'true'
         enable :logging, :dump_errors, :raise_errors, :show_exceptions
-        puts 'enabling logging'
+        settings.logger.info('enabling logging')
     end
 
     enable :sessions
@@ -435,9 +435,7 @@ module LoginGov::OidcSinatra
         token_params,
       )
       if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
-        puts 'got !200 trying to query ', 
-          openid_configuration[:token_endpoint], 
-          ' with ', token_params
+              settings.logger.info("got !200 trying to query #{openid_configuration[:token_endpoint]} with #{token_params}")
       end
       raise AppError.new(response.body) if response.status != 200
       json response.body
