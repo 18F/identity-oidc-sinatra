@@ -434,7 +434,7 @@ module LoginGov::OidcSinatra
         openid_configuration[:token_endpoint],
         token_params,
       )
-      if response.status != 200
+      if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
         puts 'got !200 trying to query ', 
           openid_configuration[:token_endpoint], 
           ' with ', token_params
