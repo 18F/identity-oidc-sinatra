@@ -1,6 +1,6 @@
 # Dockerfile
 
-FROM ruby:3.2.2
+FROM ruby:3.3.4
 
 WORKDIR /code
 COPY . /code
@@ -10,7 +10,8 @@ RUN mkdir -p public/vendor
 RUN cp .env.example .env
 RUN bundle install
 RUN yarnpkg install
-RUN cp -R node_modules/uswds/dist public/vendor/uswds
+RUN cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
+
 
 EXPOSE 9292
 

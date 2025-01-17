@@ -30,6 +30,11 @@ module LoginGov::OidcSinatra
     set :erb, escape_html: true
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
+    if ENV['ENABLE_LOGGING'] == 'true'
+        enable :logging, :dump_errors, :raise_errors, :show_exceptions
+        settings.logger.info('enabling logging')
+    end
+
     enable :sessions
     use Rack::Protection
     use Rack::Protection::AuthenticityToken
@@ -429,6 +434,11 @@ module LoginGov::OidcSinatra
         openid_configuration[:token_endpoint],
         token_params,
       )
+      if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
+        # rubocop:disable Layout/LineLength
+        settings.logger.info("got !200 trying to query #{openid_configuration[:token_endpoint]} with #{token_params}")
+        # rubocop:enable Layout/LineLength
+      end
       raise AppError.new(response.body) if response.status != 200
       json response.body
     end
