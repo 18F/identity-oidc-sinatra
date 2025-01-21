@@ -75,6 +75,7 @@ module LoginGov::OidcSinatra
           sub
           email
           all_emails
+          locale
           ial
           aal
           given_name
