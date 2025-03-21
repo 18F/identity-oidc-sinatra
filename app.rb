@@ -78,6 +78,7 @@ module LoginGov::OidcSinatra
           locale
           ial
           aal
+          profile
           given_name
           family_name
           address
