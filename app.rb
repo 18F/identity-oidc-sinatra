@@ -333,6 +333,11 @@ module LoginGov::OidcSinatra
 
       values << (semantic_ial_values_enabled? ? semantic_ial_values[ial] : legacy_ial_values[ial])
 
+      values << {
+        '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
+        '2-phishing_resistant' => 'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
+        '2-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
+      }[aal]
 
       values.compact.join(' ')
     end
