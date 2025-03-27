@@ -294,7 +294,7 @@ module LoginGov::OidcSinatra
         state: state,
         nonce: nonce,
         prompt: 'select_account',
-        attempts_api_session_id: '12345',
+        attempts_api_session_id: SecureRandom.uuid,
       }
 
       if code_verifier
