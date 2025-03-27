@@ -7,12 +7,14 @@ require 'erubi'
 require 'faraday'
 require 'json'
 require 'json/jwt'
+require 'jwe'
 require 'jwt'
 require 'openssl'
 require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
+require 'pry'
 if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
@@ -255,6 +257,25 @@ module LoginGov::OidcSinatra
 
     end
 
+    get '/attempts-api' do
+      auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
+
+      connection = Faraday.new(
+        url: config.attempts_url,
+        headers:{'Authorization' => auth })
+
+      sets = JSON.parse(connection.post.body)['sets']
+
+      events = sets.values.map do |jwe|
+        JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+      end
+ 
+      erb :attempts, locals: {
+        attempts_events: events,
+      }
+      
+    end
+
     private
 
     def render_error(error)
@@ -274,6 +295,7 @@ module LoginGov::OidcSinatra
         state: state,
         nonce: nonce,
         prompt: 'select_account',
+        attempts_api_session_id: '12345',
       }
 
       if code_verifier
@@ -312,11 +334,6 @@ module LoginGov::OidcSinatra
 
       values << (semantic_ial_values_enabled? ? semantic_ial_values[ial] : legacy_ial_values[ial])
 
-      values << {
-        '2' => 'http://idmanagement.gov/ns/assurance/aal/2',
-        '2-phishing_resistant' => 'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
-        '2-hspd12' => 'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
-      }[aal]
 
       values.compact.join(' ')
     end

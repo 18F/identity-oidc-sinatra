@@ -13,6 +13,14 @@ module LoginGov
         @config = default_config
       end
 
+      def attempts_shared_secret
+        @config.fetch('attempts_shared_secret')
+      end
+
+      def attempts_url
+        "#{idp_url}/api/attempts/poll"
+      end
+
       def idp_url
         @config.fetch('idp_url')
       end
@@ -82,6 +90,7 @@ module LoginGov
           'cache_oidc_config' => true,
           'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
+          'attempts_shared_secret' => ENV['attempts_shared_secret'],
         }
 
         # EC2 deployment defaults

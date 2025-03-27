@@ -1,0 +1,18 @@
+
+<tr>
+  <td>
+    <%= event_data.keys.first.split('/').last %>
+  </td>
+  <td>
+    <%= jwe_data['jti']%>
+  </td>
+  <td>
+    <%= Time.at(jwe_data['iat']) %>
+  </td>
+  <td>
+    <%= JSON.pretty_generate(event_data.values) %>
+  </td>
+</tr>
+
+
+

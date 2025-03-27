@@ -60,6 +60,8 @@ GEM
       bindata
       faraday (~> 2.0)
       faraday-follow_redirects
+    jwe (1.0.0)
+      base64
     jwt (2.5.0)
     method_source (1.0.0)
     mini_portile2 (2.8.5)
@@ -154,6 +156,7 @@ DEPENDENCIES
   fakefs
   faraday
   json-jwt (~> 1.16.6)
+  jwe
   jwt (~> 2.1)
   newrelic_rpm
   nokogiri (>= 1.11.0)
