@@ -7,6 +7,7 @@ require 'erubi'
 require 'faraday'
 require 'json'
 require 'json/jwt'
+require 'jwe'
 require 'jwt'
 require 'openssl'
 require 'securerandom'
@@ -255,6 +256,25 @@ module LoginGov::OidcSinatra
 
     end
 
+    get '/attempts-api' do
+      auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
+
+      connection = Faraday.new(
+        url: config.attempts_url,
+        headers:{'Authorization' => auth })
+
+      sets = JSON.parse(connection.post.body)['sets']
+
+      events = sets.values.map do |jwe|
+        JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+      end
+ 
+      erb :attempts, locals: {
+        attempts_events: events,
+      }
+      
+    end
+
     private
 
     def render_error(error)
@@ -274,6 +294,7 @@ module LoginGov::OidcSinatra
         state: state,
         nonce: nonce,
         prompt: 'select_account',
+        attempts_api_session_id: SecureRandom.uuid,
       }
 
       if code_verifier
