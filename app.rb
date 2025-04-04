@@ -272,7 +272,7 @@ module LoginGov::OidcSinatra
       end
       raise AppError.new(response.body) if response.status != 200
 
-      sets = JSON.parse(connection.post.body)['sets']
+      sets = JSON.parse(response.body)['sets']
 
       events = sets.values&.map do |jwe|
         JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
