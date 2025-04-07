@@ -21,7 +21,7 @@
         </tr>
       </thead>
       <tbody>
-        <% attempts_events.each do |attempt_event| %>
+        <% attempts_events.sort_by {|e| e['iat'] }.each do |attempt_event| %>
           <%== erb :event, locals: {
             event_data: attempt_event['events'],
             jwe_data: attempt_event.except('events'),

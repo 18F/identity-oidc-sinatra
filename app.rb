@@ -263,9 +263,18 @@ module LoginGov::OidcSinatra
         url: config.attempts_url,
         headers:{'Authorization' => auth })
 
-      sets = JSON.parse(connection.post.body)['sets']
+      
+      response = connection.post
+      if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
+        # rubocop:disable Layout/LineLength
+        settings.logger.info("got !200 trying to query #{config.attempts_url} ")
+        # rubocop:enable Layout/LineLength
+      end
+      raise AppError.new(response.body) if response.status != 200
 
-      events = sets.values.map do |jwe|
+      sets = JSON.parse(response.body)['sets']
+
+      events = sets.values&.map do |jwe|
         JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
       end
  
