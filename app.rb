@@ -128,14 +128,13 @@ module LoginGov::OidcSinatra
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
 
-      def attempts_events(acks:)
+      def attempts_events(acks: nil)
         auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
 
         params = {
           maxEvents: 100,
           acks:,
         }
-
 
         connection = Faraday.new(
           url: config.attempts_url,
@@ -287,22 +286,16 @@ module LoginGov::OidcSinatra
     end
 
     get '/attempts-api' do
-      redirect_to('/attempts-api/')
-    end
-
-    get '/attempts-api/:acks?' do
-      acks = params[:acks].present? ? params[:acks].split(',') : nil
       erb :attempts, locals: {
-        attempts_events: attempts_events(acks:),
+        attempts_events: attempts_events,
       }
     end
 
-    post '/ack-event' do
-      redirect to("/attempts-api/#{params[:jti]}")
-    end
-
     post '/ack-events' do
-      redirect to("attempts-api/#{params[:jtis]}")
+      acks = params[:jtis].split(',')
+      attempts_events(acks:)
+
+      redirect to('attempts-api')
     end
 
     private

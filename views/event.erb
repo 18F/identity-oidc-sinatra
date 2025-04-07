@@ -5,8 +5,8 @@
   </td>
   <td>
     <%= jwe_data['jti']%>
-    <form action="/ack-event" method="post">
-      <input type="hidden" name="jti" value="<%= jwe_data['jti'] %>">
+    <form action="/ack-events" method="post">
+      <input type="hidden" name="jtis" value="<%= jwe_data['jti'] %>">
       <button type="submit" class="usa-button usa-button--secondary">
         <%== csrf_tag %>
         <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
