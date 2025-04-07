@@ -127,6 +127,36 @@ module LoginGov::OidcSinatra
       def csrf_tag
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
+
+      def attempts_events(acks:)
+        auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
+
+        params = {
+          maxEvents: 100,
+          acks:,
+        }
+
+
+        connection = Faraday.new(
+          url: config.attempts_url,
+          params: params.compact,
+          headers:{'Authorization' => auth },
+        )
+
+        response = connection.post
+        if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
+          # rubocop:disable Layout/LineLength
+          settings.logger.info("got !200 trying to query #{config.attempts_url} ")
+          # rubocop:enable Layout/LineLength
+        end
+        raise AppError.new(response.body) if response.status != 200
+
+        sets = JSON.parse(connection.post.body)['sets']
+
+        sets.values.map do |jwe|
+          JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+        end
+      end
     end
     # rubocop:enable Metrics/BlockLength
 
@@ -257,31 +287,22 @@ module LoginGov::OidcSinatra
     end
 
     get '/attempts-api' do
-      auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
+      redirect_to('/attempts-api/')
+    end
 
-      connection = Faraday.new(
-        url: config.attempts_url,
-        headers:{'Authorization' => auth })
-
-      
-      response = connection.post
-      if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
-        # rubocop:disable Layout/LineLength
-        settings.logger.info("got !200 trying to query #{config.attempts_url} ")
-        # rubocop:enable Layout/LineLength
-      end
-      raise AppError.new(response.body) if response.status != 200
-
-      sets = JSON.parse(response.body)['sets']
-
-      events = sets.values&.map do |jwe|
-        JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
-      end
- 
+    get '/attempts-api/:acks?' do
+      acks = params[:acks].present? ? params[:acks].split(',') : nil
       erb :attempts, locals: {
-        attempts_events: events,
+        attempts_events: attempts_events(acks:),
       }
-      
+    end
+
+    post '/ack-event' do
+      redirect to("/attempts-api/#{params[:jti]}")
+    end
+
+    post '/ack-events' do
+      redirect to("attempts-api/#{params[:jtis]}")
     end
 
     private

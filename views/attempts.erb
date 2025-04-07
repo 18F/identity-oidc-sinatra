@@ -10,6 +10,16 @@
 <div class="usa-overlay"></div>
 <div class="grid-container padding-0">
   <h1> Attempt events </h1>
+  <form action="/ack-events" method="post">
+    <input type="hidden" name="jtis" value="<%= attempts_events.map {|events| events['jti'] }.join(',') %>">
+    <button type="submit" class="usa-button usa-button--secondary">
+      <%== csrf_tag %>
+      <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+        <use xlink:href="/vendor/uswds/img/sprite.svg#delete"></use>
+      </svg>
+      Delete all events
+    </button>
+  </form>
   <div class="grid-row">
     <table class="usa-table usa-table--striped grid-col-fill">
       <thead>
@@ -29,6 +39,5 @@
           %>
         <% end %>
       </tbody>
-
   </div>
 </div>
