@@ -5,6 +5,16 @@
   </td>
   <td>
     <%= jwe_data['jti']%>
+    <form action="/ack-events" method="post">
+      <input type="hidden" name="jtis" value="<%= jwe_data['jti'] %>">
+      <button type="submit" class="usa-button usa-button--secondary">
+        <%== csrf_tag %>
+        <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+          <use xlink:href="/vendor/uswds/img/sprite.svg#delete"></use>
+        </svg>
+        Delete Event
+      </button>
+    </form>
   </td>
   <td>
     <%= Time.at(jwe_data['iat']) %>
@@ -13,6 +23,3 @@
     <%= JSON.pretty_generate(event_data.values) %>
   </td>
 </tr>
-
-
-
