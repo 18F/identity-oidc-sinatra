@@ -654,22 +654,25 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   describe 'helpers' do
     subject { LoginGov::OidcSinatra::OpenidConnectRelyingParty.new.helpers }
-    
+
     describe '#event_data' do
-    let(:event) do 
+    let(:event) do
       [
-        { 
+        {
           'application_url' => 'http://example.com',
           'aws_region' => 'us-west-2',
           'client_port' => '3000',
           'client_user_agent' => 'Mozilla/5.0',
           'pii_event' => 'here is some pii',
+          'nested' => {
+            'first_name' => 'more pii',
+          },
         },
       ]
     end
     context 'when the config allows plaintext events' do
       before { ENV['allow_all_events_plaintext'] = 'true' }
-      
+
       it 'returns the event data as is' do
         expect(subject.event_data(event)).to eq(event.first)
       end
@@ -679,7 +682,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       before { ENV['allow_all_events_plaintext'] = 'false' }
 
       it 'returns the event data with sensitive information masked' do
-        masked_event = event.dup.first.merge({'pii_event' => 'REDACTED'})
+        masked_event = event.dup.first.merge({'pii_event' => 'REDACTED', 'nested' => 'REDACTED'})
         expect(subject.event_data(event)).to eq(masked_event)
       end
     end
