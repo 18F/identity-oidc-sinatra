@@ -28,6 +28,7 @@ module LoginGov::OidcSinatra
     application_url
     aws_region
     client_port
+    client_user_agent
     email_already_registered
     failure_reason
     language
@@ -176,13 +177,13 @@ module LoginGov::OidcSinatra
       end
 
       def event_data(event)
-        return event if config.allow_all_events_plaintext
+        return event.first if config.allow_all_events_plaintext
 
         event.first.each_with_object({}) do |(k, v), hash| 
           if ALLOWED_PLAINTEXT_EVENTS.include?(k)
             hash[k] = v
           else
-            hash[k] = 'Redacted' 
+            hash[k] = 'REDACTED' 
           end
         end
       end
