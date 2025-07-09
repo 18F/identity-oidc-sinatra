@@ -666,6 +666,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           'pii_event' => 'here is some pii',
           'nested' => {
             'first_name' => 'more pii',
+            'success' => {
+              'more_pii' => 'recursive pii',
+            },
           },
         },
       ]
@@ -682,7 +685,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       before { ENV['allow_all_events_plaintext'] = 'false' }
 
       it 'returns the event data with sensitive information masked' do
-        masked_event = event.dup.first.merge({'pii_event' => 'REDACTED', 'nested' => 'REDACTED'})
+        masked_event = event.dup.first.merge(
+          {
+            'pii_event' => 'REDACTED',
+            'nested' => { 
+              'first_name' => 'REDACTED',
+              'success' => { 'more_pii' => 'REDACTED' },
+            },
+          },
+        )
+
         expect(subject.event_data(event)).to eq(masked_event)
       end
     end

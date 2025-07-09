@@ -179,11 +179,19 @@ module LoginGov::OidcSinatra
       def event_data(event)
         return event.first if config.allow_all_events_plaintext
 
-        event.first.each_with_object({}) do |(k, v), hash| 
-          if ALLOWED_PLAINTEXT_EVENTS.include?(k)
-            hash[k] = v
+        redact_data(event.first, {})
+      end
+
+      def redact_data(event_data, hash)
+        event_data.each_with_object(hash) do |(k, v), hash|
+          if v.is_a?(Hash)
+            hash[k] = redact_data(v, {})
           else
-            hash[k] = 'REDACTED' 
+            if ALLOWED_PLAINTEXT_EVENTS.include?(k)
+              hash[k] = v
+            else
+              hash[k] = 'REDACTED'  
+            end
           end
         end
       end
