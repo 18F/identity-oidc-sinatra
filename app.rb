@@ -24,7 +24,7 @@ require_relative './openid_configuration'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
-  ALLOWED_PLAINTEXT_EVENTS = %w[
+  ALLOWED_PLAINTEXT_KEYS = %w[
     application_url
     aws_region
     client_port
@@ -187,7 +187,7 @@ module LoginGov::OidcSinatra
           if v.is_a?(Hash)
             hash[k] = redact_data(v, {})
           else
-            if ALLOWED_PLAINTEXT_EVENTS.include?(k)
+            if ALLOWED_PLAINTEXT_KEYS.include?(k)
               hash[k] = v
             else
               hash[k] = 'REDACTED'  
