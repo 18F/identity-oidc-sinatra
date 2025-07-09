@@ -24,6 +24,25 @@ require_relative './openid_configuration'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ALLOWED_PLAINTEXT_KEYS = %w[
+    application_url
+    aws_region
+    client_port
+    client_user_agent
+    email_already_registered
+    failure_reason
+    language
+    mfa_device_type
+    occurred_at
+    otp_delivery_method
+    rate_limit_type
+    reauthentication
+    reproof
+    resend
+    success
+    unique_session_id
+    user_agent
+  ]
 
   class AppError < StandardError; end
 
@@ -154,6 +173,26 @@ module LoginGov::OidcSinatra
 
         sets.values.map do |jwe|
           JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+        end
+      end
+
+      def event_data(event)
+        return event.first if config.allow_all_events_plaintext
+
+        redact_data(event.first, {})
+      end
+
+      def redact_data(event_data, hash)
+        event_data.each_with_object(hash) do |(k, v), hash|
+          if v.is_a?(Hash)
+            hash[k] = redact_data(v, {})
+          else
+            if ALLOWED_PLAINTEXT_KEYS.include?(k)
+              hash[k] = v
+            else
+              hash[k] = 'REDACTED'  
+            end
+          end
         end
       end
     end

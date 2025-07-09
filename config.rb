@@ -21,6 +21,10 @@ module LoginGov
         "#{idp_url}/api/attempts/poll"
       end
 
+      def allow_all_events_plaintext
+        @config.fetch('allow_all_events_plaintext') == 'true'
+      end
+
       def idp_url
         @config.fetch('idp_url')
       end
@@ -91,6 +95,7 @@ module LoginGov
           'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
+          'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
         }
 
         # EC2 deployment defaults
