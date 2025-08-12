@@ -13,6 +13,18 @@ module LoginGov
         @config = default_config
       end
 
+      def attempts_shared_secret
+        @config.fetch('attempts_shared_secret')
+      end
+
+      def attempts_url
+        "#{idp_url}/api/attempts/poll"
+      end
+
+      def allow_all_events_plaintext
+        @config.fetch('allow_all_events_plaintext') == 'true'
+      end
+
       def idp_url
         @config.fetch('idp_url')
       end
@@ -49,6 +61,14 @@ module LoginGov
         @config.fetch('vtr_disabled')
       end
 
+      def vtr_enabled?
+        !vtr_disabled?
+      end
+
+      def eipp_allowed?
+        @config.fetch('eipp_allowed')
+      end
+
       # @return [OpenSSL::PKey::RSA]
       def sp_private_key
         return @sp_private_key if @sp_private_key
@@ -74,6 +94,8 @@ module LoginGov
           'cache_oidc_config' => true,
           'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
+          'attempts_shared_secret' => ENV['attempts_shared_secret'],
+          'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
         }
 
         # EC2 deployment defaults

@@ -4,17 +4,14 @@
 variables:
   BUNDLER_VERSION: "2.3.13"
   ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-  IDP_WORKER_IMAGE_TAG: 'main'
-  IDP_IMAGE_TAG: 'main'
-  PKI_IMAGE_TAG: 'main'
+  OIDC_SINATRA_CI_SHA: 'sha256:1e40d3913f526c8cef1e68474a2b0ecc8da71c303d3be9a38d5fc94c3e9b08b0'
 
 default:
-  image: '${ECR_REGISTRY}/dashboard/ci:latest'
+  image: '${ECR_REGISTRY}/oidc_sinatra/ci@${OIDC_SINATRA_CI_SHA}'
 
-before_script:
-  - gem install bundler --version $BUNDLER_VERSION
 
 .bundle_install: &bundle_install
+  - gem install bundler --version $BUNDLER_VERSION
   - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
 
 .yarn_install: &yarn_install
@@ -23,12 +20,8 @@ before_script:
 .yarn_production_install: &yarn_production_install
   - yarn install --production --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
 
+
 .deploy_script: &deploy_script
-  - curl  -v -L -o cf8-cli_linux_x86-64.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
-  - tar -xvzf cf8-cli_linux_x86-64.tgz
-  - mv cf8 /usr/local/bin
-  - cf8 --version
-  - curl -o /usr/share/bash-completion/completions/cf8 https://raw.githubusercontent.com/cloudfoundry/cli-ci/master/ci/installers/completion/cf8
   - *bundle_install
   - *yarn_install
   - bundle exec rake login:deploy_json
@@ -104,21 +97,45 @@ test_release:
     paths:
       - /tmp/test-results
 
+build-ci-image:
+  stage: .pre
+  interruptible: true
+  needs: []
+  tags:
+    - build-pool
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: ['']
+  rules:
+    # Build when there are changes to the Dockerfile
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
+      changes:
+        compare_to: 'refs/heads/main'
+        paths:
+          - dockerfiles/ci.Dockerfile
+  script:
+    - mkdir -p /kaniko/.docker
+    - |-
+      KANIKOCFG="\"credsStore\":\"ecr-login\""
+      if [ "x${http_proxy}" != "x" -o "x${https_proxy}" != "x" ]; then
+        KANIKOCFG="${KANIKOCFG}, \"proxies\": { \"default\": { \"httpProxy\": \"${http_proxy}\", \"httpsProxy\": \"${https_proxy}\", \"noProxy\": \"${no_proxy}\"}}"
+      fi
+      KANIKOCFG="{ ${KANIKOCFG} }"
+      echo "${KANIKOCFG}" > /kaniko/.docker/config.json
+    - >-
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/dockerfiles/ci.Dockerfile"
+      --destination "${ECR_REGISTRY}/oidc_sinatra/ci:latest"
+      --destination "${ECR_REGISTRY}/oidc_sinatra/ci:${CI_COMMIT_SHA}"
+      --build-arg "http_proxy=${http_proxy}" --build-arg "https_proxy=${https_proxy}" --build-arg "no_proxy=${no_proxy}"
+
 deploy_to_cloudgov:
   stage: deploy
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-  image: '${ECR_REGISTRY}/dashboard/ci:latest'
   script: *deploy_script
   parallel:
     matrix:
       - SPACE: [prod, staging, int, dev, dm]
 
-deploy_to_dev:
-  stage: deploy
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
-  variables:
-    SPACE: dev
-  image: '${ECR_REGISTRY}/dashboard/ci:latest'
-  script: *deploy_script

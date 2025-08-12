@@ -84,9 +84,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context '/auth/request' do
+    let(:params) {}
+
     shared_examples 'redirects to IDP with legacy IAL1' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -98,7 +100,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -110,7 +112,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL0' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -122,7 +124,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2 and bio=preferred' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -134,7 +136,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified-facial-match-preferred' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -146,7 +148,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with legacy IAL2 and bio=required' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -158,7 +160,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified-facial-match-required' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -170,7 +172,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic verified' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
         scope, acr_values = extract_scope_and_acr_values(last_response.location)
@@ -182,7 +184,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'redirects to IDP with semantic auth-only' do
       it 'sends the correct acr_values and scopes' do
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
 
@@ -194,8 +196,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     shared_examples 'PKCE auth request' do
       it 'sends the PKCE parameters' do
-
-        get request_path
+        get request_path, **params
 
         expect(last_response).to be_redirect
         expect(parameter_value(last_response.location, 'client_id')).to eq('urn:gov:gsa:openidconnect:sp:sinatra_pkce')
@@ -220,6 +221,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when there is no ial parameter' do
         let(:request_path) { '/auth/request' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -234,6 +236,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 2' do
         let(:request_path) { '/auth/request?ial=2' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2'
 
@@ -248,6 +251,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 1' do
         let(:request_path) { '/auth/request?ial=1' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -262,6 +266,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 0' do
         let(:request_path) { '/auth/request?ial=0' }
+        let(:params) { { requested_scopes: %w[openid email social_security_number x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL0'
 
@@ -276,6 +281,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is step-up' do
         let(:request_path) { '/auth/request?ial=step-up' }
+        let(:params) { { requested_scopes: %w[openid email x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL1'
 
@@ -316,8 +322,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-required' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
+      context 'when the ial parameter is facial-match-required' do
+        let(:request_path) { '/auth/request?ial=facial-match-required' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -330,8 +337,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-preferred' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
+      context 'when the ial parameter is facial-match-preferred' do
+        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 
@@ -349,22 +357,46 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:vtr_disabled) { false }
 
       context 'when the ial is enhanced-ipp-required' do
-        let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
-        it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
-          get request_path
+        context 'when eipp is not allowed' do
+          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+          let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
-          expect(last_response).to be_redirect
+          it 'does not set a vtr value' do
+            get request_path, **params
 
-          scope, vtr = extract_scope_and_vtr(last_response.location)
-          expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
-          expect(vtr).to include('C1.P1.Pe')
+            expect(last_response).to be_redirect
+
+            scope, vtr = extract_scope_and_vtr(last_response.location)
+            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+            expect(vtr).to be nil
+          end
+        end
+
+        context 'when eipp is allowed' do
+          before { ENV['eipp_allowed'] = 'true' }
+          after {  ENV['eipp_allowed'] = 'false' }
+
+          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
+          let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
+
+          it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
+            get request_path, **params
+
+            expect(last_response).to be_redirect
+
+            scope, vtr = extract_scope_and_vtr(last_response.location)
+            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+            expect(vtr).to include('C1.P1.Pe')
+          end
         end
       end
 
-      context 'when the ial is biometric-comparison-vot' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-vot' }
+      context 'when the ial is facial-match-vot' do
+        let(:request_path) { '/auth/request?ial=facial-match-vot' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
+
         it 'redirects to IDP with vtr=["C1.P1.Pb"]' do
-          get request_path
+          get request_path, **params
 
           expect(last_response).to be_redirect
 
@@ -376,6 +408,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       context 'when the ial parameter is 2' do
         let(:request_path) { '/auth/request?ial=2' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2'
 
@@ -388,8 +421,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-required' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-required' }
+      context 'when the ial parameter is facial-match-required' do
+        let(:request_path) { '/auth/request?ial=facial-match-required' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
 
@@ -402,8 +436,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         end
       end
 
-      context 'when the ial parameter is biometric-comparison-preferred' do
-        let(:request_path) { '/auth/request?ial=biometric-comparison-preferred' }
+      context 'when the ial parameter is facial-match-preferred' do
+        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
+        let(:params) { { requested_scopes: %w[openid email profile social_security_number phone address x509] } }
 
         it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
 
@@ -616,6 +651,55 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(parameter_value(last_response.location, 'post_logout_redirect_uri')).to eq(redirect_uri)
     end
   end
+
+  describe 'helpers' do
+    subject { LoginGov::OidcSinatra::OpenidConnectRelyingParty.new.helpers }
+
+    describe '#event_data' do
+    let(:event) do
+      [
+        {
+          'application_url' => 'http://example.com',
+          'aws_region' => 'us-west-2',
+          'client_port' => '3000',
+          'client_user_agent' => 'Mozilla/5.0',
+          'pii_event' => 'here is some pii',
+          'nested' => {
+            'first_name' => 'more pii',
+            'success' => {
+              'more_pii' => 'recursive pii',
+            },
+          },
+        },
+      ]
+    end
+    context 'when the config allows plaintext events' do
+      before { ENV['allow_all_events_plaintext'] = 'true' }
+
+      it 'returns the event data as is' do
+        expect(subject.event_data(event)).to eq(event.first)
+      end
+    end
+
+    context 'when the config does not allow plaintext events' do
+      before { ENV['allow_all_events_plaintext'] = 'false' }
+
+      it 'returns the event data with sensitive information masked' do
+        masked_event = event.dup.first.merge(
+          {
+            'pii_event' => 'REDACTED',
+            'nested' => { 
+              'first_name' => 'REDACTED',
+              'success' => { 'more_pii' => 'REDACTED' },
+            },
+          },
+        )
+
+        expect(subject.event_data(event)).to eq(masked_event)
+      end
+    end
+  end
+end
 
   def generate_id_token(nonce:)
     JWT.encode({ nonce: nonce }, idp_private_key, 'RS256', kid: JWT::JWK.new(idp_private_key))

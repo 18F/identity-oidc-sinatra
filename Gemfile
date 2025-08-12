@@ -4,11 +4,14 @@ git_source(:github) { |repo_name| "https://github.com/#{repo_name}.git" }
 
 source 'https://rubygems.org'
 
+ruby "~> #{File.read(File.join(__dir__, '.ruby-version')).strip}"
+
 gem 'aws-sdk-secretsmanager', '~> 1.21'
 gem 'dotenv'
 gem 'erubi', '~> 1.8'
 gem 'faraday'
 gem 'json-jwt', '~> 1.16.6'
+gem 'jwe'
 gem 'jwt', '~> 2.1'
 gem 'nokogiri', '>= 1.11.0'
 gem 'puma', '~> 5.6'
@@ -24,6 +27,7 @@ group :test do
   gem 'fakefs', require: 'fakefs/safe'
   gem 'rack-test', '>= 1.1.0'
   gem 'rspec', '~> 3.11'
+  gem 'simplecov', require: false
   gem 'webmock'
 end
 

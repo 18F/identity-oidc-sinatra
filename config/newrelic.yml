@@ -33,7 +33,9 @@ common: &default_settings
 # application_logging.enabled: true
 
 # If `true`, the agent captures log records emitted by this application.
-# application_logging.forwarding.enabled: true
+  application_logging:
+    forwarding:
+      enabled: false
 
 # Defines the maximum number of log records to buffer in memory at a time.
 # application_logging.forwarding.max_samples_stored: 10000
@@ -214,7 +216,8 @@ common: &default_settings
 
 # Distributed tracing tracks and observes service requests as they flow through distributed systems.
 # With distributed tracing data, you can quickly pinpoint failures or performance issues and fix them.
-# distributed_tracing.enabled: true
+  distributed_tracing:
+    enabled: false
 
 # If true, the agent captures attributes from error collection.
 # error_collector.attributes.enabled: false

@@ -1,0 +1,43 @@
+<a class="usa-skipnav" href="#main-content">Skip to main content</a>
+<div class="padding-top-1 padding-bottom-1 bg-maroon text-base-lightest height-4 text-center">
+  TEST Do not use real personal information (demo purposes only) TEST
+</div>
+<div class="padding-top-1 padding-bottom-1 bg-navy text-base-lightest height-4 text-center">
+  <img class="margin-right-1" src="/vendor/uswds/img/us_flag_small.png" alt="U.S. flag" width="18" height="12">
+  A DEMO website of the United States government
+</div>
+
+<div class="usa-overlay"></div>
+<div class="grid-container padding-0">
+  <h1> Attempt events </h1>
+  <form action="/ack-events" method="post">
+    <input type="hidden" name="jtis" value="<%= attempts_events.map {|events| events['jti'] }.join(',') %>">
+    <button type="submit" class="usa-button usa-button--secondary">
+      <%== csrf_tag %>
+      <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+        <use xlink:href="/vendor/uswds/img/sprite.svg#delete"></use>
+      </svg>
+      Delete all events
+    </button>
+  </form>
+  <div class="grid-row">
+    <table class="usa-table usa-table--striped grid-col-fill">
+      <thead>
+        <tr>
+          <th scope="col">Type</th>
+          <th scope="col">JTI</th>
+          <th scope="col">Issued At</th>
+          <th scope="col">Event data</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% attempts_events.sort_by {|e| e['iat'] }.each do |attempt_event| %>
+          <%== erb :event, locals: {
+            event_data: attempt_event['events'],
+            jwe_data: attempt_event.except('events'),
+            } 
+          %>
+        <% end %>
+      </tbody>
+  </div>
+</div>

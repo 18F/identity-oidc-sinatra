@@ -7,6 +7,7 @@ require 'erubi'
 require 'faraday'
 require 'json'
 require 'json/jwt'
+require 'jwe'
 require 'jwt'
 require 'openssl'
 require 'securerandom'
@@ -23,12 +24,36 @@ require_relative './openid_configuration'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ALLOWED_PLAINTEXT_KEYS = %w[
+    application_url
+    aws_region
+    client_port
+    client_user_agent
+    email_already_registered
+    failure_reason
+    language
+    mfa_device_type
+    occurred_at
+    otp_delivery_method
+    rate_limit_type
+    reauthentication
+    reproof
+    resend
+    success
+    unique_session_id
+    user_agent
+  ]
 
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
     set :erb, escape_html: true
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
+
+    if ENV['ENABLE_LOGGING'] == 'true'
+        enable :logging, :dump_errors, :raise_errors, :show_exceptions
+        settings.logger.info('enabling logging')
+    end
 
     enable :sessions
     use Rack::Protection
@@ -38,6 +63,7 @@ module LoginGov::OidcSinatra
       require 'byebug'
     end
 
+    # rubocop:disable Metrics/BlockLength
     helpers do
       def ial_select_options
         options = [
@@ -45,24 +71,132 @@ module LoginGov::OidcSinatra
           ['2', 'Identity-verified'],
           ['0', 'IALMax'],
           ['step-up', 'Step-up Flow'],
-          ['biometric-comparison-vot', 'Biometric Comparison (VoT)'],
-          ['biometric-comparison-preferred', 'Biometric Comparison Preferred (ACR)'],
-          ['biometric-comparison-required', 'Biometric Comparison Required (ACR)'],
+          ['facial-match-preferred', 'Facial Match Preferred (ACR)'],
+          ['facial-match-required', 'Facial Match Required (ACR)'],
         ]
 
-        if ENV.fetch('eipp_allowed', 'false') == 'true'
+        if config.eipp_allowed?
           options << [
-            'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in staging only)',
+            'enhanced-ipp-required', 'Enhanced In-Person Proofing (Enabled in dev & staging only)',
           ]
-        else
-          options
         end
+
+        if config.vtr_enabled?
+          options.push ['facial-match-vot', 'Facial Match (VoT)']
+        end
+
+        options
+      end
+
+      def scope_options
+        # https://developers.login.gov/attributes/
+        %w[
+          openid
+          sub
+          email
+          all_emails
+          locale
+          ial
+          aal
+          profile
+          given_name
+          family_name
+          address
+          phone
+          birthdate
+          social_security_number
+          verified_at
+          x509
+          x509_issuer
+          x509_subject
+          x509_presented
+        ]
+      end
+
+      def default_scopes_by_ial
+        ial2_options = [
+          '2',
+          'facial-match-preferred',
+          'facial-match-required',
+          'facial-match-vot',
+          'enhanced-ipp-required',
+        ]
+
+        default_scopes_by_ial = {
+          nil => %w[openid email x509],
+          '0' => %w[openid email social_security_number x509],
+          '1' => %w[openid email x509],
+        }
+
+        ial2_options.each do |ial2_option|
+          default_scopes_by_ial[ial2_option] = %w[
+            openid
+            email
+            profile
+            social_security_number
+            phone
+            address
+            x509
+          ]
+        end
+
+        default_scopes_by_ial
       end
 
       def csrf_tag
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
+
+      def attempts_events(acks: nil)
+        auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
+
+        params = {
+          maxEvents: 100,
+          acks:,
+        }
+
+        connection = Faraday.new(
+          url: config.attempts_url,
+          params: params.compact,
+          headers:{'Authorization' => auth },
+        )
+
+        response = connection.post
+        if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
+          # rubocop:disable Layout/LineLength
+          settings.logger.info("got !200 trying to query #{config.attempts_url} ")
+          # rubocop:enable Layout/LineLength
+        end
+        raise AppError.new(response.body) if response.status != 200
+
+        sets = JSON.parse(connection.post.body)['sets']
+
+        sets.values.map do |jwe|
+          JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+        end
+      end
+
+      def event_data(event)
+        return event.first if config.allow_all_events_plaintext
+
+        redact_data(event.first, {})
+      end
+
+      def redact_data(event_data, hash)
+        event_data.each_with_object(hash) do |(k, v), hash|
+          if v.is_a?(Hash)
+            hash[k] = redact_data(v, {})
+          else
+            if ALLOWED_PLAINTEXT_KEYS.include?(k)
+              hash[k] = v
+            else
+              hash[k] = 'REDACTED'  
+            end
+          end
+        end
+      end
     end
+    # rubocop:enable Metrics/BlockLength
 
     def config
       @config ||= Config.new
@@ -108,6 +242,7 @@ module LoginGov::OidcSinatra
         nonce: session[:nonce],
         ial: ial,
         aal: params[:aal],
+        scopes: params[:requested_scopes] || [],
         code_verifier: session[:code_verifier],
       )
 
@@ -189,8 +324,18 @@ module LoginGov::OidcSinatra
 
     end
 
+    get '/attempts-api' do
+      erb :attempts, locals: {
+        attempts_events: attempts_events,
+      }
+    end
 
+    post '/ack-events' do
+      acks = params[:jtis].split(',')
+      attempts_events(acks:)
 
+      redirect to('attempts-api')
+    end
 
     private
 
@@ -198,7 +343,7 @@ module LoginGov::OidcSinatra
       erb :errors, locals: { error: error }
     end
 
-    def authorization_url(state:, nonce:, ial:, aal:, code_verifier:)
+    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -206,12 +351,12 @@ module LoginGov::OidcSinatra
         acr_values: acr_values(ial: ial, aal: aal),
         vtr: vtr_value(ial: ial, aal: aal),
         vtm: vtm_value(ial:),
-        scope: scopes_for(ial),
+        scope: scopes.join(' '),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
         nonce: nonce,
         prompt: 'select_account',
-        enhanced_ipp_required: requires_enhanced_ipp?(ial),
+        attempts_api_session_id: SecureRandom.uuid,
       }
 
       if code_verifier
@@ -243,29 +388,8 @@ module LoginGov::OidcSinatra
       ial
     end
 
-    def scopes_for(ial)
-      ial2_options = [
-        '2',
-        'biometric-comparison-preferred',
-        'biometric-comparison-required',
-        'biometric-comparison-vot',
-        'enhanced-ipp-required',
-      ]
-
-      case ial
-      when '0'
-        'openid email social_security_number x509'
-      when '1', nil
-        'openid email x509'
-      when *ial2_options
-          'openid email profile social_security_number phone address x509'
-      else
-        raise ArgumentError.new("Unexpected IAL: #{ial.inspect}")
-      end
-    end
-
     def acr_values(ial:, aal:)
-      return if requires_enhanced_ipp?(ial) || requires_biometric_vot?(ial)
+      return if requires_enhanced_ipp?(ial) || requires_facial_match_vot?(ial)
 
       values = []
 
@@ -286,8 +410,8 @@ module LoginGov::OidcSinatra
         '1' => 'http://idmanagement.gov/ns/assurance/ial/1',
         nil => 'http://idmanagement.gov/ns/assurance/ial/1',
         '2' => 'http://idmanagement.gov/ns/assurance/ial/2',
-        'biometric-comparison-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
-        'biometric-comparison-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
+        'facial-match-preferred' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=preferred',
+        'facial-match-required' => 'http://idmanagement.gov/ns/assurance/ial/2?bio=required',
       }
     end
 
@@ -297,13 +421,13 @@ module LoginGov::OidcSinatra
         '1' => 'urn:acr.login.gov:auth-only',
         nil => 'urn:acr.login.gov:auth-only',
         '2' => 'urn:acr.login.gov:verified',
-        'biometric-comparison-required' => 'urn:acr.login.gov:verified-facial-match-required',
-        'biometric-comparison-preferred' => 'urn:acr.login.gov:verified-facial-match-preferred',
+        'facial-match-required' => 'urn:acr.login.gov:verified-facial-match-required',
+        'facial-match-preferred' => 'urn:acr.login.gov:verified-facial-match-preferred',
       }
     end
 
     def vtr_value(ial:, aal:)
-      return if does_not_require_enhanced_ipp?(ial) && does_not_require_biometric_vot?(ial)
+      return if does_not_require_enhanced_ipp?(ial) && does_not_require_facial_match_vot?(ial)
 
       values = ['C1']
 
@@ -315,7 +439,7 @@ module LoginGov::OidcSinatra
 
       values << {
         '2' => 'P1',
-        'biometric-comparison-vot' => 'P1.Pb',
+        'facial-match-vot' => 'P1.Pb',
         'enhanced-ipp-required' => 'P1.Pe',
       }[ial]
 
@@ -342,17 +466,19 @@ module LoginGov::OidcSinatra
       'https://developer.login.gov/vot-trust-framework'
     end
 
-    def requires_biometric_vot?(ial)
+    def requires_facial_match_vot?(ial)
       return false if config.vtr_disabled?
-      ial == 'biometric-comparison-vot'
+
+      ial == 'facial-match-vot'
     end
 
-    def does_not_require_biometric_vot?(ial)
-      !requires_biometric_vot?(ial)
+    def does_not_require_facial_match_vot?(ial)
+      !requires_facial_match_vot?(ial)
     end
 
     def requires_enhanced_ipp?(ial)
-      return false if config.vtr_disabled?
+      return false unless config.eipp_allowed?
+
       ial == 'enhanced-ipp-required'
     end
 
@@ -393,6 +519,11 @@ module LoginGov::OidcSinatra
         openid_configuration[:token_endpoint],
         token_params,
       )
+      if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
+        # rubocop:disable Layout/LineLength
+        settings.logger.info("got !200 trying to query #{openid_configuration[:token_endpoint]} with #{token_params}")
+        # rubocop:enable Layout/LineLength
+      end
       raise AppError.new(response.body) if response.status != 200
       json response.body
     end

@@ -5,6 +5,7 @@
 #   git config --global core.excludesfile '~/.gitignore_global'
 
 /config/application.yml
+/coverage
 .byebug_history
 /log
 .env
