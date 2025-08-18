@@ -91,7 +91,6 @@ module LoginGov::OidcSinatra
       def scope_options
         # https://developers.login.gov/attributes/
         %w[
-          openid
           sub
           email
           all_emails
@@ -351,7 +350,7 @@ module LoginGov::OidcSinatra
         acr_values: acr_values(ial: ial, aal: aal),
         vtr: vtr_value(ial: ial, aal: aal),
         vtm: vtm_value(ial:),
-        scope: scopes.join(' '),
+        scope: scopes.join(' ') + ' openid',
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
         nonce: nonce,
