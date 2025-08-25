@@ -17,7 +17,7 @@ public/vendor:
 
 install_dependencies:
 	bundle check || bundle install
-	yarn install
+	npm install
 
 copy_vendor: public/vendor
 	cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
@@ -30,10 +30,11 @@ lint:
 	@echo "--- rubocop ---"
 	bundle exec rubocop
 	bundle exec bundler-audit check --update
+	npm audit --audit-level=high
 
 run:
 	bundle exec rackup -p $(PORT) --host ${HOST}
 
 test: $(CONFIG)
 	bundle exec rspec
-	yarn test
+	npm run test

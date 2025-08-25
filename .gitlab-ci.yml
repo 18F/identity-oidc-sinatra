@@ -4,7 +4,7 @@
 variables:
   BUNDLER_VERSION: "2.6.9"
   ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-  OIDC_SINATRA_CI_SHA: 'sha256:57cdd26c809c5a2e41f64383dca26555efa33381342f7b5a61099bbe50031d28'
+  OIDC_SINATRA_CI_SHA: 'sha256:fae92de1fa4e64fd4c1e6b44cec41e0fe56201cfefc74737f5f945c7ae2bb6b0'
 
 default:
   image: '${ECR_REGISTRY}/oidc_sinatra/ci@${OIDC_SINATRA_CI_SHA}'
@@ -14,16 +14,16 @@ default:
   - gem install bundler --version $BUNDLER_VERSION
   - bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
 
-.yarn_install: &yarn_install
-  - yarn install --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
+.npm_install: &npm_install
+  - npm ci --cache=.npm-cache
 
-.yarn_production_install: &yarn_production_install
-  - yarn install --production --frozen-lockfile --ignore-engines --cache-folder .yarn-cache
+.npm_production_install: &npm_production_install
+  - npm ci --omit=dev --cache=.npm-cache
 
 
 .deploy_script: &deploy_script
   - *bundle_install
-  - *yarn_install
+  - *npm_install
   - bundle exec rake login:deploy_json
   - make copy_vendor
   - cf8 login -a https://api.fr.cloud.gov -u "e1fdd211-f191-40e8-99c7-4e7164d9ae76" -p $CF8_PASS -o "gsa-login-prototyping" -s "$SPACE"
@@ -38,20 +38,20 @@ default:
       - vendor/bundle
     policy: pull
 
-  - &yarn_cache
+  - &npm_cache
     key:
       files:
-        - yarn.lock
+        - package-lock.json
     paths:
-      - .yarn-cache/
+      - .npm-cache/
     policy: pull
 
-  - &yarn_production_cache
+  - &npm_production_cache
     key:
       files:
-        - yarn.lock
+        - package-lock.json
     paths:
-      - .yarn-cache/
+      - .npm-cache/
     policy: pull
 
 stages:
@@ -70,15 +70,14 @@ install_dependencies:
   stage: .pre
   variables:
     RAILS_ENV: test
-    SKIP_YARN_INSTALL: 'true'
   cache:
     - <<: *ruby_cache
       policy: pull-push
-    - <<: *yarn_cache
+    - <<: *npm_cache
       policy: pull-push
   script:
     - *bundle_install
-    - *yarn_install
+    - *npm_install
     - bundle exec rake login:deploy_json
 
 test_release:
@@ -87,10 +86,10 @@ test_release:
     - job: install_dependencies
   cache:
     - <<: *ruby_cache
-    - <<: *yarn_cache
+    - <<: *npm_cache
   script:
     - *bundle_install
-    - *yarn_install
+    - *npm_install
     - make .env
     - make check
   artifacts:
