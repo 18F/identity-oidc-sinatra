@@ -16,7 +16,7 @@ gem 'jwt', '~> 2.1'
 gem 'nokogiri', '>= 1.11.0'
 gem 'puma', '~> 5.6'
 gem 'rake'
-gem 'sinatra', '~> 2.2'
+gem 'sinatra', '~> 4.0'
 gem 'newrelic_rpm'
 
 group :development do
@@ -24,6 +24,7 @@ group :development do
 end
 
 group :test do
+  gem 'bundler-audit', require: false
   gem 'fakefs', require: 'fakefs/safe'
   gem 'rack-test', '>= 1.1.0'
   gem 'rspec', '~> 3.11'

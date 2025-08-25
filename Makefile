@@ -29,6 +29,7 @@ check: lint test
 lint:
 	@echo "--- rubocop ---"
 	bundle exec rubocop
+	bundle exec bundler-audit check --update
 
 run:
 	bundle exec rackup -p $(PORT) --host ${HOST}
