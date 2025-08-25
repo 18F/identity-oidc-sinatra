@@ -53,6 +53,10 @@ module LoginGov
         @config.fetch('redact_ssn')
       end
 
+      def signed_events?
+        @config.fetch('signed_events') == 'true'
+      end
+
       def cache_oidc_config?
         @config.fetch('cache_oidc_config')
       end
@@ -96,6 +100,7 @@ module LoginGov
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
+          'signed_events' => ENV['signed_events'],
         }
 
         # EC2 deployment defaults
