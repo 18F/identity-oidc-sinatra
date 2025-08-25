@@ -21,6 +21,7 @@ end
 
 require_relative './config'
 require_relative './openid_configuration'
+require_relative './attempts_configuration'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -171,7 +172,17 @@ module LoginGov::OidcSinatra
         sets = JSON.parse(connection.post.body)['sets']
 
         sets.values.map do |jwe|
-          JSON.parse(JWE.decrypt(jwe, config.sp_private_key))
+          jwe = JWE.decrypt(jwe, config.sp_private_key)
+          if config.signed_events?
+            jwe = JWT.decode(
+              jwe,
+              attempts_public_key,
+              true,
+              { algorithm: 'ES256' },
+            ).first
+          end
+
+          JSON.parse(jwe)
         end
       end
 
@@ -499,6 +510,14 @@ module LoginGov::OidcSinatra
       else
         OpenidConfiguration.live_idp_public_key(openid_configuration)
       end
+    end
+
+    def attempts_config
+      AttemptsConfiguration.cached
+    end
+
+    def attempts_public_key
+      AttemptsConfiguration.cached_attempts_public_key(attempts_config)
     end
 
     def token(code)
