@@ -5,11 +5,11 @@ FROM ruby:3.3.4
 WORKDIR /code
 COPY . /code
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y yarnpkg
+RUN apt-get update && apt-get upgrade -y
 RUN mkdir -p public/vendor
 RUN cp .env.example .env
 RUN bundle install
-RUN yarnpkg install
+RUN npm install
 RUN cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
 
 
