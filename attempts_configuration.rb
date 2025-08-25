@@ -1,6 +1,5 @@
 require 'faraday'
 require_relative './config'
-require 'pry'
 
 module LoginGov
   module OidcSinatra
