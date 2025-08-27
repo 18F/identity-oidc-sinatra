@@ -147,12 +147,12 @@ module LoginGov::OidcSinatra
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
 
-      def attempts_events(acks: nil)
+      def attempts_events(ack: nil)
         auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
 
         params = {
           maxEvents: 100,
-          acks:,
+          ack:,
         }
 
         connection = Faraday.new(
@@ -341,8 +341,8 @@ module LoginGov::OidcSinatra
     end
 
     post '/ack-events' do
-      acks = params[:jtis].split(',')
-      attempts_events(acks:)
+      ack = params[:jtis].split(',')
+      attempts_events(ack:)
 
       redirect to('attempts-api')
     end
