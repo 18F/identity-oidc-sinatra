@@ -152,7 +152,7 @@ module LoginGov::OidcSinatra
 
         params = {
           maxEvents: 100,
-          acks:,
+          ack: acks,
         }
 
         connection = Faraday.new(
