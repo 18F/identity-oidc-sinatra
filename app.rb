@@ -182,7 +182,7 @@ module LoginGov::OidcSinatra
             ).first
           end
 
-          JSON.parse(jwe)
+          jwe
         end
       end
 

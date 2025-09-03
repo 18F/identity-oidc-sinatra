@@ -19,7 +19,7 @@
   <td>
     <%= Time.at(jwe_data['iat']) %>
   </td>
-  <td>
+  <td style="max-width: 400px;overflow-wrap: anywhere;">
     
     <%= JSON.pretty_generate(event_data(event_data.values)) %>
   </td>
