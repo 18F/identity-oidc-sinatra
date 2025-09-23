@@ -28,11 +28,11 @@ group :test do
   gem 'rack-test', '>= 1.1.0'
   gem 'rspec', '~> 3.11'
   gem 'simplecov', require: false
-  gem 'webmock'
+  gem 'webmock', '>= 3.19.0'
 end
 
 group :development, :test do
   gem 'byebug'
-  gem 'rubocop', require: false
-  gem 'rubocop-rspec', require: false
+  gem 'rubocop', '>= 1.37.1', require: false
+  gem 'rubocop-rspec', '>= 2.14.0', require: false
 end
