@@ -12,7 +12,7 @@ RUN mkdir -p public/vendor
 RUN cp .env.example .env
 
 RUN gem install bundler --version $BUNDLER_VERSION
-RUN bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle
+RUN sh -c 'bundle check || bundle install --deployment --jobs=4 --retry=3 --without deploy development doc production --path vendor/bundle'
 
 RUN mkdir -p /etc/apt/keyrings
 RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
