@@ -82,10 +82,6 @@ module LoginGov::OidcSinatra
           ]
         end
 
-        if config.vtr_enabled?
-          options.push ['facial-match-vot', 'Facial Match (VoT)']
-        end
-
         options
       end
 
@@ -118,7 +114,6 @@ module LoginGov::OidcSinatra
           '2',
           'facial-match-preferred',
           'facial-match-required',
-          'facial-match-vot',
           'enhanced-ipp-required',
         ]
 
@@ -359,8 +354,6 @@ module LoginGov::OidcSinatra
         client_id: client_id,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
-        vtr: vtr_value(ial: ial, aal: aal),
-        vtm: vtm_value(ial:),
         scope: scopes.join(' ') + ' openid',
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
@@ -399,8 +392,6 @@ module LoginGov::OidcSinatra
     end
 
     def acr_values(ial:, aal:)
-      return if requires_enhanced_ipp?(ial) || requires_facial_match_vot?(ial)
-
       values = []
 
       values << (semantic_ial_values_enabled? ? semantic_ial_values[ial] : legacy_ial_values[ial])
@@ -436,33 +427,6 @@ module LoginGov::OidcSinatra
       }
     end
 
-    def vtr_value(ial:, aal:)
-      return if does_not_require_enhanced_ipp?(ial) && does_not_require_facial_match_vot?(ial)
-
-      values = ['C1']
-
-      values << {
-        '2' => 'C2',
-        '2-phishing_resistant' => 'C2.Ca',
-        '2-hspd12' => 'C2.Cb',
-      }[aal]
-
-      values << {
-        '2' => 'P1',
-        'facial-match-vot' => 'P1.Pb',
-        'enhanced-ipp-required' => 'P1.Pe',
-      }[ial]
-
-      vtr_list = [values.compact.join('.')]
-
-      if ial == '0'
-        proofing_vector = values.dup + ['P1']
-        vtr_list = [proofing_vector.compact.join('.'), *vtr_list]
-      end
-
-      vtr_list.to_json
-    end
-
     def semantic_ial_values_enabled?
       ENV['semantic_ial_values_enabled'] == 'true'
     end
@@ -471,22 +435,8 @@ module LoginGov::OidcSinatra
       ENV['PKCE'] == 'true'
     end
 
-    def vtm_value(ial)
-      return if does_not_require_enhanced_ipp?(ial)
-      'https://developer.login.gov/vot-trust-framework'
-    end
-
-    def requires_facial_match_vot?(ial)
-      return false if config.vtr_disabled?
-
-      ial == 'facial-match-vot'
-    end
-
-    def does_not_require_facial_match_vot?(ial)
-      !requires_facial_match_vot?(ial)
-    end
-
     def requires_enhanced_ipp?(ial)
+      # TODO: EIPP should not be determined via IAL
       return false unless config.eipp_allowed?
 
       ial == 'enhanced-ipp-required'

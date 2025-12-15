@@ -8,6 +8,7 @@
 /coverage
 .byebug_history
 /log
+/tmp
 .env
 public/api/deploy.json
 public/vendor

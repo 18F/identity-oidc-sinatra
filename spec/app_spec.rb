@@ -12,7 +12,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:jwks_endpoint) { "#{host}/api/openid_connect/certs" }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
-  let(:vtr_disabled) { false }
   let(:idp_private_key) { OpenSSL::PKey::RSA.new(read_fixture_file('idp.key')) }
   let(:nonce) { 'abc' }
 
@@ -20,7 +19,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     ENV['semantic_ial_values_enabled'] = 'false'
     ENV['PKCE'] = 'false'
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).and_return(false)
-    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:vtr_disabled?).and_return(vtr_disabled)
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
         authorization_endpoint: authorization_endpoint,
@@ -216,238 +214,173 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       it_behaves_like 'PKCE auth request'
     end
 
-    context 'with vtr disabled' do
-      let(:vtr_disabled) { true }
 
-      context 'when there is no ial parameter' do
-        let(:request_path) { '/auth/request' }
-        let(:params) { { requested_scopes: %w[email x509] } }
+    context 'when there is no ial parameter' do
+      let(:request_path) { '/auth/request' }
+      let(:params) { { requested_scopes: %w[email x509] } }
 
-        it_behaves_like 'redirects to IDP with legacy IAL1'
+      it_behaves_like 'redirects to IDP with legacy IAL1'
 
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic auth-only'
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
         end
-      end
 
-      context 'when the ial parameter is 2' do
-        let(:request_path) { '/auth/request?ial=2' }
-        let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL2'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic verified'
-        end
-      end
-
-      context 'when the ial parameter is 1' do
-        let(:request_path) { '/auth/request?ial=1' }
-        let(:params) { { requested_scopes: %w[email x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL1'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic auth-only'
-        end
-      end
-
-      context 'when the ial parameter is 0' do
-        let(:request_path) { '/auth/request?ial=0' }
-        let(:params) { { requested_scopes: %w[email social_security_number x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL0'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with legacy IAL0'
-        end
-      end
-
-      context 'when the ial parameter is step-up' do
-        let(:request_path) { '/auth/request?ial=step-up' }
-        let(:params) { { requested_scopes: %w[email x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL1'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic auth-only'
-        end
-      end
-
-      context 'when the aal parameter is 2-phishing_resistant' do
-        let(:request_path) { '/auth/request?aal=2-phishing_resistant' }
-        it 'redirects to IDP with legacy AAL2 and phishing_resistant=true' do
-          get request_path
-
-          expect(last_response).to be_redirect
-
-          _, acr_values = extract_scope_and_acr_values(last_response.location)
-          expect(acr_values).to include(
-            'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
-          )
-        end
-      end
-
-      context 'when the aal parameter is 2-hspd12' do
-        let(:request_path) { '/auth/request?aal=2-hspd12' }
-        it 'redirects to IDP with legacy AAL2 and hspd12=true' do
-          get request_path
-
-          expect(last_response).to be_redirect
-
-          _, acr_values = extract_scope_and_acr_values(last_response.location)
-          expect(acr_values).to include(
-            'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
-          )
-        end
-      end
-
-      context 'when the ial parameter is facial-match-required' do
-        let(:request_path) { '/auth/request?ial=facial-match-required' }
-        let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic verified-facial-match-required'
-        end
-      end
-
-      context 'when the ial parameter is facial-match-preferred' do
-        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
-        let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic verified-facial-match-preferred'
-        end
+        it_behaves_like 'redirects to IDP with semantic auth-only'
       end
     end
 
-    context 'with vtr enabled' do
-      let(:vtr_disabled) { false }
+    context 'when the ial parameter is 2' do
+      let(:request_path) { '/auth/request?ial=2' }
+      let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
 
-      context 'when the ial is enhanced-ipp-required' do
-        context 'when eipp is not allowed' do
-          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
-          let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
+      it_behaves_like 'redirects to IDP with legacy IAL2'
 
-          it 'does not set a vtr value' do
-            get request_path, **params
-
-            expect(last_response).to be_redirect
-
-            scope, vtr = extract_scope_and_vtr(last_response.location)
-            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
-            expect(vtr).to be nil
-          end
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
         end
 
-        context 'when eipp is allowed' do
-          before { ENV['eipp_allowed'] = 'true' }
-          after {  ENV['eipp_allowed'] = 'false' }
-
-          let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
-          let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-          it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
-            get request_path, **params
-
-            expect(last_response).to be_redirect
-
-            scope, vtr = extract_scope_and_vtr(last_response.location)
-            expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
-            expect(vtr).to include('C1.P1.Pe')
-          end
-        end
+        it_behaves_like 'redirects to IDP with semantic verified'
       end
+    end
 
-      context 'when the ial is facial-match-vot' do
-        let(:request_path) { '/auth/request?ial=facial-match-vot' }
+    context 'when the ial parameter is 1' do
+      let(:request_path) { '/auth/request?ial=1' }
+      let(:params) { { requested_scopes: %w[email x509] } }
+
+      it_behaves_like 'redirects to IDP with legacy IAL1'
+
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
+        end
+
+        it_behaves_like 'redirects to IDP with semantic auth-only'
+      end
+    end
+
+    context 'when the ial parameter is 0' do
+      let(:request_path) { '/auth/request?ial=0' }
+      let(:params) { { requested_scopes: %w[email social_security_number x509] } }
+
+      it_behaves_like 'redirects to IDP with legacy IAL0'
+
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
+        end
+
+        it_behaves_like 'redirects to IDP with legacy IAL0'
+      end
+    end
+
+    context 'when the ial parameter is step-up' do
+      let(:request_path) { '/auth/request?ial=step-up' }
+      let(:params) { { requested_scopes: %w[email x509] } }
+
+      it_behaves_like 'redirects to IDP with legacy IAL1'
+
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
+        end
+
+        it_behaves_like 'redirects to IDP with semantic auth-only'
+      end
+    end
+
+    context 'when the aal parameter is 2-phishing_resistant' do
+      let(:request_path) { '/auth/request?aal=2-phishing_resistant' }
+      it 'redirects to IDP with legacy AAL2 and phishing_resistant=true' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        _, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(acr_values).to include(
+          'http://idmanagement.gov/ns/assurance/aal/2?phishing_resistant=true',
+        )
+      end
+    end
+
+    context 'when the aal parameter is 2-hspd12' do
+      let(:request_path) { '/auth/request?aal=2-hspd12' }
+      it 'redirects to IDP with legacy AAL2 and hspd12=true' do
+        get request_path
+
+        expect(last_response).to be_redirect
+
+        _, acr_values = extract_scope_and_acr_values(last_response.location)
+        expect(acr_values).to include(
+          'http://idmanagement.gov/ns/assurance/aal/2?hspd12=true',
+        )
+      end
+    end
+
+    context 'when the ial parameter is facial-match-required' do
+      let(:request_path) { '/auth/request?ial=facial-match-required' }
+      let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
+
+      it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
+
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
+        end
+
+        it_behaves_like 'redirects to IDP with semantic verified-facial-match-required'
+      end
+    end
+
+    context 'when the ial parameter is facial-match-preferred' do
+      let(:request_path) { '/auth/request?ial=facial-match-preferred' }
+      let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
+
+      it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
+
+      context 'when semantic ial values are enabled' do
+        before do
+          ENV['semantic_ial_values_enabled'] = 'true'
+        end
+
+        it_behaves_like 'redirects to IDP with semantic verified-facial-match-preferred'
+      end
+    end
+
+    context 'when the ial is enhanced-ipp-required',
+      skip: 'VoT has been removed from the IdP. EIPP should not be determined via a request' do
+      context 'when eipp is not allowed' do
+        let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
         let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
 
-        it 'redirects to IDP with vtr=["C1.P1.Pb"]' do
+        it 'does not set a vtr value' do
           get request_path, **params
 
           expect(last_response).to be_redirect
 
           scope, vtr = extract_scope_and_vtr(last_response.location)
-          expect(scope).to include( 'openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
-          expect(vtr).to include('C1.P1.Pb')
+          expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+          expect(vtr).to be nil
         end
       end
 
-      context 'when the ial parameter is 2' do
-        let(:request_path) { '/auth/request?ial=2' }
+      context 'when eipp is allowed' do
+        
+        before { ENV['eipp_allowed'] = 'true' }
+        after {  ENV['eipp_allowed'] = 'false' }
+
+        let(:request_path) { '/auth/request?ial=enhanced-ipp-required' }
         let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
 
-        it_behaves_like 'redirects to IDP with legacy IAL2'
+        it 'redirects to IDP with vtr=["C1.P1.Pe"]' do
+          get request_path, **params
 
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
+          expect(last_response).to be_redirect
 
-          it_behaves_like 'redirects to IDP with semantic verified'
-        end
-      end
-
-      context 'when the ial parameter is facial-match-required' do
-        let(:request_path) { '/auth/request?ial=facial-match-required' }
-        let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=required'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic verified-facial-match-required'
-        end
-      end
-
-      context 'when the ial parameter is facial-match-preferred' do
-        let(:request_path) { '/auth/request?ial=facial-match-preferred' }
-        let(:params) { { requested_scopes: %w[email profile social_security_number phone address x509] } }
-
-        it_behaves_like 'redirects to IDP with legacy IAL2 and bio=preferred'
-
-        context 'when semantic ial values are enabled' do
-          before do
-            ENV['semantic_ial_values_enabled'] = 'true'
-          end
-
-          it_behaves_like 'redirects to IDP with semantic verified-facial-match-preferred'
+          scope, vtr = extract_scope_and_vtr(last_response.location)
+          expect(scope).to include('openid', 'email', 'profile', 'social_security_number', 'phone', 'address', 'x509')
+          expect(vtr).to include('C1.P1.Pe')
         end
       end
     end
