@@ -435,17 +435,6 @@ module LoginGov::OidcSinatra
       ENV['PKCE'] == 'true'
     end
 
-    def requires_enhanced_ipp?(ial)
-      # TODO: EIPP should not be determined via IAL
-      return false unless config.eipp_allowed?
-
-      ial == 'enhanced-ipp-required'
-    end
-
-    def does_not_require_enhanced_ipp?(ial)
-      !requires_enhanced_ipp?(ial)
-    end
-
     def openid_configuration
       if config.cache_oidc_config?
         OpenidConfiguration.cached
