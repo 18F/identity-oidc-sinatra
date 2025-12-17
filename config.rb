@@ -61,14 +61,6 @@ module LoginGov
         @config.fetch('cache_oidc_config')
       end
 
-      def vtr_disabled?
-        @config.fetch('vtr_disabled')
-      end
-
-      def vtr_enabled?
-        !vtr_disabled?
-      end
-
       def eipp_allowed?
         @config.fetch('eipp_allowed')
       end
@@ -96,7 +88,6 @@ module LoginGov
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
           'redact_ssn' => true,
           'cache_oidc_config' => true,
-          'vtr_disabled' => ENV.fetch('vtr_disabled', 'false') == 'true',
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],

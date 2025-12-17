@@ -4,7 +4,7 @@
 variables:
   BUNDLER_VERSION: "2.6.9"
   ECR_REGISTRY: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-  OIDC_SINATRA_CI_SHA: 'sha256:fae92de1fa4e64fd4c1e6b44cec41e0fe56201cfefc74737f5f945c7ae2bb6b0'
+  OIDC_SINATRA_CI_SHA: 'sha256:8caedb7029402d19f49e840b5c89d84f589598930c47b08f65ad4ba644842c2c'
 
 default:
   image: '${ECR_REGISTRY}/oidc_sinatra/ci@${OIDC_SINATRA_CI_SHA}'

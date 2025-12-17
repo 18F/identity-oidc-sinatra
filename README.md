@@ -36,7 +36,6 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
-   | vtr_disabled                | Vectors of Trust disabled                                                                    | false                                     |
 
 ## Contributing
 
