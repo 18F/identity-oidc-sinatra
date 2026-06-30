@@ -251,12 +251,33 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       it_behaves_like 'redirects to IDP with legacy IAL1'
 
+       it 'sends prompt=select_account param' do
+          get request_path, **params
+
+          expect(last_response).to be_redirect
+
+          prompt = CGI.parse(URI(last_response.location).query)['prompt'][0]
+          expect(prompt).to eq 'select_account'
+        end 
+
       context 'when semantic ial values are enabled' do
         before do
           ENV['semantic_ial_values_enabled'] = 'true'
         end
 
         it_behaves_like 'redirects to IDP with semantic auth-only'
+      end
+
+      context 'when Initiate User Registration checkbox is checked' do
+        let(:params) { {initiate_registration: 1 }}
+        it 'sends prompt=create param' do
+          get request_path, **params
+
+          expect(last_response).to be_redirect
+
+          prompt = CGI.parse(URI(last_response.location).query)['prompt'][0]
+          expect(prompt).to eq 'create'
+        end 
       end
     end
 

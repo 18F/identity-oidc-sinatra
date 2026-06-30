@@ -236,6 +236,7 @@ module LoginGov::OidcSinatra
 
     get '/auth/request' do
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
+      prompt = params[:initiate_registration] ? 'create' : 'select_account'
 
       session[:state] = random_value
       session[:nonce] = random_value
@@ -249,6 +250,7 @@ module LoginGov::OidcSinatra
         aal: params[:aal],
         scopes: params[:requested_scopes] || [],
         code_verifier: session[:code_verifier],
+        prompt:,
       )
 
       settings.logger.info("Redirecting to #{auth_url}")
@@ -348,7 +350,7 @@ module LoginGov::OidcSinatra
       erb :errors, locals: { error: error }
     end
 
-    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:)
+    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -358,8 +360,8 @@ module LoginGov::OidcSinatra
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
         nonce: nonce,
-        prompt: 'select_account',
         attempts_api_session_id: SecureRandom.uuid,
+        prompt:,
       }
 
       if code_verifier
