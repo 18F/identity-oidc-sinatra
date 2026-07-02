@@ -54,41 +54,51 @@
   <% unless userinfo %>
   <%== erb :auth_options, locals: { aal:, ial: } %>
   <% end %>
-  <section class="grid-container">
+  <!-- <section class="grid-container"> -->
+    <!-- <div class="grid-row grid-gap"> -->
+      <!-- <div class="tablet:grid-col-4"></div> -->
+    <!-- </div> -->
+    <!-- <div class="grid-row grid-gap"> -->
+      <!-- <div class="tablet:grid-col-8"> -->
+      <%# if userinfo %>
+        <!-- <div class="userinfo"> -->
+          <!-- <span>Received user info:</span> -->
+            <!-- <ul> -->
+            <%# userinfo.each_pair do |key, val| %>
+              <%# val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
+              <!-- <li> -->
+                <!-- <pre><%#= key.inspect %>: <%#= val.inspect %></pre> -->
+              <!-- </li> -->
+            <%# end %>
+            <!-- </ul> -->
+          <!-- </div> -->
+        <%# end %>
+      <!-- </div> -->
+    <!-- </div> -->
+  <!-- </section> -->
+    <section class="grid-container">
     <div class="grid-row grid-gap">
       <div class="tablet:grid-col-4"></div>
     </div>
     <div class="grid-row grid-gap">
       <div class="tablet:grid-col-8">
-      <% if userinfo %>
-        <div class="userinfo">
-          <div class="padding-2 clearfix bg-white fg-black">
+        <% if userinfo %>
+          <div class="p2 clearfix bg-white fg-black">
             <span>Received user info:</span>
-              <ul>
+            <ul>
               <% userinfo.each_pair do |key, val| %>
-                <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
                 <li>
-                  <pre><%= key.inspect %>: <%= val.inspect %></pre>
+                  <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
+                  <code><%= key.inspect %>: <%= val.inspect %></code>
                 </li>
               <% end %>
-              </ul>
-            </div>
+            </ul>
           </div>
         <% end %>
       </div>
     </div>
   </section>
 
-  <section class="grid-container usa-section">
-    <div class="grid-row grid-gap">
-      <div class="tablet:grid-col-4">
-        <h2 class="font-heading-xl margin-top-0 tablet:margin-bottom-0">We are with you every step of the way</h2>
-      </div>
-      <div class="tablet:grid-col-8 usa-prose">
-        <p>We hope your visit will help you understand the opportunities and potential rewards that are available to you. We created this website to help you gain a better understanding of these concepts. Most importantly, we hope you see the value of working with us to pursue your goals. We're here to help educate you about the basic concepts, to help you learn more about who we are, and to give you fast, easy access to opportunities.</p>
-      </div>
-    </div>
-  </section>
   <section class="usa-graphic-list usa-section usa-section--dark">
     <div class="grid-container">
       <div class="usa-graphic-list__row grid-row grid-gap">
