@@ -15,11 +15,15 @@
           </div>
           <div class="flex-1">
             <% if user_email %>
-
-              <form action="/handle-logout" method="POST">
-                <button type="submit" class="usa-button usa-button--outline">Log out</button>
+              <form action="/handle-logout" method="post">
+                <button type="submit" class="usa-button usa-button--outline">
+                  <%== csrf_tag %>
+                  <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                    <use xlink:href="/vendor/uswds/img/sprite.svg#login"></use>
+                  </svg>
+                Log out
+              </button>
               </form>
-
             <% else %>
               <form>
                 <button type="submit"  class="usa-button usa-button--outline" form="login-form">
@@ -29,7 +33,6 @@
                   Sign in
                 </button>
               </form>
-
             <% end %>
           </div>
         </div>
