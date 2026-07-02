@@ -26,7 +26,7 @@ RUN apt-get install -y --no-install-recommends nodejs \
       locales
 
 RUN npm install
-RUN cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
+RUN cp -R node_modules/@18f/identity-design-system/dist public/vendor/identity-design-system
 
 EXPOSE 9292
 

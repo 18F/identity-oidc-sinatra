@@ -8,7 +8,8 @@
     "test": "node --require=jsdom-global/register --test spec/**/*.spec.js"
   },
   "dependencies": {
-    "@uswds/uswds": "3.8.2"
+    "@18f/identity-build-sass": "^3.1.0",
+    "@18f/identity-design-system": "^9.4.0"
   },
   "devDependencies": {
     "jsdom": "^25.0.1",
