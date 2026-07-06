@@ -1,82 +1,23 @@
 <a class="usa-skipnav" href="#main-content">Skip to main content</a>
- <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs center">
+ <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
   TEST Do not use real personal information (demo purposes only) TEST
 </div>
-<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs center">
+<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs text-center">
   <img class="width-2" aria-hidden="true" src="vendor/identity-design-system/assets/img/us_flag_small.png" alt="U.S. flag">
   A DEMO website of the United States government
 </div>
 <div class="usa-overlay"></div>
-<%== erb :header, locals: { logout_msg:, login_msg:, user_email:, access_denied:, aal:, ial: } %>
+<%== erb :header, locals: { user_email:, aal:, ial: } %>
 <main id="main-content">
-  <% if logout_msg || login_msg || access_denied %>
-  <section class="grid-container usa-section" aria-label="Notifications">
-    <% if logout_msg %>
-    <% type = logout_msg == 'ok' ? 'usa-alert--info' : 'usa-alert--error' %>
-    <div class="usa-alert <%= type %>">
-      <div class="usa-alert__body">
-        <h4 class="usa-alert__heading">Log Out</h4>
-        <p class="usa-alert__text">
-          <% if logout_msg == 'ok' %>
-            You have been logged out.
-          <% else %>
-            Logout failed!
-          <% end %>
-        </p>
-      </div>
-    </div>
+  <div class="grid-container">
+    <div class="grid-row grid-gap">
+      <%== erb :alerts, locals: { logout_msg:, login_msg:, access_denied: } %>
+    <% unless userinfo %>
+      <%== erb :auth_options, locals: { aal:, ial: } %>
     <% end %>
-    <% if login_msg %>
-    <div class="usa-alert usa-alert--info">
-      <div class="usa-alert__body">
-        <h4 class="usa-alert__heading">Log In</h4>
-        <p class="usa-alert__text">
-          Login was a Success!
-        </p>
-      </div>
     </div>
-    <% end %>
-
-   <!-- this will be errors when i remove the specific error view -->
-    <% if access_denied %>
-    <div class="usa-alert usa-alert--error">
-      <div class="usa-alert__body">
-        <h4 class="usa-alert__heading">Access denied</h4>
-        <!-- <h4 class="usa-alert__heading"><%#= error_type %></h4> -->
-          <%# errors.each do |err| %>
-          <!-- <p class="usa-alert__text"><%#= err %></p> -->
-          <%# end %>
-      </div>
-    </div>
-    <% end %>
-  </section>
-  <% end %>
-  <% unless userinfo %>
-  <%== erb :auth_options, locals: { aal:, ial: } %>
-  <% end %>
-  <!-- <section class="grid-container"> -->
-    <!-- <div class="grid-row grid-gap"> -->
-      <!-- <div class="tablet:grid-col-4"></div> -->
-    <!-- </div> -->
-    <!-- <div class="grid-row grid-gap"> -->
-      <!-- <div class="tablet:grid-col-8"> -->
-      <%# if userinfo %>
-        <!-- <div class="userinfo"> -->
-          <!-- <span>Received user info:</span> -->
-            <!-- <ul> -->
-            <%# userinfo.each_pair do |key, val| %>
-              <%# val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
-              <!-- <li> -->
-                <!-- <pre><%#= key.inspect %>: <%#= val.inspect %></pre> -->
-              <!-- </li> -->
-            <%# end %>
-            <!-- </ul> -->
-          <!-- </div> -->
-        <%# end %>
-      <!-- </div> -->
-    <!-- </div> -->
-  <!-- </section> -->
-    <section class="grid-container">
+  </div>
+  <section aria-label="User info" class="grid-container">
     <div class="grid-row grid-gap">
       <div class="tablet:grid-col-4"></div>
     </div>
