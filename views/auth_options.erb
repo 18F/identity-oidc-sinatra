@@ -1,0 +1,78 @@
+<section aria-label="Authentication Request Specifics" class="tablet:grid-col-4">
+  <form action="auth/request" method="GET" id="login-form">
+    <div>
+      <details class="details-popup" open>
+        <summary>Options</summary>
+
+        <label class="usa-label" for="aal">
+          Authentication Assurance Level (AAL)
+        </label>
+        <select name="aal" id="aal" class="usa-select">
+          <% [
+                ['', 'Default'],
+                ['2', 'AAL2'],
+                ['2-phishing_resistant', 'Phishing-resistant AAL2'],
+                ['2-hspd12', 'HSPD12 required'],
+              ].each do |value, label| %>
+            <option value="<%= value %>" <%= 'selected' if aal == value %> >
+              <%= label %>
+            </option>
+          <% end %>
+        </select>
+
+        <label class="usa-label" for="ial">
+          Level of Service
+        </label>
+        <select name="ial" id="ial" class="usa-select">
+          <% ial_select_options.each do |value, label| %>
+            <option value="<%= value %>" <%= 'selected' if ial == value %> >
+              <%= label %>
+            </option>
+          <% end %>
+        </select>
+
+        <script type="application/json" id="default-scopes">
+          <%== default_scopes_by_ial.to_json %>
+        </script>
+        <fieldset class="usa-fieldset margin-top-2">
+          <legend class="usa-legend">
+            Requested Scopes
+          </legend>
+          <% scope_options.each do |scope| %>
+            <lg-scope scope="<%= scope %>" default-scopes-element="default-scopes" ial-element="ial" class="display-block">
+              <label>
+                <input type="checkbox" name="requested_scopes[]" value="<%= scope %>">
+                <%= scope %>
+              </label>
+            </lg-scope>
+          <% end %>
+        </fieldset>
+
+        <hr>
+        <div class="usa-checkbox">
+          <input class="usa-checkbox__input"
+                  id="check-simulate_csp"
+                  type="checkbox"
+                  name="simulate_csp"
+                  value="true"
+          >
+          <label class="usa-checkbox__label" for="check-simulate_csp">
+            Simulate CSP Error
+          </label>
+        </div>
+
+        <div class="usa-checkbox">
+          <input class="usa-checkbox__input"
+                  id="check-initiate_registration"
+                  type="checkbox"
+                  name="initiate_registration"
+                  value="true"
+          >
+          <label class="usa-checkbox__label" for="check-initiate_registration">
+            Initiate User Registration
+          </label>
+        </div>
+      </details>
+    </div>
+  </form>
+</section>

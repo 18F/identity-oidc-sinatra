@@ -64,7 +64,7 @@ GEM
     i18n (1.14.8)
       concurrent-ruby (~> 1.0)
     jmespath (1.6.2)
-    json (2.15.2.1)
+    json (2.20.0)
     json-jwt (1.16.7)
       activesupport (>= 4.2)
       aes_key_wrap

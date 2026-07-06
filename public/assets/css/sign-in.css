@@ -1,31 +1,10 @@
-.sign-in-wrap {
-  padding-top: 10px;
-  clear: both;
-}
-
-.sign-in-bttn svg {
-  margin-bottom: -2px;
-  margin-right: 3px;
-  height: 1rem;
-}
-
-.usa-nav__secondary {
-  padding-bottom: 10px;
-}
-
 .details-popup {
   position: absolute;
   margin-top: 5px;
   display: block;
-  right: 10px;
-}
-
-.details-popup summary {
-  text-align: right;
 }
 
 .details-popup[open] {
-  width: 120%;
   background: white;
   border: 2px solid black;
   border-radius: 3px;

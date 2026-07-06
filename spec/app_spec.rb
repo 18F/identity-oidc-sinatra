@@ -62,6 +62,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         to_return(body: '', status: 401)
 
       get '/'
+      follow_redirect!
 
       expect(last_response.body).to include(
         'Perhaps we need to reimplement HTTP Basic Auth',
@@ -73,11 +74,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
              to_return(body: '', status: 400)
 
       get '/'
+      follow_redirect!
 
       error_string = "Error: Unable to retrieve OIDC configuration from IdP. #{host} responded with 400."
       expect(last_response.body).to include(error_string)
       expect(stub).to have_been_requested.once
-      expect(last_response.status).to eq 500
     end
   end
 
@@ -416,7 +417,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           expect(last_response).to be_redirect
           uri = URI.parse(last_response.location)
           expect(uri.path).to eq('/')
-          expect(uri.query).to eq('error=access_denied')
           follow_redirect!
           expect(last_response.body).to include('You chose to exit before signing in')
         end
@@ -425,10 +425,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       context 'when there is no code parameter' do
         it 'errors with a missing code parameter message' do
           get '/auth/result'
+          follow_redirect!
 
-          doc = Nokogiri::HTML(last_response.body)
-
-          expect(doc.text).to include('missing callback param: code')
+          expect(last_response.body).to include('missing callback param: code') 
         end
       end
     end
@@ -503,6 +502,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         it 'fails auth and shows error message' do
           get '/auth/request'
           get '/auth/result', { code:, state: 'fake-state' }, 'rack.session' => last_request.session
+          follow_redirect!
 
           expect(last_response.body).to include('invalid state')
           expect(last_response.body).to_not include(email)
@@ -518,6 +518,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             id_token: generate_id_token(nonce: 'fake-nonce'),
           )
           get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+          follow_redirect!
+
 
           expect(last_response.body).to include('invalid nonce')
           expect(last_response.body).to_not include(email)
@@ -566,6 +568,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
                 to_return(status: 400, body: {'error': 'Code verifier code_verifier did not match code_challenge'}.to_json)
 
               get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+              follow_redirect!
+
 
               expect(last_response.body).to include('Code verifier code_verifier did not match code_challenge')
               expect(last_response.body).to_not include(email)

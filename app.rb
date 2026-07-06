@@ -212,6 +212,8 @@ module LoginGov::OidcSinatra
       logout_msg = session.delete(:logout_msg)
       user_email = session[:email]
       userinfo = session.delete(:userinfo)
+      error = session.delete(:error)
+      error_type = session.delete(:error_type)
 
       ial = params[:ial]
       aal = params[:aal]
@@ -224,14 +226,15 @@ module LoginGov::OidcSinatra
         login_msg: login_msg,
         logout_msg: logout_msg,
         user_email: user_email,
-        logout_uri: logout_uri,
+        logout_uri: error.present? ? nil : logout_uri,
         userinfo: userinfo,
-        access_denied: params[:error] == 'access_denied',
+        error:,
+        error_type:,
       }
     rescue AppError => e
-      [500, erb(:errors, locals: { error: e.message })]
+      render_error('Application', e)
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
-      [500, erb(:errors, locals: { error: e.inspect })]
+      render_error('Connection', e)
     end
 
     get '/auth/request' do
@@ -255,25 +258,31 @@ module LoginGov::OidcSinatra
 
       settings.logger.info("Redirecting to #{auth_url}")
 
+
       redirect to(auth_url)
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
     end
 
     # rubocop:disable Metrics/BlockLength
     get '/auth/result' do
-      code = params[:code]
+      code = params[:code] 
       error = params[:error]
 
-      redirect to('/?error=access_denied') if error == 'access_denied'
+      if error.present?
+        msg = (error == 'access_denied') ? 'You chose to exit before signing in' : error
+        return render_error('Authentication', msg)
+      end
+      return render_error('Authentication', 'missing callback param: code') if code.nil?
 
-      return render_error(error || 'missing callback param: code') unless code
-      return render_error('invalid state') if session[:state] != params[:state]
+      return render_error('Authentication', 'invalid state') if session[:state] != params[:state]
 
       token_response = token(code)
       access_token = token_response[:access_token]
       id_token = token_response[:id_token]
       jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
 
-      return render_error('invalid nonce') if jwt['nonce'] != session[:nonce]
+      return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
 
       userinfo_response = userinfo(access_token)
       session.delete(:nonce)
@@ -293,11 +302,11 @@ module LoginGov::OidcSinatra
         redirect to('/')
       end
     rescue AppError => e
-      [500, erb(:errors, locals: { error: e.message })]
+      render_error('Application', e.message)
     end
 
     get '/failure_to_proof' do
-      erb :failure_to_proof
+      render_error('Proofing', 'We were unable to verify your identity')
     end
 
     post '/handle-logout' do
@@ -346,8 +355,11 @@ module LoginGov::OidcSinatra
 
     private
 
-    def render_error(error)
-      erb :errors, locals: { error: error }
+    def render_error(error_type, error=nil)
+      session[:error] = error.to_s || 'Unknown error occurred'
+      session[:error_type] = error_type
+      
+      redirect to('/')
     end
 
     def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:)

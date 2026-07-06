@@ -20,7 +20,7 @@ install_dependencies:
 	npm install
 
 copy_vendor: public/vendor
-	cp -R node_modules/@uswds/uswds/dist public/vendor/uswds
+	cp -R node_modules/@18f/identity-design-system/dist public/vendor/identity-design-system
 
 setup: .env install_dependencies copy_vendor
 
