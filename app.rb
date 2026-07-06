@@ -258,7 +258,10 @@ module LoginGov::OidcSinatra
 
       settings.logger.info("Redirecting to #{auth_url}")
 
+
       redirect to(auth_url)
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
     end
 
     # rubocop:disable Metrics/BlockLength
