@@ -302,11 +302,11 @@ module LoginGov::OidcSinatra
         redirect to('/')
       end
     rescue AppError => e
-      render_error('Application error', e.message)
+      render_error('Application', e.message)
     end
 
     get '/failure_to_proof' do
-      render_error('Proofing error', 'We were unable to verify your identity')
+      render_error('Proofing', 'We were unable to verify your identity')
     end
 
     post '/handle-logout' do
