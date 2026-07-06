@@ -11,7 +11,7 @@
 <main id="main-content">
   <div class="grid-container">
     <div class="grid-row grid-gap">
-      <%== erb :alerts, locals: { logout_msg:, login_msg:, access_denied: } %>
+      <%== erb :alerts, locals: { logout_msg:, login_msg:, error:, error_type: } %>
     <% unless userinfo %>
       <%== erb :auth_options, locals: { aal:, ial: } %>
     <% end %>
