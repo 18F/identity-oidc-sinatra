@@ -28,6 +28,6 @@ RUN apt-get install -y --no-install-recommends nodejs \
 RUN npm install
 RUN cp -R node_modules/@18f/identity-design-system/dist public/vendor/identity-design-system
 
-EXPOSE 9292
+EXPOSE 9393
 
-CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "9292"]
+CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "9393"]

@@ -11,7 +11,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:userinfo_endpoint) { "#{host}/api/openid/userinfo" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
   let(:jwks_endpoint) { "#{host}/api/openid_connect/certs" }
-  let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
+  let(:client_id) { 'urn:gov:gsa:openidconnect:sp:records_agency' }
   let(:idp_private_key) { OpenSSL::PKey::RSA.new(read_fixture_file('idp.key')) }
   let(:nonce) { 'abc' }
 
@@ -581,7 +581,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   context 'POST /handle-logout' do
-    let(:redirect_uri) { 'http://localhost:9292/logout' }
+    let(:redirect_uri) { 'http://localhost:9393/logout' }
 
     before do
       get '/'

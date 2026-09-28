@@ -17,6 +17,37 @@ module LoginGov
         @config.fetch('attempts_shared_secret')
       end
 
+      # RFC 8707 resource indicator for this API; also `iss`/`sub` of the
+      # introspection client assertion (RFC 7523 §3) and the expected `aud`
+      # of every delegated token (RFC 7662 §2.2).
+      def resource_identifier
+        @config.fetch('resource_identifier')
+      end
+
+      # Upper bound on how long an `active: true` introspection result may be
+      # reused before re-introspecting (INT-8; Login.gov publishes 60 seconds).
+      def introspection_cache_seconds
+        Integer(@config.fetch('introspection_cache_seconds'))
+      end
+
+      # @return [OpenSSL::PKey::RSA] key that signs introspection assertions
+      def rs_private_key
+        return @rs_private_key if @rs_private_key
+
+        key = ENV['RS_PRIVATE_KEY'] || get_sp_private_key_raw(@config.fetch('rs_private_key_path'))
+        @rs_private_key = OpenSSL::PKey::RSA.new(key)
+      end
+
+      # @return [OpenSSL::PKey::RSA] key that decrypts Attempts API events
+      # delivered to this agency (its public key is the agency's SP cert).
+      def attempts_private_key
+        return @attempts_private_key if @attempts_private_key
+
+        key = ENV['attempts_private_key'] ||
+              get_sp_private_key_raw(@config.fetch('attempts_private_key_path'))
+        @attempts_private_key = OpenSSL::PKey::RSA.new(key)
+      end
+
       def attempts_url
         "#{idp_url}/api/attempts/poll"
       end
@@ -80,12 +111,18 @@ module LoginGov
       def default_config
         data = {
           'acr_values' => ENV['acr_values'] || 'http://idmanagement.gov/ns/assurance/ial/1',
-          'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:sinatra',
+          'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:records_agency',
           'client_id_pkce' => ENV['client_id_pkce'] || 'urn:gov:gsa:openidconnect:sp:sinatra_pkce',
           'mock_irs_client_id' => ENV['mock_irs_client_id'] ||
                                   'urn:gov:gsa:openidconnect:sp:mock_irs',
-          'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
-          'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
+          'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9393/',
+          'sp_private_key_path' => ENV['sp_private_key_path'] || './config/rs_demo.key',
+          'resource_identifier' => ENV['RESOURCE_IDENTIFIER'] ||
+                                   'https://records-api.agency.localdev',
+          'rs_private_key_path' => ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
+          'introspection_cache_seconds' => ENV['INTROSPECTION_CACHE_SECONDS'] || '60',
+          'attempts_private_key_path' => ENV['attempts_private_key_path'] ||
+                                         ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'redact_ssn' => true,
           'cache_oidc_config' => true,
           'eipp_allowed' => ENV.fetch('eipp_allowed', 'false') == 'true',
@@ -135,7 +172,7 @@ module LoginGov
       end
 
       def demo_private_key_path
-        "#{File.dirname(__FILE__)}/config/demo_sp.key"
+        "#{File.dirname(__FILE__)}/config/rs_demo.key"
       end
     end
   end

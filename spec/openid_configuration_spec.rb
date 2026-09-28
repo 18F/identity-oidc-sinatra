@@ -6,7 +6,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConfiguration do
   let(:token_endpoint) { "#{host}/api/openid/token" }
   let(:jwks_uri) { "#{host}/api/openid/certs" }
   let(:end_session_endpoint) { "#{host}/openid/logout" }
-  let(:client_id) { 'urn:gov:gsa:openidconnect:sp:sinatra' }
+  let(:client_id) { 'urn:gov:gsa:openidconnect:sp:records_agency' }
 
   let(:configuration_uri) { "#{host}/.well-known/openid-configuration" }
 

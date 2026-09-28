@@ -5,7 +5,7 @@
 # bin/ directory.
 
 HOST ?= localhost
-PORT ?= 9292
+PORT ?= 9393
 
 all: check
 
@@ -38,3 +38,18 @@ run:
 test: $(CONFIG)
 	bundle exec rspec
 	npm run test
+
+# Regenerate the resource server key pair (RSA 2048, self-signed, 10 years).
+# The same key pair is used for the agency's direct OIDC sign-in, for
+# RFC 7523 introspection assertions and for Attempts API decryption.
+# Copy the printed certificate into identity-idp as certs/sp/rs_records_demo.crt.
+rs_keypair:
+	openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+		-subj "/CN=records-api.agency.localdev" \
+		-keyout config/rs_demo.key -out config/rs_demo.crt
+	@$(MAKE) --no-print-directory rs_cert
+
+# Print the resource server certificate PEM to paste into the IdP fixture.
+rs_cert:
+	@echo "# Paste into identity-idp certs/sp/rs_records_demo.crt"
+	@cat config/rs_demo.crt
