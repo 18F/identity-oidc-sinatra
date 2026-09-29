@@ -1,7 +1,7 @@
-# identity-oidc-sinatra — Records Agency resource server (reference)
+# identity-oidc-sinatra — Department of Housing Support resource server (reference)
 
 Reference implementation of a **target agency** for Login.gov delegated access, written as a
-small Sinatra app in Ruby. It plays two roles for one fictional agency, the "Records Agency":
+small Sinatra app in Ruby. It plays two roles for one fictional agency, the "Department of Housing Support":
 
 1. **The agency's own web app** — the existing direct OpenID Connect sign-in (`/`, `/auth/request`,
    `/auth/result`, `/logout`), unchanged in behavior.
@@ -185,7 +185,7 @@ In `identity-idp`:
    repository ignores that file too, so this is a per-checkout step, not a commit. Whenever you run
    `make rs_keypair`, copy the new certificate again.
 2. In `config/service_providers.localdev.yml`, add the agency SP
-   `urn:gov:gsa:openidconnect:sp:records_agency` (friendly name "Records Agency", `agency_id: 2`, IAL2,
+   `urn:gov:gsa:openidconnect:sp:records_agency` (friendly name "Department of Housing Support", `agency_id: 101`, IAL2,
    `token_exchange_target: true`, `attribute_bundle: [email]`, redirect URIs `http://localhost:9393/`,
    `http://localhost:9393/auth/result`, `http://localhost:9393/logout`, `certs: [rs_records_demo]`)
    with one resource server, `identifier: https://records-api.agency.localdev`, `token_format: oauth`,

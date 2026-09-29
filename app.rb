@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Reference "Records Agency" for Login.gov delegated access. This one app plays
+# Reference "Department of Housing Support" for Login.gov delegated access. This one app plays
 # the agency's own web app (direct OpenID Connect sign-in: /, /auth/request,
 # /auth/result, /logout), the agency's API as an OAuth 2.0 resource server that
 # accepts delegated access tokens (/records, /decisions; logic in
