@@ -5,7 +5,8 @@ module LoginGov
     # In-memory ring buffer of authorization decisions made by the resource server.
     #
     # Each entry records what the agency needs to join an API call to Login.gov's
-    # Attempts API events (§8.5): the user's `sub`, the acting service provider
+    # Attempts API events (both carry the same `delegation_id`): the user's `sub`,
+    # the acting service provider
     # (`act.sub`, RFC 8693 §4.1), the `delegation_id`, the token's `scope`, the
     # route called, the decision and the time. Tokens are never stored.
     # A production API would write these to its audit log; the buffer exists so

@@ -4,8 +4,9 @@ module LoginGov
   module OidcSinatra
     # Short-lived cache of `active: true` introspection results (RFC 7662).
     #
-    # INT-8: Login.gov publishes a maximum window (60 seconds) during which a
-    # resource server may reuse an `active: true` answer before re-introspecting.
+    # Login.gov publishes a maximum window (60 seconds) during which a resource
+    # server may reuse an `active: true` answer before asking again. Reusing an
+    # answer longer would delay the effect of a revocation by that much.
     # Entries are keyed by the SHA-256 digest of the token so the plaintext token
     # is never stored. Inactive results are not cached: re-asking is cheap and
     # keeps the resource server failing closed.

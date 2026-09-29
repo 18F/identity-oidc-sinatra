@@ -1,3 +1,6 @@
+# rake login:rs_keypair — create the resource server key pair (config/rs_demo.key
+# and config/rs_demo.crt) when missing. The pair is local key material and is
+# git-ignored; see rs_keypair.rb.
 require_relative '../../rs_keypair'
 
 namespace :login do

@@ -25,7 +25,7 @@ module LoginGov
       end
 
       # Upper bound on how long an `active: true` introspection result may be
-      # reused before re-introspecting (INT-8; Login.gov publishes 60 seconds).
+      # reused before asking Login.gov again (Login.gov publishes 60 seconds).
       def introspection_cache_seconds
         Integer(@config.fetch('introspection_cache_seconds'))
       end

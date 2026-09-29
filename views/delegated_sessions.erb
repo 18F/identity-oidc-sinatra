@@ -1,3 +1,7 @@
+<%# One box per delegation_id: the Attempts events Login.gov delivered for that
+    delegated session, followed by the decisions this API made for tokens whose
+    introspection carried the same delegation_id. This is the join a target agency
+    implements to see who acted for the user and what they were allowed to do. %>
 <section aria-label="Delegated sessions">
   <% if delegated_sessions.empty? %>
     <p>No delegated sessions yet. A session appears here once Login.gov delivers an event with a

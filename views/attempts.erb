@@ -1,3 +1,6 @@
+<%# Attempts API viewer in the agency role: lists the fraud-signal events Login.gov
+    delivered to this agency (direct sign-ins and delegated sessions alike). The
+    "Delegated sessions" tab renders views/delegated_sessions.erb. %>
 <a class="usa-skipnav" href="#main-content">Skip to main content</a>
  <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
   <p>TEST Do not use real personal information (demo purposes only) TEST</p>
@@ -17,7 +20,7 @@
         <p class="usa-intro">
           Events Login.gov delivered to <code><%= client_id %></code>. Delegated sessions carry a
           <code>delegation_id</code>; introspection returns the same value, which is how this API joins
-          its decisions to the user's sign-in and consent events (§8.5).
+          its decisions to the user's sign-in and consent events.
         </p>
 
         <nav aria-label="Attempts views" class="margin-bottom-2">

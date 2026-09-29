@@ -1,5 +1,13 @@
 # frozen_string_literal: true
 
+# Reference "Records Agency" for Login.gov delegated access. This one app plays
+# the agency's own web app (direct OpenID Connect sign-in: /, /auth/request,
+# /auth/result, /logout), the agency's API as an OAuth 2.0 resource server that
+# accepts delegated access tokens (/records, /decisions; logic in
+# resource_server.rb), and the agency-role Attempts API viewer (/attempts-api),
+# which joins Login.gov's fraud-signal events to the API's decisions on
+# delegation_id. See README.md for the flow.
+
 require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
@@ -57,8 +65,9 @@ module LoginGov::OidcSinatra
     user_agent
   ]
 
-  # §8 — event types Login.gov delivers to a target agency for delegated access,
-  # in addition to the re-mapped sign-in events (which carry `delegation_id`).
+  # Event types Login.gov delivers to a target agency for delegated access, in
+  # addition to the user's ordinary sign-in events, which are re-mapped to this
+  # agency and tagged with the same `delegation_id`.
   DELEGATION_EVENT_TYPES = {
     'delegated-access-consented' =>
       'The user approved letting a service provider (actor_issuer) act for them at ' \
@@ -178,7 +187,7 @@ module LoginGov::OidcSinatra
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
 
-      # Poll the Attempts API in the agency role (§8.5, REF-IMPL-3).
+      # Poll the Attempts API in the agency role.
       # Authorization is "Bearer <agency issuer> <shared secret>"; each event is
       # a JWE encrypted to the agency's SP certificate, so it is decrypted with
       # the same private key this app signs with (config/rs_demo.key). Events
@@ -229,17 +238,20 @@ module LoginGov::OidcSinatra
         event['events'].values.first&.[](key)
       end
 
-      # §8.5 — any event carrying delegation_id or actor_issuer belongs to a
-      # delegated session; its subject.session_id is the service provider's,
-      # not one this agency started.
+      # Any event carrying delegation_id or actor_issuer belongs to a delegated
+      # session: the user signed in at a service provider, not at this agency,
+      # so its subject.session_id is the service provider's and will not match
+      # a session this agency started.
       def delegated_event?(event)
         !event_property(event, 'delegation_id').nil? ||
           !event_property(event, 'actor_issuer').nil?
       end
 
-      # §8.5 — the join agencies implement: group Attempts events by
-      # delegation_id and attach this API's decisions (from log_decision, keyed
-      # by introspection's delegation_id, ATT-9/INT-4) with the same value.
+      # The join a target agency implements: group Attempts events by
+      # delegation_id and attach this API's decisions (from log_decision) whose
+      # introspection response carried the same delegation_id. Login.gov puts
+      # the value on every delegated event and in every active introspection
+      # response for exactly this purpose.
       # Sessions that so far have only API decisions and no events are included
       # so a call is never invisible.
       # @return [Array<Hash>] newest activity first
@@ -444,9 +456,10 @@ module LoginGov::OidcSinatra
     end
 
     # ---------------------------------------------------------------------
-    # Resource server routes (§14.4). Both require a delegated access token
-    # obtained by a service provider through RFC 8693 token exchange, presented
-    # per RFC 6750 §2.1. Scope decides which endpoint the token may reach.
+    # Resource server routes. Both require a delegated access token obtained by
+    # a service provider through RFC 8693 token exchange, presented per
+    # RFC 6750 §2.1. Login.gov bound the token to this API (`aud`); the agency
+    # decides which endpoint each scope may reach.
     # ---------------------------------------------------------------------
 
     # Requires token_exchange:records_read (access_type read).
@@ -469,7 +482,7 @@ module LoginGov::OidcSinatra
       json_response(record: record, _introspection: @introspection)
     end
 
-    # Every authorization decision, newest first (REF-IMPL-2).
+    # Every authorization decision this API made, newest first.
     get '/decisions' do
       erb :decisions, locals: { decisions: DecisionLog.instance.entries }
     end
@@ -487,7 +500,7 @@ module LoginGov::OidcSinatra
 
     private
 
-    # Demo affordance (§14.4): API responses echo the introspection result under
+    # Demo affordance: API responses echo the introspection result under
     # `_introspection` so the service provider UI can show why a call was
     # allowed. It contains only identifiers. A production API would omit it.
     def json_response(payload)

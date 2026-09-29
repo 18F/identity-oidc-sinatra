@@ -40,15 +40,15 @@ standard it implements cited above it, so it can be copied into another Ruby API
 
 | Method | Standard | What it does |
 |---|---|---|
-| `authorize!(required_scope)` | §6.3 checklist | Runs the steps below in order; halts 401/403/503 |
+| `authorize!(required_scope)` | — | Runs the steps below in order; halts 401/403/503 |
 | `introspection_endpoint` | OIDC Discovery / RFC 8414 §2 | Reads `introspection_endpoint`; absent means Login.gov has delegation off |
 | `bearer_token(request)` | RFC 6750 §2.1 | Header form only; query/body forms are refused |
-| `id_token?(token)` | §6.3 item 6 | Refuses a JWT-shaped token before any network call |
-| `cached_introspection(token)` | INT-8 | Reuses `active: true` for at most `INTROSPECTION_CACHE_SECONDS` |
+| `id_token?(token)` | RFC 7519 | Refuses a JWT-shaped token (an ID token proves sign-in, not delegation) before any network call |
+| `cached_introspection(token)` | RFC 7662 | Reuses `active: true` for at most `INTROSPECTION_CACHE_SECONDS` (Login.gov publishes 60) |
 | `introspect(token, endpoint)` | RFC 7662 §2.1 | Only HTTP 200 + JSON object is an answer; anything else is "unavailable" |
 | `rs_client_assertion(audience:)` | RFC 7523 §3, RFC 8725 | `iss`=`sub`=identifier, `aud`=introspection URL, fresh `jti`, `exp` = `iat` + 300, RS256 |
 | `scope_granted?(scope, required)` | RFC 6749 §3.3 | Whole-string comparison of `token_exchange:<name>` values |
-| `log_decision(...)` | §8.5 | Ring buffer of join fields; never the token |
+| `log_decision(...)` | — | Ring buffer of `sub`, `act.sub`, `delegation_id`, scope, route, decision; never the token |
 | `www_authenticate(...)` | RFC 6750 §3 | Challenge header |
 
 Supporting classes: [`introspection_cache.rb`](introspection_cache.rb) (keyed by SHA-256 of the
@@ -148,12 +148,13 @@ In `identity-idp`:
 
 ## What this app deliberately does not do
 
-- Accept a Login.gov `id_token` as proof of delegation (§6.3 item 6). ID tokens are refused before
-  any network call.
-- Serve anything when introspection fails, times out, or returns a non-JSON body (§6.3 item 3).
+- Accept a Login.gov `id_token` as proof of delegation. An ID token proves the user signed in to the
+  service provider and names the service provider, not this API, in `aud`; it is refused before any
+  network call.
+- Serve anything when introspection fails, times out, or returns a non-JSON body (fail closed).
 - Cache `active: false`, or keep any token in plaintext (only SHA-256 digests are held).
 - Refresh or revoke tokens: those are the service provider's job. Revocation is observed here as
-  `active: false` on the next introspection (REF-6).
+  `active: false` on the next introspection.
 - DPoP / sender-constrained tokens (Appendix C). Optional and not built.
 
 ## Contributing
