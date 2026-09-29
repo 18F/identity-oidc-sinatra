@@ -415,6 +415,8 @@ module LoginGov::OidcSinatra
       {
         authorization_endpoint: openid_configuration.fetch('authorization_endpoint'),
         private_key_fingerprint: Digest::SHA1.hexdigest(config.sp_private_key.to_der),
+        resource_identifier: config.resource_identifier,
+        introspection_endpoint: openid_configuration['introspection_endpoint'],
         healthy: true,
       }.to_json
     rescue StandardError => e

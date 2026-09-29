@@ -302,10 +302,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         stub_request(:get, "#{host}/.well-known/openid-configuration").to_return(status: 500, body: '')
       end
 
-      it 'returns 503' do
+      it 'returns 503 and says discovery, not the feature flag, is the problem' do
         get_records
 
         expect(last_response.status).to eq 503
+        expect(JSON.parse(last_response.body)['error_description']).to include('discovery')
+        expect(decisions.first).to include('decision' => 'unavailable', 'reason' => 'discovery_unavailable')
       end
     end
   end

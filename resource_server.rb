@@ -43,7 +43,17 @@ module LoginGov
         content_type :json
         route = "#{request.request_method} #{request.path_info}"
 
-        endpoint = introspection_endpoint
+        begin
+          endpoint = introspection_endpoint
+        rescue IntrospectionUnavailable => e
+          settings.logger.warn("discovery unavailable: #{e.message}")
+          log_decision(nil, route:, decision: 'unavailable', reason: 'discovery_unavailable',
+                            required_scope:)
+          halt 503, json_error_response(
+            'temporarily_unavailable',
+            'Could not read the Login.gov discovery document; the request was not served.',
+          )
+        end
         unless endpoint
           log_decision(nil, route:, decision: 'unavailable', reason: 'introspection_not_advertised',
                             required_scope:)
@@ -137,11 +147,12 @@ module LoginGov
 
       # OpenID Connect Discovery 1.0 / RFC 8414 §2 — `introspection_endpoint` is
       # advertised only while Login.gov has delegated access enabled (DISC-5).
-      # @return [String, nil]
+      # @return [String, nil] nil when the document lacks the key
+      # @raise [IntrospectionUnavailable] when the document cannot be read
       def introspection_endpoint
         openid_configuration['introspection_endpoint']
-      rescue AppError, Faraday::Error, Errno::ECONNREFUSED
-        nil
+      rescue AppError, Faraday::Error, Errno::ECONNREFUSED => e
+        raise IntrospectionUnavailable.new(e.message)
       end
 
       # RFC 6750 §2.1 — Authorization: Bearer b64token. Returns nil for any
