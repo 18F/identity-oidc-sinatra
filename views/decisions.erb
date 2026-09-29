@@ -17,6 +17,10 @@
       newest first. <code>actor</code> is the service provider acting for the user
       (<code>act.sub</code>); <code>delegation_id</code> joins each call to the Attempts API events
       Login.gov delivered to this agency (see <a href="/attempts-api?tab=delegated">Delegated sessions</a>).
+      <strong>Identity claims</strong> are what the introspection response carried for the token:
+      the same claims, under the same names, that the agency's own web app receives from userinfo
+      after a direct sign-in. Only the source differs. <code>identifiers_only</code> means the user's
+      Login.gov session had ended, so Login.gov released identifiers and email and nothing else.
     </p>
     <% if decisions.empty? %>
       <p>No decisions yet. Present a delegated token to <code>GET /records</code> or <code>POST /records</code>.</p>
@@ -32,6 +36,7 @@
             <th scope="col">sub</th>
             <th scope="col">actor (act.sub)</th>
             <th scope="col">delegation_id</th>
+            <th scope="col">Identity claims (from introspection)</th>
           </tr>
         </thead>
         <tbody>
@@ -49,6 +54,25 @@
               <td style="overflow-wrap: anywhere;"><code><%= d['sub'] %></code></td>
               <td style="overflow-wrap: anywhere;"><code><%= d['actor'] %></code></td>
               <td style="overflow-wrap: anywhere;"><code><%= d['delegation_id'] %></code></td>
+              <td style="overflow-wrap: anywhere; min-width: 16rem;">
+                <% claims = d['claims'] || {} %>
+                <% identifiers_only = d['attributes'] == LoginGov::OidcSinatra::IdentityClaims::IDENTIFIERS_ONLY %>
+                <% if claims.empty? && !identifiers_only %>
+                  <span class="text-base">none (no active token)</span>
+                <% else %>
+                  <details>
+                    <summary>
+                      <%= claims.length %> claim(s)
+                      <% if identifiers_only %><span class="usa-tag bg-warning">identifiers_only</span><% end %>
+                    </summary>
+                    <%== erb :identity_claims, locals: {
+                      heading: 'From introspection:',
+                      claims:,
+                      identifiers_only:,
+                    } %>
+                  </details>
+                <% end %>
+              </td>
             </tr>
           <% end %>
         </tbody>

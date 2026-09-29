@@ -31,6 +31,7 @@ require_relative './config'
 require_relative './openid_configuration'
 require_relative './attempts_configuration'
 require_relative './resource_server'
+require_relative './identity_claims'
 require_relative './demo_records'
 
 module LoginGov::OidcSinatra
@@ -108,6 +109,7 @@ module LoginGov::OidcSinatra
     end
 
     helpers ResourceServer
+    helpers IdentityClaims
 
     # rubocop:disable Metrics/BlockLength
     helpers do
@@ -468,7 +470,7 @@ module LoginGov::OidcSinatra
 
       json_response(
         records: DemoRecords.instance.for_sub(@introspection['sub']),
-        _introspection: @introspection,
+        **user_payload(@introspection),
       )
     end
 
@@ -479,7 +481,7 @@ module LoginGov::OidcSinatra
 
       record = DemoRecords.instance.create(@introspection['sub'], record_attributes)
       status 201
-      json_response(record: record, _introspection: @introspection)
+      json_response(record: record, **user_payload(@introspection))
     end
 
     # Every authorization decision this API made, newest first.
@@ -500,9 +502,31 @@ module LoginGov::OidcSinatra
 
     private
 
-    # Demo affordance: API responses echo the introspection result under
-    # `_introspection` so the service provider UI can show why a call was
-    # allowed. It contains only identifiers. A production API would omit it.
+    # The user as this API knows them from a delegated token. The claims come
+    # from the introspection response, which for a delegated token carries the
+    # same claims userinfo would for a direct sign-in, so `claims` here is what
+    # the agency's own web app shows after sign-in (SSN redacted the same way).
+    # The API never calls userinfo with a delegated token: userinfo is
+    # authenticated by nothing but the bearer token, so Login.gov keeps delegated
+    # tokens out of it and puts the claims in the introspection response, which
+    # this resource server authenticates to with its own key.
+    #
+    # `attributes: "identifiers_only"` means the user's Login.gov session has
+    # ended and only identifiers and email were released; `notice` says so and
+    # what the service provider must do about it.
+    #
+    # Demo affordance: `_introspection` echoes the token members of the
+    # introspection response (identifiers only, no attributes) so the service
+    # provider UI can show why a call was allowed. A production API would omit it.
+    def user_payload(introspection)
+      payload = { claims: identity_claims(introspection) }
+      if identifiers_only?(introspection)
+        payload[:attributes] = IdentityClaims::IDENTIFIERS_ONLY
+        payload[:notice] = IdentityClaims::IDENTIFIERS_ONLY_NOTICE
+      end
+      payload.merge(_introspection: introspection_metadata(introspection))
+    end
+
     def json_response(payload)
       content_type :json
       JSON.pretty_generate(payload)

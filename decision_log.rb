@@ -9,8 +9,13 @@ module LoginGov
     # the acting service provider
     # (`act.sub`, RFC 8693 §4.1), the `delegation_id`, the token's `scope`, the
     # route called, the decision and the time. Tokens are never stored.
-    # A production API would write these to its audit log; the buffer exists so
-    # the demo can show every decision on GET /decisions.
+    # Each entry also keeps the identity claims the introspection response
+    # carried (`claims`, SSN already redacted) and whether Login.gov marked the
+    # response `identifiers_only`, so GET /decisions can show what the API
+    # learned about the user on that call.
+    # A production API would write the identifiers to its audit log and keep
+    # the claims out of it; the buffer exists so the demo can show every
+    # decision on GET /decisions.
     class DecisionLog
       DEFAULT_CAPACITY = 500
 
@@ -30,7 +35,8 @@ module LoginGov
       # @param [String] decision e.g. "allowed", "denied", "unavailable"
       # @param [String, nil] reason e.g. "invalid_token", "insufficient_scope"
       # @param [String, nil] required_scope the scope the route required
-      def record(introspection:, route:, decision:, reason: nil, required_scope: nil)
+      # @param [Hash] claims identity claims read from the introspection response
+      def record(introspection:, route:, decision:, reason: nil, required_scope: nil, claims: {})
         introspection ||= {}
         entry = {
           'time' => Time.now.utc.iso8601,
@@ -44,6 +50,8 @@ module LoginGov
           'delegation_id' => introspection['delegation_id'],
           'scope' => introspection['scope'],
           'aud' => introspection['aud'],
+          'attributes' => introspection['attributes'],
+          'claims' => claims,
         }
         @mutex.synchronize do
           @entries << entry

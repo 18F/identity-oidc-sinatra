@@ -1,0 +1,29 @@
+<%# The user's identity claims, rendered the same way whether they came from the
+    userinfo endpoint (direct sign-in) or from the introspection response for a
+    delegated token. `claims` is the output of identity_claims (SSN already
+    redacted); `identifiers_only` is true when the user's Login.gov session has
+    ended and Login.gov released identifiers and email only. %>
+<div class="identity-claims">
+  <span><%= heading %></span>
+  <% if identifiers_only %>
+    <div class="usa-alert usa-alert--warning usa-alert--slim margin-y-1">
+      <div class="usa-alert__body">
+        <p class="usa-alert__text">
+          <span class="usa-tag bg-warning">identifiers_only</span>
+          <%= LoginGov::OidcSinatra::IdentityClaims::IDENTIFIERS_ONLY_NOTICE %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+  <% if claims.empty? %>
+    <p>No identity claims.</p>
+  <% else %>
+    <ul>
+      <% claims.each_pair do |key, val| %>
+        <li>
+          <code><%= key.inspect %>: <%= val.inspect %></code>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</div>

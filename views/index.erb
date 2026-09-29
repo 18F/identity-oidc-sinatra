@@ -25,15 +25,13 @@
       <div class="tablet:grid-col-8">
         <% if userinfo %>
           <div class="p2 clearfix bg-white fg-black">
-            <span>Received user info:</span>
-            <ul>
-              <% userinfo.each_pair do |key, val| %>
-                <li>
-                  <% val = maybe_redact_ssn(val) if key.to_s == 'social_security_number' %>
-                  <code><%= key.inspect %>: <%= val.inspect %></code>
-                </li>
-              <% end %>
-            </ul>
+            <%# Direct sign-in: claims came from the userinfo endpoint. The same
+                partial renders claims from introspection on /decisions. %>
+            <%== erb :identity_claims, locals: {
+              heading: 'Received user info:',
+              claims: identity_claims(userinfo),
+              identifiers_only: identifiers_only?(userinfo),
+            } %>
           </div>
         <% end %>
       </div>

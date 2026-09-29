@@ -22,8 +22,12 @@ module LoginGov
     #     -> check active / aud / act / scope (RFC 7662 §2.2, RFC 8693 §4.1)
     #     -> log_decision                   (join key to Attempts events: delegation_id)
     #
+    # The active response also carries the user's identity claims; see
+    # IdentityClaims for how they are read (the same way as userinfo claims).
+    #
     # Mixed into the Sinatra app with `helpers ResourceServer`; relies on
-    # `config`, `openid_configuration`, `request`, `halt` and `settings.logger`.
+    # `config`, `openid_configuration`, `request`, `halt`, `settings.logger`
+    # and `identity_claims` (IdentityClaims).
     module ResourceServer
       JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
       # RFC 7523 §3 (4): Login.gov requires `exp` and rejects assertions whose
@@ -263,10 +267,17 @@ module LoginGov
       end
 
       # Record what the agency will later join to Attempts events on
-      # `delegation_id`. Never logs the token.
+      # `delegation_id`, plus the identity claims the introspection response
+      # carried (SSN redacted) so /decisions can show what this API learned
+      # about the user. Never logs the token.
       def log_decision(introspection, route:, decision:, reason: nil, required_scope: nil)
         DecisionLog.instance.record(
-          introspection:, route:, decision:, reason:, required_scope:,
+          introspection:,
+          route:,
+          decision:,
+          reason:,
+          required_scope:,
+          claims: identity_claims(introspection),
         )
       end
 
