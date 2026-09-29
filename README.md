@@ -26,13 +26,15 @@ Service provider ──► GET /records, Authorization: Bearer <delegated token>
        │        client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
        │        client_assertion=<RS256 JWT: iss=sub=RESOURCE_IDENTIFIER,        RFC 7523 §3
        │                          aud=introspection_endpoint, jti, iat, exp<=iat+300>
-       │   Login.gov ──► {active:true, aud, scope, sub, act:{sub}, client_id, acr, iat, exp, delegation_id}
+       │   Login.gov ──► {active:true, aud, scope, sub, act:{sub}, client_id, acr, iat, exp, delegation_id,
+       │                  token_type, + the user's identity claims as userinfo would return them}
        │                 or {active:false}
        │
        ├─ not active / aud != RESOURCE_IDENTIFIER ──► 401 WWW-Authenticate: Bearer error="invalid_token"
        ├─ scope lacks the route's value ──────────────────────► 403 error="insufficient_scope"
        ├─ Login.gov unreachable, error, or no introspection_endpoint in discovery ──► 503 (fail closed)
-       └─ otherwise ──► 200, log decision {sub, act.sub, delegation_id, scope, route, decision}
+       └─ otherwise ──► 200 with the records and the user's claims from introspection,
+                        log decision {sub, act.sub, delegation_id, scope, route, decision, claims}
 ```
 
 The code for each step is in [`resource_server.rb`](resource_server.rb), one method per step with the
@@ -48,26 +50,71 @@ standard it implements cited above it, so it can be copied into another Ruby API
 | `introspect(token, endpoint)` | RFC 7662 §2.1 | Only HTTP 200 + JSON object is an answer; anything else is "unavailable" |
 | `rs_client_assertion(audience:)` | RFC 7523 §3, RFC 8725 | `iss`=`sub`=identifier, `aud`=introspection URL, fresh `jti`, `exp` = `iat` + 300, RS256 |
 | `scope_granted?(scope, required)` | RFC 6749 §3.3 | Whole-string comparison of `token_exchange:<name>` values |
-| `log_decision(...)` | — | Ring buffer of `sub`, `act.sub`, `delegation_id`, scope, route, decision; never the token |
+| `log_decision(...)` | — | Ring buffer of `sub`, `act.sub`, `delegation_id`, scope, route, decision, and the redacted identity claims; never the token |
 | `www_authenticate(...)` | RFC 6750 §3 | Challenge header |
 
 Supporting classes: [`introspection_cache.rb`](introspection_cache.rb) (keyed by SHA-256 of the
 token, active results only, never past the token's `exp`), [`decision_log.rb`](decision_log.rb),
-[`demo_records.rb`](demo_records.rb).
+[`demo_records.rb`](demo_records.rb), and [`identity_claims.rb`](identity_claims.rb), which reads
+the user's claims from an introspection response or a userinfo response alike (next section).
+
+## Identity claims for delegated tokens
+
+An agency application behaves the same way for a delegated token as for a user who signed in
+directly; the one difference is that a delegated token is checked at the introspection endpoint.
+Login.gov's introspection response for an active delegated token therefore carries the same
+identity claims the agency would get from userinfo after a direct sign-in, with the same claim names
+and formats (`sub`, `iss`, `email`, `email_verified`, `all_emails`, `given_name`, `family_name`,
+`birthdate`, `social_security_number`, `address{formatted,street_address,locality,region,postal_code}`,
+`phone`, `phone_verified`, `verified_at`, `ial`, `aal`, `x509_*`), limited to the agency's configured
+attribute bundle, next to the token members (`active`, `aud`, `scope`, `act`, `client_id`, `acr`,
+`iat`, `exp`, `delegation_id`, `token_type`).
+
+This app treats the two sources identically:
+
+- [`identity_claims.rb`](identity_claims.rb) `identity_claims(source)` returns the user's claims from
+  either a userinfo body or an introspection body (it drops the token members) and redacts the SSN
+  the same way the direct sign-in page does (`redact_ssn`). `introspection_metadata(source)` is the
+  complement: token members only, identifiers and no attributes.
+- [`views/identity_claims.erb`](views/identity_claims.erb) renders the claims. The sign-in page
+  (`/`, claims from userinfo) and the decisions page (`/decisions`, claims from introspection) use
+  the same partial, so the output is the same regardless of which way the user arrived.
+- `GET /records` and `POST /records` return `claims` (from introspection, SSN redacted) alongside
+  the records. Each decision in the log also keeps the claims so `/decisions` can show what the API
+  learned about the user on that call.
+
+The resource server **never calls userinfo with a delegated token.** Userinfo is authenticated by
+nothing but the bearer token it receives, so Login.gov keeps delegated tokens out of it and puts the
+claims in the introspection response instead, which this resource server authenticates to with its
+own key (RFC 7523 client assertion). The specs assert that no request to `userinfo_endpoint` is ever
+made for a delegated token.
+
+**Identifiers only.** When the user's Login.gov session has ended, Login.gov still answers
+`active: true` while the token is valid, but releases only identifiers and email and adds
+`attributes: "identifiers_only"`. The `/records` response then carries `attributes: "identifiers_only"`
+and a `notice`, and the `/decisions` row is tagged `identifiers_only`, both saying why: the user's
+Login.gov session ended, and the service provider must send the user back through Login.gov to
+receive identity attributes again. The agency does not try to fill the gap from userinfo.
+
+Claims are cached with the introspection result: within `INTROSPECTION_CACHE_SECONDS` a second call
+with the same token reuses the `active: true` answer and its claims without asking Login.gov again.
 
 ### Routes
 
 | Route | Requires | Returns |
 |---|---|---|
-| `GET /records` | `token_exchange:records_read` | `{ records: [...], _introspection: {...} }` |
-| `POST /records` | `token_exchange:records_write` | 201 `{ record: {...}, _introspection: {...} }`; JSON or form body with `title`, `note` |
-| `GET /decisions` | — | Every authorization decision, newest first (also `/decisions.json`) |
+| `GET /records` | `token_exchange:records_read` | `{ records: [...], claims: {...}, _introspection: {...} }` (+ `attributes`, `notice` when identifiers only) |
+| `POST /records` | `token_exchange:records_write` | 201 `{ record: {...}, claims: {...}, _introspection: {...} }`; JSON or form body with `title`, `note` |
+| `GET /decisions` | — | Every authorization decision, newest first, with the user's claims from introspection (also `/decisions.json`) |
 | `GET /attempts-api` | — | Attempts events delivered to this agency; `?tab=delegated` groups them by `delegation_id` with the matching API decisions beneath |
 | `GET /api/health` | — | Includes `resource_identifier` and the discovered `introspection_endpoint` |
 
-`_introspection` echoes Login.gov's introspection response (identifiers only) so the service
-provider UI can show why a call was allowed or refused. **This is a demo affordance; a production
-API would not return it.**
+`claims` is the user as the agency knows them from the token: the identity claims Login.gov put in
+the introspection response, SSN redacted (see [Identity claims for delegated
+tokens](#identity-claims-for-delegated-tokens)). `_introspection` echoes the token members of the
+introspection response (identifiers only, no attributes) so the service provider UI can show why a
+call was allowed or refused. **`_introspection` is a demo affordance; a production API would not
+return it.**
 
 The `act` claim marks delegated access (RFC 8693 §4.1). This demo logs the actor with every decision
 and shows it in the UI; its example agency policy is the scope check itself: a service provider may
@@ -158,6 +205,9 @@ In `identity-idp`:
 - Cache `active: false`, or keep any token in plaintext (only SHA-256 digests are held).
 - Refresh or revoke tokens: those are the service provider's job. Revocation is observed here as
   `active: false` on the next introspection.
+- Call userinfo with a delegated token, or fall back to it when introspection says
+  `identifiers_only`. The claims come from introspection; when they are missing, the service
+  provider has to send the user back through Login.gov.
 - DPoP / sender-constrained tokens (Appendix C). Optional and not built.
 
 ## Contributing
