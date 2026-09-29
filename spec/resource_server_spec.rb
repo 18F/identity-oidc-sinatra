@@ -201,11 +201,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
     context 'when the token has no act claim' do
       before { stub_introspection(active_introspection.except(:act)) }
 
-      it 'returns 401 invalid_token' do
+      it 'is observed, not rejected: the call proceeds on scope alone' do
         get_records
 
-        expect(last_response.status).to eq 401
-        expect(decisions.first).to include('decision' => 'denied', 'reason' => 'missing_act')
+        expect(last_response.status).to eq 200
+        expect(decisions.first).to include('decision' => 'allowed', 'actor' => nil)
       end
     end
 

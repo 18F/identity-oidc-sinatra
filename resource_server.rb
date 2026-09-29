@@ -122,24 +122,28 @@ module LoginGov
         end
 
         # RFC 8693 §4.1 — `act` marks delegated access: `act.sub` is the service
-        # provider acting for the user. Login.gov puts it on every delegated
-        # token; because `sub` is per agency, `act` is the only way to tell a
-        # service provider's call from the user's own when both belong to the
-        # same agency. Treat its absence as a token this API does not
-        # understand. Agency policy for delegated callers is expressed through
-        # the scope check below: a service provider may write only if the user
-        # approved the write scope.
+        # provider acting for the user. Because `sub` is per agency, `act` is the
+        # only way to tell a service provider's call from the user's own when
+        # both belong to the same agency, so observe it on every call: log the
+        # actor with the decision and join it to Attempts events. Its absence
+        # is NOT a reason to reject: an API that also accepts non-delegated
+        # tokens has legitimate tokens without it. Login.gov's introspection
+        # endpoint answers only for delegated tokens, so here a missing `act`
+        # is merely logged as an anomaly. Agency policy for delegated callers
+        # is expressed through the scope check below: a service provider may
+        # write only if the user approved the write scope.
         actor = @introspection.dig('act', 'sub')
-        unless actor
-          log_decision(@introspection, route:, decision: 'denied', reason: 'missing_act',
-                                       required_scope:)
-          halt 401, www_authenticate('Bearer', error: 'invalid_token'),
-               json_error_response('invalid_token', 'The token does not carry an act claim.')
+        if actor
+          settings.logger.info(
+            "delegated access: actor=#{actor} sub=#{@introspection['sub']} " \
+            "delegation_id=#{@introspection['delegation_id']} route=#{route}",
+          )
+        else
+          settings.logger.warn(
+            "introspection returned an active token without act (not delegated?) " \
+            "sub=#{@introspection['sub']} route=#{route}",
+          )
         end
-        settings.logger.info(
-          "delegated access: actor=#{actor} sub=#{@introspection['sub']} " \
-          "delegation_id=#{@introspection['delegation_id']} route=#{route}",
-        )
 
         # Login.gov decided which API the token is for; the agency decides which
         # endpoint each scope reaches. Scope values are compared as full strings

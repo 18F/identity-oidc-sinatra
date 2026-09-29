@@ -29,7 +29,7 @@ Service provider ──► GET /records, Authorization: Bearer <delegated token>
        │   Login.gov ──► {active:true, aud, scope, sub, act:{sub}, client_id, acr, iat, exp, delegation_id}
        │                 or {active:false}
        │
-       ├─ not active / aud != RESOURCE_IDENTIFIER / no act ──► 401 WWW-Authenticate: Bearer error="invalid_token"
+       ├─ not active / aud != RESOURCE_IDENTIFIER ──► 401 WWW-Authenticate: Bearer error="invalid_token"
        ├─ scope lacks the route's value ──────────────────────► 403 error="insufficient_scope"
        ├─ Login.gov unreachable, error, or no introspection_endpoint in discovery ──► 503 (fail closed)
        └─ otherwise ──► 200, log decision {sub, act.sub, delegation_id, scope, route, decision}
@@ -71,7 +71,10 @@ API would not return it.**
 
 The `act` claim marks delegated access (RFC 8693 §4.1). This demo logs the actor with every decision
 and shows it in the UI; its example agency policy is the scope check itself: a service provider may
-`POST` only if the user approved `records_write`. Login.gov decides which *API* a token is for
+`POST` only if the user approved `records_write`. A token *without* `act` is not rejected for that
+reason alone: an agency API that also accepts non-delegated tokens has legitimate tokens without it,
+and the scope check still governs what the call may do. Login.gov's introspection endpoint only ever
+answers for delegated tokens, so this app logs a missing `act` as an anomaly. Login.gov decides which *API* a token is for
 (`aud`); the agency decides which *endpoints* each scope reaches.
 
 ## Running locally
