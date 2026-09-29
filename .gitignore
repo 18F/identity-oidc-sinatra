@@ -14,3 +14,8 @@ public/api/deploy.json
 public/vendor
 node_modules
 .idea
+
+# Locally generated key material (make rs_keypair); never commit certs or keys.
+config/*.key
+config/*.crt
+config/*.pem

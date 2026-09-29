@@ -123,11 +123,17 @@ Pointing at the sandbox instead of a local IdP is a matter of changing `idp_url`
 
 The agency uses **one key pair** for direct sign-in, introspection and Attempts decryption:
 `config/rs_demo.key` / `config/rs_demo.crt` (RSA 2048, self-signed, `CN=records-api.agency.localdev`,
-10-year validity). Regenerate it with `make rs_keypair`; print the PEM with `make rs_cert`.
+10-year validity). **The key pair is not committed** (`config/*.key`, `config/*.crt` and
+`config/*.pem` are git-ignored). `make setup`, `make test`, `rake login:rs_keypair` and the spec
+helper generate it when it is missing; `make rs_keypair` regenerates it on demand; `make rs_cert`
+prints the certificate PEM. Every developer therefore has their own pair and must copy their own
+certificate to the IdP.
 
 In `identity-idp`:
 
-1. Copy `config/rs_demo.crt` to `certs/sp/rs_records_demo.crt`.
+1. Copy `config/rs_demo.crt` to `certs/sp/rs_records_demo.crt` (`make rs_cert` prints it). The IdP
+   repository ignores that file too, so this is a per-checkout step, not a commit. Whenever you run
+   `make rs_keypair`, copy the new certificate again.
 2. In `config/service_providers.localdev.yml`, add the agency SP
    `urn:gov:gsa:openidconnect:sp:records_agency` (friendly name "Records Agency", `agency_id: 2`, IAL2,
    `token_exchange_target: true`, `attribute_bundle: [email]`, redirect URIs `http://localhost:9393/`,

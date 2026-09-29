@@ -22,7 +22,11 @@ install_dependencies:
 copy_vendor: public/vendor
 	cp -R node_modules/@18f/identity-design-system/dist public/vendor/identity-design-system
 
-setup: .env install_dependencies copy_vendor
+# Local key material; generated, never committed.
+config/rs_demo.key config/rs_demo.crt:
+	$(MAKE) --no-print-directory rs_keypair
+
+setup: .env install_dependencies copy_vendor config/rs_demo.key
 
 check: lint test
 
@@ -35,14 +39,15 @@ lint:
 run:
 	bundle exec rackup -p $(PORT) --host ${HOST}
 
-test: $(CONFIG)
+test: $(CONFIG) config/rs_demo.key
 	bundle exec rspec
 	npm run test
 
-# Regenerate the resource server key pair (RSA 2048, self-signed, 10 years).
-# The same key pair is used for the agency's direct OIDC sign-in, for
-# RFC 7523 introspection assertions and for Attempts API decryption.
-# Copy the printed certificate into identity-idp as certs/sp/rs_records_demo.crt.
+# Generate (or regenerate) the resource server key pair (RSA 2048, self-signed,
+# 10 years). The same key pair is used for the agency's direct OIDC sign-in, for
+# RFC 7523 introspection assertions and for Attempts API decryption. It is
+# git-ignored; copy the printed certificate into identity-idp yourself as
+# certs/sp/rs_records_demo.crt (ignored there as well).
 rs_keypair:
 	openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
 		-subj "/CN=records-api.agency.localdev" \

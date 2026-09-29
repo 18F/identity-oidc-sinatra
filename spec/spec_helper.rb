@@ -5,6 +5,11 @@ require 'webmock/rspec'
 
 ENV['RACK_ENV'] = 'test'
 
+# The resource server key pair is local key material and is not committed;
+# generate it so a fresh clone and CI can run the specs.
+require_relative '../rs_keypair'
+LoginGov::OidcSinatra::RsKeypair.ensure!
+
 SimpleCov.start do
   add_filter '/spec'
 end
