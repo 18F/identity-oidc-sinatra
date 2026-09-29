@@ -1,0 +1,56 @@
+<a class="usa-skipnav" href="#main-content">Skip to main content</a>
+ <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
+  <p>TEST Do not use real personal information (demo purposes only) TEST</p>
+</div>
+<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs text-center">
+  <img class="width-2" aria-hidden="true" src="vendor/identity-design-system/assets/img/us_flag_small.png" alt="U.S. flag">
+  A DEMO website of the United States government
+</div>
+<%== erb :header, locals: { user_email: nil } %>
+<main id="main-content">
+  <div class="grid-container">
+    <h1>Records API decisions</h1>
+    <p class="usa-intro">
+      Every authorization decision this resource server made for a delegated access token,
+      newest first. <code>actor</code> is the service provider acting for the user
+      (<code>act.sub</code>); <code>delegation_id</code> joins each call to the Attempts API events
+      Login.gov delivered to this agency (see <a href="/attempts-api?tab=delegated">Delegated sessions</a>).
+    </p>
+    <% if decisions.empty? %>
+      <p>No decisions yet. Present a delegated token to <code>GET /records</code> or <code>POST /records</code>.</p>
+    <% else %>
+      <table class="usa-table usa-table--striped usa-table--compact width-full">
+        <thead>
+          <tr>
+            <th scope="col">Time (UTC)</th>
+            <th scope="col">Route</th>
+            <th scope="col">Decision</th>
+            <th scope="col">Required scope</th>
+            <th scope="col">Token scope</th>
+            <th scope="col">sub</th>
+            <th scope="col">actor (act.sub)</th>
+            <th scope="col">delegation_id</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% decisions.each do |d| %>
+            <tr>
+              <td><%= d['time'] %></td>
+              <td><code><%= d['route'] %></code></td>
+              <td>
+                <% tag = d['decision'] == 'allowed' ? 'bg-success' : (d['decision'] == 'unavailable' ? 'bg-warning' : 'bg-error') %>
+                <span class="usa-tag <%= tag %>"><%= d['decision'] %></span>
+                <% if d['reason'] %><br><code><%= d['reason'] %></code><% end %>
+              </td>
+              <td><code><%= d['required_scope'] %></code></td>
+              <td><code><%= d['scope'] %></code></td>
+              <td style="overflow-wrap: anywhere;"><code><%= d['sub'] %></code></td>
+              <td style="overflow-wrap: anywhere;"><code><%= d['actor'] %></code></td>
+              <td style="overflow-wrap: anywhere;"><code><%= d['delegation_id'] %></code></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</main>

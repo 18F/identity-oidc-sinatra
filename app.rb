@@ -22,6 +22,8 @@ end
 require_relative './config'
 require_relative './openid_configuration'
 require_relative './attempts_configuration'
+require_relative './resource_server'
+require_relative './demo_records'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -57,12 +59,17 @@ module LoginGov::OidcSinatra
     end
 
     enable :sessions
-    use Rack::Protection
-    use Rack::Protection::AuthenticityToken
+    # The resource server routes authenticate with a bearer token (RFC 6750)
+    # and carry no session cookie, so browser CSRF protections do not apply.
+    API_REQUEST = ->(env) { env['PATH_INFO'].to_s.start_with?('/records') }
+    use Rack::Protection, allow_if: API_REQUEST
+    use Rack::Protection::AuthenticityToken, allow_if: API_REQUEST
 
     configure :development do
       require 'byebug'
     end
+
+    helpers ResourceServer
 
     # rubocop:disable Metrics/BlockLength
     helpers do
@@ -346,6 +353,41 @@ module LoginGov::OidcSinatra
       }
     end
 
+    # ---------------------------------------------------------------------
+    # Resource server routes (§14.4). Both require a delegated access token
+    # obtained by a service provider through RFC 8693 token exchange, presented
+    # per RFC 6750 §2.1. Scope decides which endpoint the token may reach.
+    # ---------------------------------------------------------------------
+
+    # Requires token_exchange:records_read (access_type read).
+    get '/records' do
+      authorize!('token_exchange:records_read')
+
+      json_response(
+        records: DemoRecords.instance.for_sub(@introspection['sub']),
+        _introspection: @introspection,
+      )
+    end
+
+    # Requires token_exchange:records_write (access_type read_write). A service
+    # provider whose user approved only records_read gets 403 here.
+    post '/records' do
+      authorize!('token_exchange:records_write')
+
+      record = DemoRecords.instance.create(@introspection['sub'], record_attributes)
+      status 201
+      json_response(record: record, _introspection: @introspection)
+    end
+
+    # Every authorization decision, newest first (REF-IMPL-2).
+    get '/decisions' do
+      erb :decisions, locals: { decisions: DecisionLog.instance.entries }
+    end
+
+    get '/decisions.json' do
+      json_response(decisions: DecisionLog.instance.entries)
+    end
+
     post '/ack-events' do
       ack = params[:jtis].split(',')
       attempts_events(ack:)
@@ -354,6 +396,28 @@ module LoginGov::OidcSinatra
     end
 
     private
+
+    # Demo affordance (§14.4): API responses echo the introspection result under
+    # `_introspection` so the service provider UI can show why a call was
+    # allowed. It contains only identifiers. A production API would omit it.
+    def json_response(payload)
+      content_type :json
+      JSON.pretty_generate(payload)
+    end
+
+    # POST /records accepts a JSON object or form fields (title, note).
+    def record_attributes
+      if request.media_type == 'application/json'
+        body = JSON.parse(request.body.read.to_s.then { |b| b.empty? ? '{}' : b })
+        halt 400, json_error_response('invalid_request', 'Body must be a JSON object.') unless
+          body.is_a?(Hash)
+        body
+      else
+        params.slice('title', 'note')
+      end
+    rescue JSON::ParserError
+      halt 400, json_error_response('invalid_request', 'Body is not valid JSON.')
+    end
 
     def render_error(error_type, error=nil)
       session[:error] = error.to_s || 'Unknown error occurred'
