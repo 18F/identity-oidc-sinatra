@@ -28,24 +28,53 @@ require_relative './demo_records'
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
   ALLOWED_PLAINTEXT_KEYS = %w[
+    aal
+    actor_issuer
     application_url
     aws_region
     client_port
     client_user_agent
+    delegation_id
     email_already_registered
     failure_reason
+    ial
     language
     mfa_device_type
     occurred_at
     otp_delivery_method
     rate_limit_type
+    reason
     reauthentication
+    remembered
     reproof
     resend
+    resource
+    resources
+    scopes
     success
+    token_format
     unique_session_id
     user_agent
   ]
+
+  # §8 — event types Login.gov delivers to a target agency for delegated access,
+  # in addition to the re-mapped sign-in events (which carry `delegation_id`).
+  DELEGATION_EVENT_TYPES = {
+    'delegated-access-consented' =>
+      'The user approved letting a service provider (actor_issuer) act for them at ' \
+      'this agency\'s API(s) (scopes, resources). remembered: true means a remembered ' \
+      'grant was reused without a new consent screen.',
+    'delegated-access-token-issued' =>
+      'The service provider exchanged its token for a delegated token bound to ' \
+      'one resource (resource, scopes, ial, aal, token_format).',
+    'delegated-access-token-refreshed' =>
+      'The service provider refreshed the delegated token family; no new consent, ' \
+      'no new billing row.',
+    'delegated-access-revoked' =>
+      'The grant or token family was revoked (reason: user revocation, ' \
+      'refresh_token_reuse, account suspension, ...). Introspection now returns ' \
+      'active: false for every token in the family.',
+  }.freeze
 
   class AppError < StandardError; end
 
@@ -149,6 +178,11 @@ module LoginGov::OidcSinatra
         "<input type='hidden' name='authenticity_token' value='#{session[:csrf]}' />"
       end
 
+      # Poll the Attempts API in the agency role (§8.5, REF-IMPL-3).
+      # Authorization is "Bearer <agency issuer> <shared secret>"; each event is
+      # a JWE encrypted to the agency's SP certificate, so it is decrypted with
+      # the same private key this app signs with (config/rs_demo.key). Events
+      # arrive as a JWT (ES256) when the IdP signs them, otherwise as plain JSON.
       def attempts_events(ack: nil)
         auth = "Bearer #{client_id} #{config.attempts_shared_secret}"
 
@@ -165,27 +199,71 @@ module LoginGov::OidcSinatra
 
         response = connection.post
         if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
-          # rubocop:disable Layout/LineLength
           settings.logger.info("got !200 trying to query #{config.attempts_url} ")
-          # rubocop:enable Layout/LineLength
         end
         raise AppError.new(response.body) if response.status != 200
 
-        sets = JSON.parse(connection.post.body)['sets']
+        sets = JSON.parse(response.body)['sets'] || {}
 
         sets.values.map do |jwe|
-          jwe = JWE.decrypt(jwe, config.sp_private_key)
+          decrypted = JWE.decrypt(jwe, config.attempts_private_key)
           if config.signed_events?
-            jwe = JWT.decode(
-              jwe,
+            JWT.decode(
+              decrypted,
               attempts_public_key,
               true,
               { algorithm: 'ES256' },
             ).first
+          else
+            JSON.parse(decrypted)
           end
-
-          jwe
         end
+      end
+
+      # "login-completed" from "https://schemas.login.gov/secevent/attempts-api/event-type/login-completed"
+      def event_type(event)
+        event['events'].keys.first.split('/').last
+      end
+
+      def event_property(event, key)
+        event['events'].values.first&.[](key)
+      end
+
+      # §8.5 — any event carrying delegation_id or actor_issuer belongs to a
+      # delegated session; its subject.session_id is the service provider's,
+      # not one this agency started.
+      def delegated_event?(event)
+        !event_property(event, 'delegation_id').nil? ||
+          !event_property(event, 'actor_issuer').nil?
+      end
+
+      # §8.5 — the join agencies implement: group Attempts events by
+      # delegation_id and attach this API's decisions (from log_decision, keyed
+      # by introspection's delegation_id, ATT-9/INT-4) with the same value.
+      # Sessions that so far have only API decisions and no events are included
+      # so a call is never invisible.
+      # @return [Array<Hash>] newest activity first
+      def delegated_sessions(events)
+        by_id = events.group_by { |e| event_property(e, 'delegation_id') }
+        by_id.delete(nil)
+
+        decision_ids = DecisionLog.instance.entries.filter_map { |d| d['delegation_id'] }.uniq
+        (by_id.keys | decision_ids).map do |delegation_id|
+          session_events = (by_id[delegation_id] || []).sort_by { |e| e['iat'].to_i }
+          decisions = DecisionLog.instance.for_delegation(delegation_id)
+          actor_issuer = session_events.filter_map { |e| event_property(e, 'actor_issuer') }.first
+          actor_issuer ||= decisions.filter_map { |d| d['actor'] }.first
+          {
+            delegation_id:,
+            actor_issuer:,
+            events: session_events,
+            decisions:,
+            last_activity: [
+              session_events.map { |e| e['iat'].to_i }.max || 0,
+              decisions.map { |d| Time.parse(d['time']).to_i }.max || 0,
+            ].max,
+          }
+        end.sort_by { |s| -s[:last_activity] }
       end
 
       def event_data(event)
@@ -347,10 +425,20 @@ module LoginGov::OidcSinatra
 
     end
 
+    # Agency-role Attempts API viewer. ?tab=events lists every event;
+    # ?tab=delegated groups them by delegation_id with this API's decisions.
     get '/attempts-api' do
+      events = attempts_events
+      tab = params[:tab] == 'delegated' ? 'delegated' : 'events'
       erb :attempts, locals: {
-        attempts_events: attempts_events,
+        attempts_events: events,
+        tab:,
+        delegated_sessions: tab == 'delegated' ? delegated_sessions(events) : [],
       }
+    rescue AppError => e
+      render_error('Attempts API', e.message)
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
     end
 
     # ---------------------------------------------------------------------

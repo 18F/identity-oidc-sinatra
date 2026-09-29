@@ -1,0 +1,83 @@
+<section aria-label="Delegated sessions">
+  <% if delegated_sessions.empty? %>
+    <p>No delegated sessions yet. A session appears here once Login.gov delivers an event with a
+      <code>delegation_id</code>, or once this API makes a decision for a delegated token.</p>
+  <% end %>
+  <% delegated_sessions.each do |session| %>
+    <div class="usa-summary-box margin-bottom-3" role="region" aria-labelledby="session-<%= session[:delegation_id] %>">
+      <div class="usa-summary-box__body">
+        <h2 class="usa-summary-box__heading" id="session-<%= session[:delegation_id] %>">
+          delegation_id <code style="overflow-wrap: anywhere;"><%= session[:delegation_id] %></code>
+        </h2>
+        <div class="usa-summary-box__text">
+          <p>
+            Service provider (actor): <code><%= session[:actor_issuer] || 'unknown' %></code>
+            &middot; <%= session[:events].length %> event(s)
+            &middot; <%= session[:decisions].length %> API decision(s)
+          </p>
+
+          <h3 class="font-heading-sm">Login.gov events</h3>
+          <% if session[:events].empty? %>
+            <p>No Attempts events received (yet) for this delegation_id; only API decisions below.</p>
+          <% else %>
+            <table class="usa-table usa-table--compact usa-table--striped width-full">
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Event data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% session[:events].each do |event| %>
+                  <% type = event_type(event) %>
+                  <tr>
+                    <td><%= Time.at(event['iat'].to_i).utc %></td>
+                    <td>
+                      <code><%= type %></code>
+                      <% if LoginGov::OidcSinatra::DELEGATION_EVENT_TYPES.key?(type) %>
+                        <br><span class="usa-tag">delegation</span>
+                        <p class="font-body-3xs margin-y-05"><%= LoginGov::OidcSinatra::DELEGATION_EVENT_TYPES[type] %></p>
+                      <% end %>
+                    </td>
+                    <td style="max-width: 480px; overflow-wrap: anywhere;">
+                      <pre class="font-mono-2xs margin-0"><%= JSON.pretty_generate(event_data(event['events'].values)) %></pre>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% end %>
+
+          <h3 class="font-heading-sm">Records API decisions with this delegation_id</h3>
+          <% if session[:decisions].empty? %>
+            <p>No API calls yet.</p>
+          <% else %>
+            <table class="usa-table usa-table--compact usa-table--striped width-full">
+              <thead>
+                <tr>
+                  <th scope="col">Time (UTC)</th>
+                  <th scope="col">Route</th>
+                  <th scope="col">Decision</th>
+                  <th scope="col">Token scope</th>
+                  <th scope="col">sub</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% session[:decisions].each do |d| %>
+                  <tr>
+                    <td><%= d['time'] %></td>
+                    <td><code><%= d['route'] %></code></td>
+                    <td><%= d['decision'] %><% if d['reason'] %> (<code><%= d['reason'] %></code>)<% end %></td>
+                    <td><code><%= d['scope'] %></code></td>
+                    <td style="overflow-wrap: anywhere;"><code><%= d['sub'] %></code></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</section>

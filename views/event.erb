@@ -1,7 +1,11 @@
 
 <tr>
   <td>
-    <%= event_data.keys.first.split('/').last %>
+    <% type = event_data.keys.first.split('/').last %>
+    <code><%= type %></code>
+    <% if LoginGov::OidcSinatra::DELEGATION_EVENT_TYPES.key?(type) || event_data.values.first&.key?('delegation_id') %>
+      <br><span class="usa-tag" title="Part of a delegated session (has delegation_id or actor_issuer)">delegated</span>
+    <% end %>
   </td>
   <td>
     <%= jwe_data['jti']%>

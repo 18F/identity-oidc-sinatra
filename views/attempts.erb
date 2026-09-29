@@ -13,38 +13,59 @@
 
       <div class="usa-overlay"></div>
       <div class="grid-container padding-0">
-        <h1> Attempt events </h1>
-        <form action="/ack-events" method="post">
-          <input type="hidden" name="jtis" value="<%= attempts_events.map {|events| events['jti'] }.join(',') %>">
-          <button type="submit" class="usa-button usa-button--secondary">
-            <%== csrf_tag %>
-            <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-              <use xlink:href="/vendor/identity-design-system/img/sprite.svg#delete"></use>
-            </svg>
-            Delete all events
-          </button>
-        </form>
-        <div class="grid-row">
-          <table class="usa-table usa-table--striped grid-col-fill">
-            <thead>
-              <tr>
-                <th scope="col">Type</th>
-                <th scope="col">JTI</th>
-                <th scope="col">Issued At</th>
-                <th scope="col">Event data</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% attempts_events.sort_by {|e| e['iat'] }.each do |attempt_event| %>
-                <%== erb :event, locals: {
-                  event_data: attempt_event['events'],
-                  jwe_data: attempt_event.except('events'),
-                  } 
-                %>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+        <h1>Attempts API (agency role)</h1>
+        <p class="usa-intro">
+          Events Login.gov delivered to <code><%= client_id %></code>. Delegated sessions carry a
+          <code>delegation_id</code>; introspection returns the same value, which is how this API joins
+          its decisions to the user's sign-in and consent events (§8.5).
+        </p>
+
+        <nav aria-label="Attempts views" class="margin-bottom-2">
+          <ul class="usa-button-group usa-button-group--segmented">
+            <li class="usa-button-group__item">
+              <a class="usa-button <%= 'usa-button--outline' unless tab == 'events' %>" href="/attempts-api?tab=events" <%= 'aria-current="page"' if tab == 'events' %>>All events (<%= attempts_events.length %>)</a>
+            </li>
+            <li class="usa-button-group__item">
+              <a class="usa-button <%= 'usa-button--outline' unless tab == 'delegated' %>" href="/attempts-api?tab=delegated" <%= 'aria-current="page"' if tab == 'delegated' %>>Delegated sessions (<%= attempts_events.count { |e| delegated_event?(e) } %> events)</a>
+            </li>
+          </ul>
+        </nav>
+
+        <% if tab == 'delegated' %>
+          <%== erb :delegated_sessions, locals: { delegated_sessions: } %>
+        <% else %>
+          <form action="/ack-events" method="post">
+            <input type="hidden" name="jtis" value="<%= attempts_events.map {|events| events['jti'] }.join(',') %>">
+            <button type="submit" class="usa-button usa-button--secondary">
+              <%== csrf_tag %>
+              <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                <use xlink:href="/vendor/identity-design-system/img/sprite.svg#delete"></use>
+              </svg>
+              Delete all events
+            </button>
+          </form>
+          <div class="grid-row">
+            <table class="usa-table usa-table--striped grid-col-fill">
+              <thead>
+                <tr>
+                  <th scope="col">Type</th>
+                  <th scope="col">JTI</th>
+                  <th scope="col">Issued At</th>
+                  <th scope="col">Event data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% attempts_events.sort_by {|e| e['iat'] }.each do |attempt_event| %>
+                  <%== erb :event, locals: {
+                    event_data: attempt_event['events'],
+                    jwe_data: attempt_event.except('events'),
+                    }
+                  %>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
       </div>
     </div>
   </div>

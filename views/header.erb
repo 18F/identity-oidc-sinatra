@@ -3,10 +3,17 @@
     <div class="usa-navbar">
       <div class="usa-logo" id="extended-logo">
         <em class="usa-logo__text">
-          <a href="/" title="Home" aria-label="Home">OpenID Connect Sinatra Example</a>
+          <a href="/" title="Home" aria-label="Home">Records Agency (OIDC resource server demo)</a>
         </em>
       </div>
     </div>
+    <nav aria-label="Demo pages" class="margin-left-2">
+      <ul class="usa-nav__primary usa-accordion">
+        <li class="usa-nav__primary-item"><a class="usa-nav-link" href="/decisions">API decisions</a></li>
+        <li class="usa-nav__primary-item"><a class="usa-nav-link" href="/attempts-api">Attempts API</a></li>
+        <li class="usa-nav__primary-item"><a class="usa-nav-link" href="/attempts-api?tab=delegated">Delegated sessions</a></li>
+      </ul>
+    </nav>
     <nav class="usa-nav">
       <section aria-label="Logged in information">
         <div class="display-flex flex-row">
