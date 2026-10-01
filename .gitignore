@@ -14,3 +14,7 @@ public/api/deploy.json
 public/vendor
 node_modules
 .idea
+
+# Local load-test configuration (copy config/loadtest.example.yml)
+/loadtest.yml
+/config/loadtest.yml
