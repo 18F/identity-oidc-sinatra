@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'csv'
+require 'fileutils'
 require 'json'
 require 'time'
 
@@ -58,6 +59,7 @@ module LoginGov
         # Per-step timings ride along in a single packed column to keep the row
         # grain at one-per-run.
         def write_csv(path)
+          FileUtils.mkdir_p(File.dirname(path))
           CSV.open(path, 'w') do |csv|
             csv << CSV_HEADERS
             @runs.each do |run|
@@ -78,6 +80,7 @@ module LoginGov
         end
 
         def write_json(path)
+          FileUtils.mkdir_p(File.dirname(path))
           File.write(path, JSON.pretty_generate(to_h))
         end
 

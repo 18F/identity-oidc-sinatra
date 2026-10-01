@@ -74,13 +74,18 @@ RSpec.describe 'load test flows' do
 
     def respond(method, url, params)
       @requests << Recorded.new(method: method, url: url, params: params)
-      body = route_for(method, url, params)
+      response = route_for(method, url, params)
 
-      if body.is_a?(Array) && body.first == :redirect
-        return build(302, '', url, 'location' => body.last)
+      if response.is_a?(Array)
+        if response.first == :redirect
+          return build(302, '', url, 'location' => response.last)
+        else
+          status, body = response
+          return build(status, body, url)
+        end
       end
 
-      build(200, body, url)
+      build(200, response, url)
     end
 
     # Longest match wins, so a specific path like "/login/two_factor" is not
@@ -175,6 +180,14 @@ RSpec.describe 'load test flows' do
       expect(http.urls.first).to include('ial=1')
     end
 
+    it 'sends scopes with the bracket-suffixed key for Rack array parsing' do
+      _flow, http = run_flow(described_class, routes)
+
+      first_url = http.urls.first
+      expect(first_url).to include('requested_scopes%5B%5D=')
+      expect(first_url).not_to match(/[?&]requested_scopes=/)
+    end
+
     it 'submits the credentials with the per-form token scraped from the page' do
       # Rails uses per-form CSRF tokens, so the token must come from the form
       # being submitted rather than from any earlier page.
@@ -237,6 +250,14 @@ RSpec.describe 'load test flows' do
       _flow, http = run_flow(described_class, routes)
 
       expect(http.urls.first).to include('ial=2')
+    end
+
+    it 'sends scopes with the bracket-suffixed key' do
+      _flow, http = run_flow(described_class, routes)
+
+      first_url = http.urls.first
+      expect(first_url).to include('requested_scopes%5B%5D=')
+      expect(first_url).not_to match(/[?&]requested_scopes=/)
     end
 
     it 'otherwise follows the same authentication steps as auth_only' do
@@ -487,6 +508,12 @@ RSpec.describe 'load test flows' do
       expect(run_signup.urls.first).to include('initiate_registration=1')
     end
 
+    it 'sends scopes with the bracket-suffixed key' do
+      first_url = run_signup.urls.first
+      expect(first_url).to include('requested_scopes%5B%5D=')
+      expect(first_url).not_to match(/[?&]requested_scopes=/)
+    end
+
     it 'accepts the terms of service, which registration requires' do
       expect(run_signup.request_with_param('user[email]').params).
         to include('user[terms_accepted]' => '1')
@@ -576,5 +603,22 @@ RSpec.describe 'load test flows' do
     flow, http = build_flow(flow_class, routes)
     flow.run(user: user)
     [flow, http]
+  end
+
+  describe 'error handling' do
+    it 'raises a clear error when the RP returns a 500' do
+      error_routes = {
+        'localhost:9292/auth/request' => lambda do |_method, _params|
+          [500, 'Internal Server Error']
+        end,
+      }
+
+      flow, = build_flow(LoginGov::OidcSinatra::Loadtest::Flows::AuthOnly, error_routes)
+
+      expect { flow.run(user: sign_in_user) }.to raise_error(
+        LoginGov::OidcSinatra::Loadtest::Error,
+        /RP returned 500 for \/auth\/request/,
+      )
+    end
   end
 end

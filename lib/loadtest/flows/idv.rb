@@ -31,8 +31,8 @@ module LoginGov
             response = step('rp_auth_request') do
               begin_at_rp(
                 ial: '2',
-                requested_scopes: %w[
-                  openid email profile social_security_number phone address x509
+                'requested_scopes[]' => %w[
+                  email profile social_security_number phone address x509
                 ],
               )
             end

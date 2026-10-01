@@ -157,6 +157,21 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Report do
       end
     end
 
+    it 'creates missing parent directories' do
+      report = described_class.new(
+        results: results_for(ok_runs),
+        wall_clock_seconds: 2.0,
+        config: config,
+      )
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'nested', 'runs.csv')
+        report.write_csv(path)
+
+        expect(File.exist?(path)).to be(true)
+      end
+    end
+
     it 'packs per-step timings into the run row' do
       report = described_class.new(
         results: results_for(ok_runs),
@@ -188,7 +203,23 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Report do
         path = File.join(dir, 'summary.json')
         report.write_json(path)
 
-        expect(JSON.parse(File.read(path)).fetch('totals')).to include('ok' => 2)
+        summary = JSON.parse(File.read(path))
+        expect(summary.fetch('totals')).to eq('runs' => 2, 'ok' => 2, 'failed' => 0)
+      end
+    end
+
+    it 'creates missing parent directories' do
+      report = described_class.new(
+        results: results_for(ok_runs),
+        wall_clock_seconds: 2.0,
+        config: config,
+      )
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'nested', 'summary.json')
+        report.write_json(path)
+
+        expect(File.exist?(path)).to be(true)
       end
     end
   end

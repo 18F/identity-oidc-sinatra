@@ -94,6 +94,14 @@ module LoginGov
           def begin_at_rp(params)
             query = URI.encode_www_form(params)
             response = http.get("#{config.rp_url}/auth/request?#{query}")
+
+            if response.status >= 400
+              detail = "RP returned #{response.status} for /auth/request?#{query}"
+              error_msg = Page.error_text(response.body)
+              detail += " (#{error_msg})" if error_msg
+              raise Error.new(detail)
+            end
+
             http.follow_redirects(response).last
           end
 

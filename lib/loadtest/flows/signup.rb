@@ -29,7 +29,7 @@ module LoginGov
             response = step('rp_auth_request') do
               begin_at_rp(
                 initiate_registration: '1',
-                requested_scopes: %w[openid email x509],
+                'requested_scopes[]' => %w[email x509],
               )
             end
             response = step('submit_email') { submit_email(response, user.fetch(:email)) }
