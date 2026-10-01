@@ -34,6 +34,7 @@ group :test do
 end
 
 group :development, :test do
+  gem 'csv'
   gem 'byebug'
   gem 'rubocop', require: false
   gem 'rubocop-rspec', require: false
