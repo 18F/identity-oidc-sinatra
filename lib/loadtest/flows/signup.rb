@@ -26,7 +26,12 @@ module LoginGov
           end
 
           def run(user:)
-            response = step('rp_auth_request') { begin_at_rp(initiate_registration: '1') }
+            response = step('rp_auth_request') do
+              begin_at_rp(
+                initiate_registration: '1',
+                requested_scopes: %w[openid email x509],
+              )
+            end
             response = step('submit_email') { submit_email(response, user.fetch(:email)) }
             response = step('confirm_email') { confirm_email(response) }
             response = step('create_password') do

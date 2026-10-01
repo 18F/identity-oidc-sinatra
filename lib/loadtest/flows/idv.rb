@@ -28,7 +28,14 @@ module LoginGov
           end
 
           def run(user:)
-            response = step('rp_auth_request') { begin_at_rp(ial: '2') }
+            response = step('rp_auth_request') do
+              begin_at_rp(
+                ial: '2',
+                requested_scopes: %w[
+                  openid email profile social_security_number phone address x509
+                ],
+              )
+            end
             response = sign_in(response, email: user.fetch(:email), password: user.fetch(:password))
             finish_at_rp(response)
           end
