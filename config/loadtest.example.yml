@@ -6,8 +6,8 @@
 # Read the "Load testing" section of README.md first: the harness depends on
 # specific IdP settings and on users seeded by `rake dev:random_users`.
 
-idp_url: http://localhost:3000
-rp_url: http://localhost:9292
+idp_url: https://idp.evelyn.identitysandbox.gov/
+rp_url: https://data-identity-oidc-sinatra.app.cloud.gov/
 
 # Concurrent virtual users. Each run gets its own cookie jar, so a VU is
 # equivalent to one browser session at a time.
@@ -29,7 +29,7 @@ json: ~
 flows:
   # Authentication-only sign-in (IAL1): password + prefilled SMS OTP.
   auth_only:
-    runs: 20
+    runs: 1
     # Users seeded by: rake dev:random_users
     #
     # IMPORTANT: auth_only and idv must use NON-OVERLAPPING index ranges. An idv
@@ -45,7 +45,7 @@ flows:
   # profile. Does not drive the proofing wizard; it measures the steady-state
   # cost of a verified sign-in, including PII decryption.
   idv:
-    runs: 10
+    runs: 0
     # Users seeded by: rake dev:random_users VERIFIED=1
     user_index_start: 0
     user_pool_size: 10
@@ -59,7 +59,7 @@ flows:
   # Each run creates a new IdP user. Emails are synthetic and no mail is sent,
   # but the rows persist in the development database after the run.
   signup:
-    runs: 5
+    runs: 0
     email_prefix: loadtest
     # Must satisfy the IdP password rules: 12-128 characters and a zxcvbn
     # strength score of at least 3.
