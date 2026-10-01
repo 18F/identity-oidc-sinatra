@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Minimal load-test harness. Drives simulated users through login.gov IdP flows
+# starting from this Sinatra relying party.
+#
+# See the "Load testing" section of README.md for the IdP configuration and user
+# seeding this requires.
+
+require_relative '../lib/loadtest/cli'
+
+exit(LoginGov::OidcSinatra::Loadtest::CLI.new(argv: ARGV).run)

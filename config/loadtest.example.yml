@@ -1,0 +1,67 @@
+# Example configuration for bin/loadtest.
+#
+# Copy to loadtest.yml (gitignored) and edit, or pass with --config.
+# Precedence: CLI flags > LOADTEST_* env vars > this file > built-in defaults.
+#
+# Read the "Load testing" section of README.md first: the harness depends on
+# specific IdP settings and on users seeded by `rake dev:random_users`.
+
+idp_url: http://localhost:3000
+rp_url: http://localhost:9292
+
+# Concurrent virtual users. Each run gets its own cookie jar, so a VU is
+# equivalent to one browser session at a time.
+vus: 4
+
+# Stagger VU start times over this many seconds, so the run measures steady
+# state rather than a thundering herd at t=0.
+ramp_seconds: 2
+
+# Per-request socket timeout.
+timeout_seconds: 30
+
+# Outputs. csv is one row per run; json is the aggregated summary.
+csv: tmp/loadtest_runs.csv
+json: ~
+
+# How many iterations to execute per flow type. Set a flow to 0 to skip it.
+# Flows are interleaved, so a mixed configuration generates mixed traffic.
+flows:
+  # Authentication-only sign-in (IAL1): password + prefilled SMS OTP.
+  auth_only:
+    runs: 20
+    # Users seeded by: rake dev:random_users
+    #
+    # IMPORTANT: auth_only and idv must use NON-OVERLAPPING index ranges. An idv
+    # run handed an unproofed user would be diverted into identity verification,
+    # and the harness refuses to start if the ranges overlap. Seed the verified
+    # users first (indices 0..N-1), then seed the plain users at an offset.
+    user_index_start: 1000
+    user_pool_size: 20
+    email_format: testuser%d@example.com
+    password: salty pickles
+
+  # Identity-verified sign-in (IAL2) against users with an existing proofed
+  # profile. Does not drive the proofing wizard; it measures the steady-state
+  # cost of a verified sign-in, including PII decryption.
+  idv:
+    runs: 10
+    # Users seeded by: rake dev:random_users VERIFIED=1
+    user_index_start: 0
+    user_pool_size: 10
+    email_format: testuser%d@example.com
+    # Must match the seeded password: dev:random_users encrypts the proofed
+    # profile's PII with it.
+    password: salty pickles
+
+  # Full account creation via prompt=create, with phone MFA.
+  #
+  # Each run creates a new IdP user. Emails are synthetic and no mail is sent,
+  # but the rows persist in the development database after the run.
+  signup:
+    runs: 5
+    email_prefix: loadtest
+    # Must satisfy the IdP password rules: 12-128 characters and a zxcvbn
+    # strength score of at least 3.
+    password: loadtest sturdy pass w0rd
+    phone: 202-555-1212
