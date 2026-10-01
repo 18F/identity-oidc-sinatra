@@ -9,6 +9,7 @@
 .byebug_history
 /log
 /tmp
+tmp/
 .env
 public/api/deploy.json
 public/vendor
