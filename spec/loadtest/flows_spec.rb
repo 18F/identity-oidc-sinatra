@@ -2,6 +2,7 @@ require_relative 'spec_helper'
 require_relative '../../lib/loadtest/config'
 require_relative '../../lib/loadtest/flows/auth_only'
 require_relative '../../lib/loadtest/flows/idv'
+require_relative '../../lib/loadtest/flows/idv_facial_match'
 require_relative '../../lib/loadtest/flows/signup'
 require_relative '../../lib/loadtest/http_client'
 require_relative '../../lib/loadtest/results'
@@ -577,12 +578,12 @@ RSpec.describe 'load test flows' do
     end
 
     it 'selects phone as the authentication method' do
-      expect(run_signup.request_with_param('two_factor_options_form[selection]').params).
-        to include('two_factor_options_form[selection]' => 'phone')
+      expect(run_signup.request_with_param('two_factor_options_form[selection][]').params).
+        to include('two_factor_options_form[selection][]' => 'phone')
     end
 
     it 'uses PATCH for the MFA selection, as the route requires' do
-      expect(run_signup.request_with_param('two_factor_options_form[selection]').method).
+      expect(run_signup.request_with_param('two_factor_options_form[selection][]').method).
         to eq(:patch)
     end
 

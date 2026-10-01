@@ -29,7 +29,7 @@ json: ~
 flows:
   # Authentication-only sign-in (IAL1): password + prefilled SMS OTP.
   auth_only:
-    runs: 1
+    runs: 0
     # Users seeded by: rake dev:random_users
     #
     # IMPORTANT: auth_only and the idv flows must use NON-OVERLAPPING index ranges.
@@ -73,7 +73,7 @@ flows:
   # Each run creates a new IdP user. Emails are synthetic and no mail is sent,
   # but the rows persist in the development database after the run.
   signup:
-    runs: 0
+    runs: 1
     email_prefix: loadtest
     # Must satisfy the IdP password rules: 12-128 characters and a zxcvbn
     # strength score of at least 3.

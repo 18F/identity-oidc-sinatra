@@ -437,7 +437,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
       run_signup(count: 1)
 
       setup = idp.requests.find { |request| request.path == '/authentication_methods_setup' }
-      expect(setup.params).to include('two_factor_options_form[selection]' => 'phone')
+      expect(setup.params).to include('two_factor_options_form[selection][]' => 'phone')
     end
 
     it 'confirms the phone with the prefilled code' do

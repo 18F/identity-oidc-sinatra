@@ -110,7 +110,7 @@ module LoginGov
             submitted = submit(
               form,
               base: response.uri,
-              params: { 'two_factor_options_form[selection]' => 'phone' },
+              params: { 'two_factor_options_form[selection][]' => 'phone' },
             )
             http.follow_redirects(submitted).last
           end
