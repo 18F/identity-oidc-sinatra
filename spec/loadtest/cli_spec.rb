@@ -87,7 +87,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
               runs: 1
               user_index_start: 0
               user_pool_size: 5
-            idv:
+            idv_legacy:
               runs: 1
               user_index_start: 0
               user_pool_size: 5
@@ -259,10 +259,10 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
     let(:idp) { servers[0] }
     let(:rp) { servers[1] }
 
-    it 'runs auth_only and idv in one pass, at their respective levels' do
+    it 'runs auth_only and idv_legacy in one pass, at their respective levels' do
       run_cli(
         [
-          '--flow-runs', 'auth_only=2,idv=2',
+          '--flow-runs', 'auth_only=2,idv_legacy=2',
           '--vus', '2',
           '--idp-url', idp.base_url,
           '--rp-url', rp.base_url,
@@ -281,7 +281,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
         path = File.join(dir, 'runs.csv')
         run_cli(
           [
-            '--flow-runs', 'auth_only=2,idv=2',
+            '--flow-runs', 'auth_only=2,idv_legacy=2',
             '--vus', '2',
             '--idp-url', idp.base_url,
             '--rp-url', rp.base_url,
@@ -291,7 +291,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
 
         by_flow = CSV.read(path, headers: true).group_by { |row| row.fetch('flow') }
         auth_emails = by_flow.fetch('auth_only').map { |row| row.fetch('identity') }
-        idv_emails = by_flow.fetch('idv').map { |row| row.fetch('identity') }
+        idv_emails = by_flow.fetch('idv_legacy').map { |row| row.fetch('identity') }
 
         expect(auth_emails & idv_emails).to be_empty
       end

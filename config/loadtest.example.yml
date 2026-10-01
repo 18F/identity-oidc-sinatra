@@ -32,8 +32,8 @@ flows:
     runs: 1
     # Users seeded by: rake dev:random_users
     #
-    # IMPORTANT: auth_only and idv must use NON-OVERLAPPING index ranges. An idv
-    # run handed an unproofed user would be diverted into identity verification,
+    # IMPORTANT: auth_only and the idv flows must use NON-OVERLAPPING index ranges.
+    # An idv run handed an unproofed user would be diverted into identity verification,
     # and the harness refuses to start if the ranges overlap. Seed the verified
     # users first (indices 0..N-1), then seed the plain users at an offset.
     user_index_start: 1000
@@ -41,10 +41,24 @@ flows:
     email_format: testuser%d@example.com
     password: salty pickles
 
-  # Identity-verified sign-in (IAL2) against users with an existing proofed
-  # profile. Does not drive the proofing wizard; it measures the steady-state
-  # cost of a verified sign-in, including PII decryption.
-  idv:
+  # Identity-verified sign-in (legacy IAL2) against users with an existing proofed
+  # profile. Requests ial=2, which maps to http://idmanagement.gov/ns/assurance/ial/2.
+  # Does not drive the proofing wizard; it measures the steady-state cost of a
+  # verified sign-in, including PII decryption.
+  idv_legacy:
+    runs: 0
+    # Users seeded by: rake dev:random_users VERIFIED=1
+    user_index_start: 0
+    user_pool_size: 10
+    email_format: testuser%d@example.com
+    # Must match the seeded password: dev:random_users encrypts the proofed
+    # profile's PII with it.
+    password: salty pickles
+
+  # Identity-verified sign-in with facial match required (IAL2 biometric) against
+  # users with an existing proofed profile. Requests ial=facial-match-required,
+  # which maps to urn:acr.login.gov:verified-facial-match-required.
+  idv_facial_match:
     runs: 0
     # Users seeded by: rake dev:random_users VERIFIED=1
     user_index_start: 0

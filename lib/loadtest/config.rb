@@ -14,7 +14,7 @@ module LoginGov
       # primary interface (it is where per-flow run counts live); CLI and ENV
       # exist so a run can be tweaked without editing a checked-in file.
       class Config
-        FLOW_TYPES = %w[auth_only idv signup].freeze
+        FLOW_TYPES = %w[auth_only idv_legacy idv_facial_match signup].freeze
 
         DEFAULTS = {
           'idp_url' => 'http://localhost:3000',
@@ -41,7 +41,14 @@ module LoginGov
             'user_index_start' => 1_000,
             'user_pool_size' => 100,
           }.freeze,
-          'idv' => {
+          'idv_legacy' => {
+            'runs' => 0,
+            'email_format' => 'testuser%d@example.com',
+            'password' => 'salty pickles',
+            'user_index_start' => 0,
+            'user_pool_size' => 100,
+          }.freeze,
+          'idv_facial_match' => {
             'runs' => 0,
             'email_format' => 'testuser%d@example.com',
             'password' => 'salty pickles',
@@ -168,7 +175,7 @@ module LoginGov
         end
 
         def validate_pool_sizes!
-          %w[auth_only idv].each do |type|
+          %w[auth_only idv_legacy idv_facial_match].each do |type|
             settings = flows.fetch(type)
             next unless settings.fetch('runs').positive?
             next if Integer(settings.fetch('user_pool_size')).positive?
@@ -181,15 +188,26 @@ module LoginGov
         # vice versa), producing failures that look like IdP bugs. Fail fast
         # instead, naming the fix.
         def validate_pool_ranges!
-          return unless %w[auth_only idv].all? { |type| flows.fetch(type).fetch('runs').positive? }
+          idv_flows = %w[idv_legacy idv_facial_match]
+          active_flows = (['auth_only'] + idv_flows).select do |type|
+            flows.fetch(type).fetch('runs').positive?
+          end
+          return if active_flows.length < 2
 
-          ranges = %w[auth_only idv].to_h { |type| [type, pool_range(flows.fetch(type))] }
-          return if (ranges.fetch('auth_only').to_a & ranges.fetch('idv').to_a).empty?
+          ranges = active_flows.to_h { |type| [type, pool_range(flows.fetch(type))] }
+          
+          # Check auth_only against both idv flows
+          if ranges.key?('auth_only')
+            idv_flows.each do |idv_type|
+              next unless ranges.key?(idv_type)
+              next if (ranges.fetch('auth_only').to_a & ranges.fetch(idv_type).to_a).empty?
 
-          message = "auth_only and idv user pools overlap (#{ranges.fetch('auth_only')} vs " \
-                    "#{ranges.fetch('idv')}); seed them into separate index ranges and set " \
-                    "user_index_start accordingly"
-          raise ConfigError.new(message)
+              message = "auth_only and #{idv_type} user pools overlap " \
+                        "(#{ranges.fetch('auth_only')} vs #{ranges.fetch(idv_type)}); " \
+                        "seed them into separate index ranges and set user_index_start accordingly"
+              raise ConfigError.new(message)
+            end
+          end
         end
 
         def pool_range(settings)

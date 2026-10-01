@@ -43,15 +43,16 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 starting from this relying party, so the whole OpenID Connect round trip is
 measured rather than just the IdP's internals.
 
-Three flow types can be run, individually or mixed:
+Four flow types can be run, individually or mixed:
 
-| Flow        | What it exercises                                                   | Creates accounts? |
-|-------------|---------------------------------------------------------------------|-------------------|
-| `auth_only` | Sign-in at IAL1: password plus SMS one-time code                    | No                |
-| `idv`       | Sign-in at IAL2 against an already-proofed user                     | No                |
-| `signup`    | Account creation via `prompt=create`, with phone MFA                | Yes               |
+| Flow               | What it exercises                                                   | Creates accounts? |
+|--------------------|---------------------------------------------------------------------|-------------------|
+| `auth_only`        | Sign-in at IAL1: password plus SMS one-time code                    | No                |
+| `idv_legacy`       | Sign-in at IAL2 (legacy `ial=2`) against an already-proofed user   | No                |
+| `idv_facial_match` | Sign-in at IAL2 with facial match required against a proofed user   | No                |
+| `signup`           | Account creation via `prompt=create`, with phone MFA                | Yes               |
 
-`auth_only` and `idv` reuse users seeded once, so repeated runs create no new
+`auth_only` and the idv flows reuse users seeded once, so repeated runs create no new
 accounts. `signup` necessarily registers a new user per run; the addresses are
 synthetic and no mail is sent.
 
@@ -87,12 +88,13 @@ local configuration overrides them:
 ### 2. Seed users for the sign-in flows
 
 From the identity-idp repository. **Seed the verified users first, then the plain
-users at an offset**, so the two pools do not overlap: an `idv` run handed an
+users at an offset**, so the two pools do not overlap: an idv run handed an
 unproofed user would be diverted into identity verification. The harness refuses
 to start if the configured ranges overlap.
 
 ```bash
 # idv pool: testuser0..testuser9, with an active proofed profile
+# Used by both idv_legacy and idv_facial_match flows
 bundle exec rake dev:random_users NUM_USERS=10 VERIFIED=1 SCRYPT_COST='800$8$1$' PROGRESS=no
 
 # auth_only pool: testuser1000..testuser1019
@@ -116,7 +118,7 @@ cp config/loadtest.example.yml loadtest.yml
 bundle exec ruby bin/loadtest --config loadtest.yml
 
 # Or set the counts inline
-bundle exec ruby bin/loadtest --flow-runs auth_only=100,idv=50,signup=20 --vus 10
+bundle exec ruby bin/loadtest --flow-runs auth_only=100,idv_legacy=50,idv_facial_match=25,signup=20 --vus 10
 ```
 
 ### Configuring run counts

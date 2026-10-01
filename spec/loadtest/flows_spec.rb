@@ -134,7 +134,7 @@ RSpec.describe 'load test flows' do
   let(:config) do
     LoginGov::OidcSinatra::Loadtest::Config.new(
       env: {},
-      overrides: { 'flow_runs' => { 'auth_only' => 1, 'signup' => 1 } },
+      overrides: { 'flow_runs' => { 'auth_only' => 1, 'idv_legacy' => 1, 'idv_facial_match' => 1, 'signup' => 1 } },
     )
   end
   let(:recorder) { LoginGov::OidcSinatra::Loadtest::StepRecorder.new }
@@ -239,17 +239,47 @@ RSpec.describe 'load test flows' do
     end
   end
 
-  describe LoginGov::OidcSinatra::Loadtest::Flows::Idv do
+  describe LoginGov::OidcSinatra::Loadtest::Flows::IdvLegacy do
     let(:routes) do
       sign_in_routes.merge(
         'localhost:3000/' => ->(method, _params) { method == :post ? OTP_PAGE : SIGN_IN_PAGE },
       )
     end
 
-    it 'requests the identity-verified assurance level' do
+    it 'requests the legacy identity-verified assurance level' do
       _flow, http = run_flow(described_class, routes)
 
       expect(http.urls.first).to include('ial=2')
+    end
+
+    it 'sends scopes with the bracket-suffixed key' do
+      _flow, http = run_flow(described_class, routes)
+
+      first_url = http.urls.first
+      expect(first_url).to include('requested_scopes%5B%5D=')
+      expect(first_url).not_to match(/[?&]requested_scopes=/)
+    end
+
+    it 'otherwise follows the same authentication steps as auth_only' do
+      run_flow(described_class, routes)
+
+      expect(recorder.steps.map { |step| step.fetch(:name) }).to eq(
+        %w[rp_auth_request sign_in_submit otp_submit interstitials handoff rp_result],
+      )
+    end
+  end
+
+  describe LoginGov::OidcSinatra::Loadtest::Flows::IdvFacialMatch do
+    let(:routes) do
+      sign_in_routes.merge(
+        'localhost:3000/' => ->(method, _params) { method == :post ? OTP_PAGE : SIGN_IN_PAGE },
+      )
+    end
+
+    it 'requests facial match required' do
+      _flow, http = run_flow(described_class, routes)
+
+      expect(http.urls.first).to include('ial=facial-match-required')
     end
 
     it 'sends scopes with the bracket-suffixed key' do

@@ -90,7 +90,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Config do
 
     it 'rejects fewer than one virtual user' do
       expect do
-        described_class.new(env: {}, overrides: { 'vus' => 0, 'flow_runs' => { 'idv' => 1 } })
+        described_class.new(env: {}, overrides: { 'vus' => 0, 'flow_runs' => { 'idv_legacy' => 1 } })
       end.to raise_error(error, /vus must be at least 1/)
     end
 
@@ -101,7 +101,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Config do
         to raise_error(error, /unknown flow type/)
     end
 
-    it 'rejects overlapping auth_only and idv user pools' do
+    it 'rejects overlapping auth_only and idv_legacy user pools' do
       # An idv run handed an unproofed user would be diverted into identity
       # verification, so overlapping ranges must fail loudly at startup rather
       # than produce confusing mid-run failures.
@@ -111,7 +111,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Config do
             runs: 1
             user_index_start: 0
             user_pool_size: 10
-          idv:
+          idv_legacy:
             runs: 1
             user_index_start: 5
             user_pool_size: 10
@@ -128,7 +128,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Config do
             runs: 1
             user_index_start: 10
             user_pool_size: 10
-          idv:
+          idv_legacy:
             runs: 1
             user_index_start: 0
             user_pool_size: 10
@@ -144,7 +144,7 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Config do
             runs: 1
             user_index_start: 0
             user_pool_size: 10
-          idv:
+          idv_legacy:
             runs: 0
             user_index_start: 0
             user_pool_size: 10

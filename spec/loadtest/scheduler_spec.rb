@@ -21,11 +21,11 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Scheduler do
     end
 
     it 'honors the per-flow run counts exactly' do
-      list = scheduler_for({ 'auth_only' => 4, 'idv' => 2, 'signup' => 1 }).work_list
+      list = scheduler_for({ 'auth_only' => 4, 'idv_legacy' => 2, 'signup' => 1 }).work_list
 
-      counts = list.group_by { |item| item.fetch(:flow) }.transform_values(&:length)
-
-      expect(counts).to eq('auth_only' => 4, 'idv' => 2, 'signup' => 1)
+      counts = list.group_by { |item| item.fetch(:flow) }.
+        transform_values(&:count)
+      expect(counts).to eq('auth_only' => 4, 'idv_legacy' => 2, 'signup' => 1)
     end
 
     it 'interleaves flows so a mixed config generates mixed concurrent traffic' do
@@ -45,13 +45,13 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Scheduler do
     end
 
     it 'skips flows with zero runs' do
-      flows = scheduler_for({ 'idv' => 2 }).work_list.map { |item| item.fetch(:flow) }
+      flows = scheduler_for({ 'idv_legacy' => 2 }).work_list.map { |item| item.fetch(:flow) }
 
-      expect(flows).to eq(%w[idv idv])
+      expect(flows).to eq(%w[idv_legacy idv_legacy])
     end
 
     it 'assigns a unique, contiguous run index' do
-      list = scheduler_for({ 'auth_only' => 3, 'idv' => 2 }).work_list
+      list = scheduler_for({ 'auth_only' => 3, 'idv_legacy' => 2 }).work_list
 
       expect(list.map { |item| item.fetch(:run_index) }).to eq([0, 1, 2, 3, 4])
     end

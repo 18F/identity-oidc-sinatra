@@ -4,6 +4,7 @@ require_relative 'config'
 require_relative 'errors'
 require_relative 'flows/auth_only'
 require_relative 'flows/idv'
+require_relative 'flows/idv_facial_match'
 require_relative 'flows/signup'
 require_relative 'http_client'
 require_relative 'results'
@@ -17,7 +18,8 @@ module LoginGov
       class Scheduler
         FLOW_CLASSES = {
           'auth_only' => Flows::AuthOnly,
-          'idv' => Flows::Idv,
+          'idv_legacy' => Flows::IdvLegacy,
+          'idv_facial_match' => Flows::IdvFacialMatch,
           'signup' => Flows::Signup,
         }.freeze
 
