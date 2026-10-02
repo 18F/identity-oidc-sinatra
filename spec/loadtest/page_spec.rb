@@ -133,6 +133,67 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::Page do
     end
   end
 
+  # The IdP sets this field from JavaScript, to 'true' only when the browser
+  # reports a platform authenticator. The harness runs none, so it must submit
+  # 'false' -- and must never replay a value that only looks set.
+  describe 'platform_authenticator_available' do
+    def scrape(input)
+      form = described_class.find_form(
+        %(<form action="/authentication_methods_setup" method="post">#{input}</form>),
+        path: '/authentication_methods_setup',
+      )
+      form.params['platform_authenticator_available']
+    end
+
+    it 'sends false when the field is rendered empty, as it is before JS runs' do
+      expect(
+        scrape('<input type="hidden" name="platform_authenticator_available" value="">'),
+      ).to eq('false')
+    end
+
+    it 'sends false when the field carries no value attribute at all' do
+      expect(
+        scrape('<input type="hidden" name="platform_authenticator_available">'),
+      ).to eq('false')
+    end
+
+    # Several IdP views call `hidden_field_tag :platform_authenticator_available,
+    # id: '...'`, passing the options hash in the value position, so the field
+    # renders as value="id platform_authenticator_available". Replaying that
+    # verbatim submitted a nonsense value.
+    it 'does not replay the options-hash artifact from the upstream view bug' do
+      value = scrape(
+        '<input type="hidden" name="platform_authenticator_available" ' \
+        'id="platform_authenticator_available" value="id platform_authenticator_available">',
+      )
+
+      expect(value).to eq('false')
+    end
+
+    it 'preserves a genuine true, which the IdP compares against literally' do
+      expect(
+        scrape('<input type="hidden" name="platform_authenticator_available" value="true">'),
+      ).to eq('true')
+    end
+
+    it 'leaves other hidden fields untouched' do
+      form = described_class.find_form(
+        <<~HTML,
+          <form action="/authentication_methods_setup" method="post">
+            <input type="hidden" name="confirmation_token" value="true-ish">
+            <input type="hidden" name="platform_authenticator_available" value="id foo">
+          </form>
+        HTML
+        path: '/authentication_methods_setup',
+      )
+
+      expect(form.params).to include(
+        'confirmation_token' => 'true-ish',
+        'platform_authenticator_available' => 'false',
+      )
+    end
+  end
+
   describe '.form_for_field' do
     it 'locates a form by a field it owns' do
       # The OTP view uses simple_form_for('') and has no useful action, so the

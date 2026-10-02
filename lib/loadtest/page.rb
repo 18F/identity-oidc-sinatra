@@ -189,13 +189,32 @@ module LoginGov
 
           private
 
+          # Hidden fields whose scraped value cannot be trusted and must be
+          # normalized before replay.
+          #
+          # `platform_authenticator_available` is set by JavaScript
+          # (identity-idp app/javascript/packs/platform-authenticator-available.ts)
+          # to 'true' only when the browser reports a platform authenticator.
+          # The harness runs no JavaScript and has no authenticator, so 'false'
+          # is what it should send -- and the IdP compares against the literal
+          # 'true' (TwoFactorAuthenticationSetupController), so anything else
+          # must not masquerade as a value.
+          #
+          # Normalizing also sidesteps an upstream rendering bug: several views
+          # call `hidden_field_tag :platform_authenticator_available, id: '...'`,
+          # passing the options hash in the value position, so the field renders
+          # as value="id platform_authenticator_available". Replaying that
+          # verbatim submits a nonsense value.
+          BOOLEAN_HIDDEN_FIELDS = %w[platform_authenticator_available].freeze
+          private_constant :BOOLEAN_HIDDEN_FIELDS
+
           # Reduce a <form> element to a replayable Form.
           #
           # Rails emits `_method` as a hidden input for verbs browsers cannot
           # send, so the effective method comes from that when present.
           def form_from(element)
             params = element.css('input[type="hidden"]').
-              to_h { |input| [input['name'].to_s, input['value'].to_s] }.
+              to_h { |input| [input['name'].to_s, hidden_value(input)] }.
               reject { |name, _value| name.empty? }
 
             Form.new(
@@ -203,6 +222,14 @@ module LoginGov
               method: (params['_method'] || element['method'] || 'get').to_s.downcase,
               params: params,
             )
+          end
+
+          def hidden_value(input)
+            value = input['value'].to_s
+
+            return value unless BOOLEAN_HIDDEN_FIELDS.include?(input['name'].to_s)
+
+            value == 'true' ? 'true' : 'false'
           end
         end
       end
