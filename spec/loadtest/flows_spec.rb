@@ -585,9 +585,14 @@ RSpec.describe 'load test flows' do
         to include('two_factor_options_form[selection][]' => ['phone'])
     end
 
-    it 'uses PATCH for the MFA selection, as the route requires' do
-      expect(run_signup.request_with_param('two_factor_options_form[selection][]').method).
-        to eq(:patch)
+    # The route is PATCH-only, but Rails reaches it by tunneling: the form is
+    # POSTed with a hidden `_method=patch` that Rack::MethodOverride rewrites.
+    # A genuine PATCH is rejected with 405, so the wire verb must be POST.
+    it 'tunnels the MFA selection as a POST carrying _method=patch' do
+      selection = run_signup.request_with_param('two_factor_options_form[selection][]')
+
+      expect(selection.method).to eq(:post)
+      expect(selection.params).to include('_method' => 'patch')
     end
 
     it 'submits the configured phone number for SMS delivery' do

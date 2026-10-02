@@ -142,14 +142,25 @@ module LoginGov
             http.follow_redirects(submitted).last
           end
 
-          # Submit a scraped form, honoring Rails' `_method` override.
+          # Submit a scraped form the way a browser would.
+          #
+          # Rails routes some actions to verbs a browser cannot send from a form
+          # (PATCH, PUT, DELETE) and tunnels them: the form is POSTed with a
+          # hidden `_method` naming the real verb, and Rack::MethodOverride
+          # rewrites it server-side. Sending a genuine PATCH instead is rejected
+          # with 405, because the route only exists for the overridden POST.
+          #
+          # So whenever a form carries `_method`, it goes out as a POST and the
+          # already-scraped `_method` in the body does the work. HttpClient still
+          # exposes real #patch for any non-form caller that needs it.
           def submit(form, base:, params: {})
             url = http.absolutize(form.action, base: base)
             body = form.params.merge(stringify_keys(params))
 
+            return http.post(url, params: body) if body.key?('_method')
+
             case form.method
-            when 'patch' then http.patch(url, params: body)
-            when 'post', 'put', 'delete' then http.post(url, params: body)
+            when 'post', 'patch', 'put', 'delete' then http.post(url, params: body)
             else http.get(url)
             end
           end
