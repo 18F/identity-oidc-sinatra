@@ -98,11 +98,16 @@ module LoginGov
             http.follow_redirects(submitted).last
           end
 
-          # PATCH /authentication_methods_setup with selection=phone.
+          # PATCH /authentication_methods_setup selecting phone.
           #
           # Phone is chosen deliberately over backup codes: it is the method most
           # real users pick, and its confirmation step exercises the OTP
           # delivery and verification path that the sign-in flows also hit.
+          #
+          # The IdP renders the methods as a checkbox group and permits
+          # `selection` as an array (TwoFactorAuthenticationSetupController),
+          # so the value is submitted as a one-element array under
+          # `selection[]`, matching what a browser sends with one box ticked.
           def select_phone_mfa(response)
             form = Page.find_form(response.body, path: '/authentication_methods_setup')
             raise Error.new("no MFA selection form on #{response.uri}") if form.nil?
@@ -110,7 +115,7 @@ module LoginGov
             submitted = submit(
               form,
               base: response.uri,
-              params: { 'two_factor_options_form[selection][]' => 'phone' },
+              params: { 'two_factor_options_form[selection][]' => ['phone'] },
             )
             http.follow_redirects(submitted).last
           end

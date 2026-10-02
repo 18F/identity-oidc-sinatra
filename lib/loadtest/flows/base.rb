@@ -243,8 +243,13 @@ module LoginGov
             http.follow_redirects(submitted).last
           end
 
+          # Normalize caller-supplied params to string keys, leaving Array values
+          # intact so HttpClient can expand them into repeated pairs. Calling
+          # #to_s on an array here would submit its inspect output.
           def stringify_keys(hash)
-            hash.to_h { |key, value| [key.to_s, value.to_s] }
+            hash.to_h do |key, value|
+              [key.to_s, value.is_a?(Array) ? value.map(&:to_s) : value.to_s]
+            end
           end
         end
       end

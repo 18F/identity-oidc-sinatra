@@ -577,9 +577,12 @@ RSpec.describe 'load test flows' do
         to include('password_form[confirmation_token]' => 'tok')
     end
 
+    # Submitted as a one-element array because the IdP renders the methods as a
+    # checkbox group and permits `selection` as an array; HttpClient expands it
+    # into a repeated `selection[]` pair on the wire.
     it 'selects phone as the authentication method' do
       expect(run_signup.request_with_param('two_factor_options_form[selection][]').params).
-        to include('two_factor_options_form[selection][]' => 'phone')
+        to include('two_factor_options_form[selection][]' => ['phone'])
     end
 
     it 'uses PATCH for the MFA selection, as the route requires' do

@@ -42,6 +42,26 @@ module LoginGov
         # Guard against a misconfigured flow looping forever between redirects.
         MAX_REDIRECTS = 10
 
+        # Serializes trace output so concurrent virtual users do not interleave
+        # partial lines on stderr.
+        TRACE_MUTEX = Mutex.new
+        private_constant :TRACE_MUTEX
+
+        # Opt-in on-wire tracing, enabled with LOADTEST_TRACE=1.
+        #
+        # The harness is a chain of scraped forms and manual redirects, so when a
+        # live IdP diverges from what a flow expects the only useful evidence is
+        # the request/response sequence itself: which verb went where, with which
+        # params, and what status and Location came back. Reconstructing that
+        # from a browser is unreliable because the redirect that follows a form
+        # POST replaces the entry being inspected.
+        #
+        # Off by default: a load test writes one line per request, which would
+        # otherwise dominate output and skew timings at any real concurrency.
+        def self.trace?
+          !ENV['LOADTEST_TRACE'].to_s.strip.empty?
+        end
+
         attr_reader :cookie_jar
 
         def initialize(timeout_seconds: 30, user_agent: 'identity-oidc-sinatra-loadtest')
@@ -106,13 +126,34 @@ module LoginGov
 
           @cookie_jar.store(host: uri.host, set_cookie_values: response.get_fields('set-cookie'))
 
-          Response.new(
+          result = Response.new(
             status: response.code.to_i,
             headers: downcased_headers(response),
             body: response.body.to_s,
             uri: uri,
             duration_ms: duration_ms,
           )
+
+          trace(req.method, uri, params, result) if self.class.trace?
+
+          result
+        end
+
+        # One line per request: verb, URL, status, Location, and the params sent.
+        #
+        # Params are printed as the flattened pairs actually written to the body,
+        # not the caller's hash, because the encoding of nested and array keys
+        # (`form[selection][]`) is itself a common source of divergence from what
+        # the IdP expects.
+        def trace(method, uri, params, result)
+          pairs = params ? stringify_form_data(params) : []
+          body = pairs.map { |name, value| "#{name}=#{value}" }.join('&')
+
+          TRACE_MUTEX.synchronize do
+            warn "trace: #{method} #{uri} -> #{result.status}"
+            warn "trace:   location: #{result.location}" if result.location
+            warn "trace:   params: #{body}" unless body.empty?
+          end
         end
 
         def build_request(request_class, uri, params:, headers:)
@@ -145,10 +186,18 @@ module LoginGov
 
         # Rails form params are nested (`user[email]`), and `set_form_data`
         # wants flat string pairs, so flatten one level of hash nesting.
+        #
+        # Array values become repeated pairs under the same key. Rails parses
+        # repeated `name[]` pairs into an array, which is how checkbox groups
+        # such as the MFA selection are submitted; collapsing them with #to_s
+        # would send the literal inspect output instead.
         def stringify_form_data(params)
           params.each_with_object([]) do |(key, value), pairs|
-            if value.is_a?(Hash)
+            case value
+            when Hash
               value.each { |nested_key, nested| pairs << ["#{key}[#{nested_key}]", nested.to_s] }
+            when Array
+              value.each { |element| pairs << [key.to_s, element.to_s] }
             else
               pairs << [key.to_s, value.to_s]
             end

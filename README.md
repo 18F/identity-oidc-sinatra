@@ -146,6 +146,25 @@ duration, failing step, error, and the per-step timings) for external analysis.
 The command exits nonzero if any run failed, so it can gate a pipeline as well
 as report numbers.
 
+### Tracing a failure
+
+A failing run names the step and the page it gave up on, but when a live IdP
+diverges from what a flow expects the useful evidence is the request sequence
+itself. Set `LOADTEST_TRACE=1` to log every request as it happens:
+
+```bash
+LOADTEST_TRACE=1 bundle exec ruby bin/loadtest --flow-runs signup=1 --vus 1
+```
+
+Each line carries the verb, URL, status, any `Location`, and the params
+submitted, with array values shown as the repeated pairs actually written to the
+body. That makes it possible to see which redirect a form POST produced, which
+is hard to capture in a browser because the redirect replaces the entry being
+inspected.
+
+Trace one run at a time. The output is one line per request, which at any real
+concurrency both floods the terminal and skews timings.
+
 ### Notes and limitations
 
 - **One user per concurrent run.** The IdP ends a user's previous session when

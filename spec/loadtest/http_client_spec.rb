@@ -1,3 +1,6 @@
+require 'stringio'
+require 'uri'
+
 require_relative 'spec_helper'
 require_relative 'support/stub_server'
 require_relative '../../lib/loadtest/http_client'
@@ -58,6 +61,67 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::HttpClient do
       client.patch(server.base_url, params: { 'a' => 'b' })
 
       expect(server.requests.first.method).to eq('PATCH')
+    end
+
+    # Rails turns repeated `name[]` pairs into an array, which is how a checkbox
+    # group such as the MFA method selection is submitted. Collapsing the value
+    # with #to_s would send the literal inspect output instead.
+    it 'repeats the key for array values, as Rails expects for checkbox groups' do
+      client.post(
+        server.base_url,
+        params: { 'form[selection][]' => %w[phone backup_code] },
+      )
+
+      expect(URI.decode_www_form(server.requests.first.body)).to eq(
+        [['form[selection][]', 'phone'], ['form[selection][]', 'backup_code']],
+      )
+    end
+
+    it 'sends a single-element array as one pair' do
+      client.post(server.base_url, params: { 'form[selection][]' => ['phone'] })
+
+      expect(URI.decode_www_form(server.requests.first.body)).to eq(
+        [['form[selection][]', 'phone']],
+      )
+    end
+  end
+
+  describe 'tracing' do
+    let(:server) do
+      StubServer.new { |_request| [302, { 'Location' => '/next' }, ''] }
+    end
+
+    around do |example|
+      original = ENV.fetch('LOADTEST_TRACE', nil)
+      ENV['LOADTEST_TRACE'] = '1'
+      example.run
+      ENV['LOADTEST_TRACE'] = original
+    end
+
+    it 'reports the verb, status, Location, and submitted params' do
+      output = capture_stderr do
+        client.post(server.base_url, params: { 'form[selection][]' => ['phone'] })
+      end
+
+      expect(output).to include('POST', '302', 'location: /next')
+      expect(output).to include('params: form[selection][]=phone')
+    end
+
+    it 'stays silent when the trace flag is unset' do
+      ENV.delete('LOADTEST_TRACE')
+
+      output = capture_stderr { client.post(server.base_url, params: { 'a' => 'b' }) }
+
+      expect(output).to be_empty
+    end
+
+    def capture_stderr
+      original = $stderr
+      $stderr = StringIO.new
+      yield
+      $stderr.string
+    ensure
+      $stderr = original
     end
   end
 
