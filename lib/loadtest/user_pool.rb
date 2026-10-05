@@ -20,13 +20,32 @@ module LoginGov
       # run at a time. Runs may reuse a user *sequentially* (so `runs` can exceed
       # the pool size), just never concurrently.
       #
-      # Signup identities need no pool: each run mints a fresh synthetic email.
+      # Signup identities need no pool: each run mints a fresh synthetic email
+      # and phone number.
       class UserPool
+        # Area codes paired with the 555-01XX line range below. Any valid area
+        # code may be used; these are real, assigned codes so the number passes
+        # the IdP's phone validation.
+        #
+        # 225 is deliberately absent: Telephony::Test::ErrorSimulator maps
+        # several 225-555-XXXX numbers to simulated delivery failures, and
+        # keeping the whole area code out of the pool means a future change to
+        # that list cannot silently start failing runs.
+        PHONE_AREA_CODES = %w[
+          202 212 213 312 404 415 503 512 602 617 702 713 801 804 901 919
+        ].freeze
+
+        # 555-0100 through 555-0199 is the block reserved for fictitious use, so
+        # these numbers are guaranteed never to reach a real subscriber.
+        PHONE_LINE_NUMBERS = (100..199).freeze
+
         def initialize(config)
           @config = config
           @available = build_available
           @mutex = Mutex.new
           @condition = ConditionVariable.new
+          @phone_mutex = Mutex.new
+          @phone_counter = -1
         end
 
         # Check out an identity, run the block, then return it to the pool.
@@ -91,6 +110,16 @@ module LoginGov
         # The local part is unique per run because registration is rejected for
         # an already-confirmed address; these rows persist in the IdP's
         # development database after the run by design (see README).
+        #
+        # The phone is unique per run too, which is what lets signup runs
+        # overlap. The IdP rate-limits OTP delivery per phone number
+        # (OtpRateLimiter keys on the phone fingerprint, and
+        # otp_delivery_blocklist_maxretry defaults to 10 per 5 minutes), so
+        # every run sharing one number serialises behind that limit and later
+        # runs fail with no prefilled code. Distinct numbers give each run its
+        # own budget. Setting `phone` in the signup config pins a single number
+        # instead, which is useful for exercising the rate-limited path on
+        # purpose.
         def synthetic_identity
           settings = @config.flows.fetch('signup')
           prefix = settings.fetch('email_prefix')
@@ -98,8 +127,36 @@ module LoginGov
           {
             email: "#{prefix}+#{SecureRandom.hex(8)}@example.com",
             password: settings.fetch('password'),
-            phone: settings.fetch('phone'),
+            phone: presence(settings['phone']) || next_synthetic_phone,
           }
+        end
+
+        # Walks the area code x line number space in order so a single run never
+        # repeats a number, starting at a random offset so consecutive
+        # invocations of the harness do not all reuse the same first numbers and
+        # land on a rate limit set by the previous invocation.
+        def next_synthetic_phone
+          index = @phone_mutex.synchronize do
+            @phone_offset ||= SecureRandom.random_number(phone_space_size)
+            @phone_counter += 1
+            (@phone_offset + @phone_counter) % phone_space_size
+          end
+
+          area_code = PHONE_AREA_CODES.fetch(index % PHONE_AREA_CODES.length)
+          line = PHONE_LINE_NUMBERS.to_a.fetch(
+            (index / PHONE_AREA_CODES.length) % PHONE_LINE_NUMBERS.count,
+          )
+
+          format('%<area>s-555-%<line>04d', area: area_code, line: line)
+        end
+
+        def phone_space_size
+          PHONE_AREA_CODES.length * PHONE_LINE_NUMBERS.count
+        end
+
+        def presence(value)
+          str = value.to_s
+          str.empty? ? nil : str
         end
       end
     end

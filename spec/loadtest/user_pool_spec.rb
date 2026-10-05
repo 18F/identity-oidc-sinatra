@@ -107,7 +107,6 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::UserPool do
             'runs' => 5,
             'email_prefix' => 'loadtest',
             'password' => 'loadtest sturdy pass w0rd',
-            'phone' => '202-555-1212',
           },
         },
       )
@@ -128,11 +127,66 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::UserPool do
       end
     end
 
-    it 'supplies the phone number the signup flow submits' do
+    # The IdP rate-limits OTP delivery per phone number, so runs sharing one
+    # number queue behind that limit and the later ones fail with no prefilled
+    # code.
+    it 'mints a unique phone per run so runs do not share an OTP send budget' do
       pool = described_class.new(config)
+      phones = 20.times.map { pool.with_identity('signup') { |id| id.fetch(:phone) } }
 
-      pool.with_identity('signup') do |identity|
-        expect(identity.fetch(:phone)).to eq('202-555-1212')
+      expect(phones.uniq.length).to eq(20)
+    end
+
+    # 555-0100 through 555-0199 is reserved for fictitious use, so these numbers
+    # can never reach a real subscriber.
+    it 'draws numbers from the 555-01XX fictitious range' do
+      pool = described_class.new(config)
+      phones = 30.times.map { pool.with_identity('signup') { |id| id.fetch(:phone) } }
+
+      expect(phones).to all(match(/\A\d{3}-555-01\d{2}\z/))
+    end
+
+    # Telephony::Test::ErrorSimulator maps several 225-555-XXXX numbers to
+    # simulated delivery failures, which would surface as spurious run failures.
+    it 'never mints a number in the simulated-error area code' do
+      pool = described_class.new(config)
+      phones = 50.times.map { pool.with_identity('signup') { |id| id.fetch(:phone) } }
+
+      expect(phones).to all(satisfy { |phone| !phone.start_with?('225-') })
+    end
+
+    it 'mints unique phones when runs overlap' do
+      pool = described_class.new(config)
+      phones = Queue.new
+
+      threads = 8.times.map do
+        Thread.new { pool.with_identity('signup') { |id| phones << id.fetch(:phone) } }
+      end
+      threads.each(&:join)
+
+      expect(Array.new(phones.size) { phones.pop }.uniq.length).to eq(8)
+    end
+
+    context 'with a phone configured' do
+      let(:config) do
+        config_for(
+          {
+            'signup' => {
+              'runs' => 2,
+              'email_prefix' => 'loadtest',
+              'password' => 'loadtest sturdy pass w0rd',
+              'phone' => '202-555-0150',
+            },
+          },
+        )
+      end
+
+      # Pinning one number is how you exercise the rate-limited path on purpose.
+      it 'uses the configured number for every run' do
+        pool = described_class.new(config)
+        phones = 3.times.map { pool.with_identity('signup') { |id| id.fetch(:phone) } }
+
+        expect(phones).to eq(['202-555-0150'] * 3)
       end
     end
 

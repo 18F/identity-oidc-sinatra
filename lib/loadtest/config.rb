@@ -61,7 +61,10 @@ module LoginGov
             # Must satisfy the IdP's password rules: Devise.password_length is
             # 12..128 and FormPasswordValidator requires a zxcvbn score >= 3.
             'password' => 'loadtest sturdy pass w0rd',
-            'phone' => '202-555-1212',
+            # Unset means UserPool mints a unique number per run, so concurrent
+            # signups do not serialise behind the IdP's per-phone OTP send
+            # limit. Set it to pin one number and exercise that limit instead.
+            'phone' => nil,
           }.freeze,
         }.freeze
 

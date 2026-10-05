@@ -78,4 +78,9 @@ flows:
     # Must satisfy the IdP password rules: 12-128 characters and a zxcvbn
     # strength score of at least 3.
     password: loadtest sturdy pass w0rd
-    phone: 202-555-1212
+    # Left unset, each run gets its own number from the 555-01XX fictitious
+    # range. That matters because the IdP rate-limits OTP delivery per phone
+    # number, so runs sharing one number queue behind that limit and the later
+    # ones fail with no prefilled code. Set a number here only to exercise the
+    # rate limit deliberately.
+    # phone: 202-555-0100

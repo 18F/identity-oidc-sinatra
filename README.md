@@ -176,6 +176,12 @@ concurrency both floods the terminal and skews timings.
 - **`signup` leaves its users behind.** Rows accumulate in the IdP's development
   database across runs. They are harmless and obviously synthetic
   (`loadtest+<random>@example.com`); clean up manually if you want to.
+- **`signup` mints a phone number per run.** The IdP rate-limits OTP delivery
+  per phone number, so runs sharing one number queue behind that limit and the
+  later ones fail with no prefilled code. Each run therefore gets its own number
+  from the `555-01XX` range reserved for fictitious use. Pin `signup.phone` in
+  the config to use one number instead, which is how you exercise the rate limit
+  on purpose.
 - **Run it against local or sandbox environments only.** It creates accounts and
   authenticates repeatedly.
 
