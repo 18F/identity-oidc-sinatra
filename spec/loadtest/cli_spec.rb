@@ -299,14 +299,16 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
   end
 
   describe 'the signup flow' do
-    # A stub pair for account creation: the relying party asks for
-    # prompt=create, the IdP walks registration, confirmation, password, MFA
-    # selection, phone setup, and OTP, then hands back a code.
+    # A stub pair for account creation: the relying party sends no prompt, so
+    # the IdP lands the harness on the sign-in page first (matching a real
+    # unregistered user), then "Create an account" walks registration,
+    # confirmation, password, MFA selection, phone setup, and OTP, then hands
+    # back a code.
     def start_signup_pair
       idp_server = nil
       rp_server = StubServer.new do |request|
         if request.path.start_with?('/auth/request')
-          [302, { 'Location' => "#{idp_server.base_url}/openid_connect/authorize?prompt=create" }, '']
+          [302, { 'Location' => "#{idp_server.base_url}/openid_connect/authorize" }, '']
         else
           [200, {}, '<span>Received user info:</span>']
         end
@@ -322,7 +324,9 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
     def signup_response(request, rp_server)
       case request.path
       when %r{\A/openid_connect/authorize}
-        [302, { 'Location' => '/sign_up/enter_email' }, '']
+        [302, { 'Location' => '/' }, '']
+      when '/'
+        [200, {}, sign_in_page]
       when '/sign_up/enter_email'
         request.method == 'POST' ? [200, {}, verify_email_page] : [200, {}, enter_email_page]
       when %r{\A/sign_up/email/confirm}
@@ -338,6 +342,16 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
       else
         [404, {}, 'not found']
       end
+    end
+
+    def sign_in_page
+      <<~HTML
+        <form action="/" method="post">
+          <input type="hidden" name="authenticity_token" value="signin-token">
+          <input name="user[email]"><input name="user[password]">
+        </form>
+        <a href="/sign_up/enter_email">Create an account</a>
+      HTML
     end
 
     def enter_email_page
@@ -399,11 +413,18 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
       expect(run_signup).to eq(described_class::EXIT_OK)
     end
 
-    it 'asks the relying party to initiate registration' do
-      run_signup
+    it 'lands on the sign-in page before registering, like a real unregistered user' do
+      run_signup(count: 1)
+
+      sign_in_visits = idp.requests.select { |request| request.method == 'GET' && request.path == '/' }
+      expect(sign_in_visits).not_to be_empty
+    end
+
+    it 'reaches registration via the "Create an account" link, not prompt=create' do
+      run_signup(count: 1)
 
       starts = rp.requests.select { |request| request.path.start_with?('/auth/request') }
-      expect(starts.first.path).to include('initiate_registration=1')
+      expect(starts.first.path).not_to include('initiate_registration=1')
     end
 
     it 'registers a distinct synthetic address per run' do
@@ -440,6 +461,17 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
       expect(setup.params).to include('two_factor_options_form[selection][]' => 'phone')
     end
 
+    it 'mints a distinct phone number per run' do
+      run_signup(count: 3)
+
+      phones = idp.requests.
+        select { |request| request.path == '/phone_setup' && request.method == 'POST' }.
+        map { |request| request.params.fetch('new_phone_form[phone]') }
+
+      expect(phones.uniq.length).to eq(3)
+      expect(phones).to all(match(/\A\d{3}-555-01\d{2}\z/))
+    end
+
     it 'confirms the phone with the prefilled code' do
       run_signup(count: 1)
 
@@ -451,6 +483,80 @@ RSpec.describe LoginGov::OidcSinatra::Loadtest::CLI do
       run_signup
 
       expect(stdout.string).to match(/signup\s+2\s+2\s+0/)
+    end
+
+    context 'with short_circuit_to_registration: true' do
+      # When short-circuit is on, the RP sends prompt=create and the IdP lands
+      # straight on /sign_up/enter_email, skipping the sign-in page.
+      def start_short_circuit_pair
+        idp_server = nil
+        rp_server = StubServer.new do |request|
+          if request.path.start_with?('/auth/request')
+            [302, { 'Location' => "#{idp_server.base_url}/openid_connect/authorize?prompt=create" }, '']
+          else
+            [200, {}, '<span>Received user info:</span>']
+          end
+        end
+
+        idp_server = StubServer.new do |request|
+          short_circuit_response(request, rp_server)
+        end
+
+        [idp_server, rp_server]
+      end
+
+      def short_circuit_response(request, rp_server)
+        case request.path
+        when %r{\A/openid_connect/authorize}
+          [302, { 'Location' => '/sign_up/enter_email' }, '']
+        when '/sign_up/enter_email'
+          request.method == 'POST' ? [200, {}, verify_email_page] : [200, {}, enter_email_page]
+        when %r{\A/sign_up/email/confirm}
+          [200, {}, enter_password_page]
+        when '/sign_up/create_password'
+          [200, {}, mfa_selection_page]
+        when '/authentication_methods_setup'
+          [200, {}, phone_setup_page]
+        when '/phone_setup'
+          [200, {}, otp_page]
+        when %r{\A/login/two_factor}
+          [302, { 'Location' => "#{rp_server.base_url}/auth/result?code=abc&state=xyz" }, '']
+        else
+          [404, {}, 'not found']
+        end
+      end
+
+      let(:servers) { start_short_circuit_pair }
+      let(:idp) { servers[0] }
+      let(:rp) { servers[1] }
+
+      def run_signup(count: 1)
+        Dir.mktmpdir do |dir|
+          path = File.join(dir, 'loadtest.yml')
+          File.write(path, <<~YAML)
+            flows:
+              signup:
+                runs: #{count}
+                short_circuit_to_registration: true
+          YAML
+
+          run_cli(['--config', path, '--vus', '2', '--idp-url', idp.base_url, '--rp-url', rp.base_url])
+        end
+      end
+
+      it 'completes account creation end to end' do
+        expect(run_signup).to eq(described_class::EXIT_OK)
+      end
+
+      it 'sends prompt=create and never visits the sign-in page' do
+        run_signup(count: 1)
+
+        starts = rp.requests.select { |request| request.path.start_with?('/auth/request') }
+        expect(starts.first.path).to include('initiate_registration=1')
+
+        sign_in_visits = idp.requests.select { |request| request.method == 'GET' && request.path == '/' }
+        expect(sign_in_visits).to be_empty
+      end
     end
   end
 

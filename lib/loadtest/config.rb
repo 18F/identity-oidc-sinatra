@@ -65,6 +65,14 @@ module LoginGov
             # signups do not serialise behind the IdP's per-phone OTP send
             # limit. Set it to pin one number and exercise that limit instead.
             'phone' => nil,
+            # false (default): visit the IdP sign-in page first and click
+            # "Create an account" through to /sign_up/enter_email, matching
+            # what a real unregistered user does.
+            # true: skip the sign-in page by sending prompt=create directly,
+            # which the IdP honors by redirecting straight to
+            # /sign_up/enter_email. Requires the SP to be allow-listed for
+            # prompt=create via allowed_create_prompt_providers.
+            'short_circuit_to_registration' => false,
           }.freeze,
         }.freeze
 

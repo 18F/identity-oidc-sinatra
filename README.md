@@ -50,11 +50,14 @@ Four flow types can be run, individually or mixed:
 | `auth_only`        | Sign-in at IAL1: password plus SMS one-time code                    | No                |
 | `idv_legacy`       | Sign-in at IAL2 (legacy `ial=2`) against an already-proofed user   | No                |
 | `idv_facial_match` | Sign-in at IAL2 with facial match required against a proofed user   | No                |
-| `signup`           | Account creation via `prompt=create`, with phone MFA                | Yes               |
+| `signup`           | Account creation, starting from the sign-in page like a real user   | Yes               |
 
 `auth_only` and the idv flows reuse users seeded once, so repeated runs create no new
 accounts. `signup` necessarily registers a new user per run; the addresses are
-synthetic and no mail is sent.
+synthetic and no mail is sent. By default it starts at the IdP's sign-in page
+and clicks "Create an account" through to registration, same as an
+unregistered user would; set `signup.short_circuit_to_registration: true` to
+skip the sign-in page and send `prompt=create` directly instead.
 
 ### 1. Configure the IdP
 
@@ -69,8 +72,11 @@ development:
   # Required by the signup flow only.
   enable_load_testing_mode: true
 
-  # Allows prompt=create, which is how the relying party starts registration.
-  # Required by the signup flow only.
+  # Allows prompt=create, which short_circuit_to_registration relies on (optional).
+  # Optional by default: by default signup lands on the sign-in page first, like
+  # a real unregistered user, and clicks "Create an account" through to
+  # registration without sending any prompt parameter. Needed only when
+  # short_circuit_to_registration: true is set, which skips the sign-in page.
   allowed_create_prompt_providers: '["urn:gov:gsa:openidconnect.profiles:sp:sso:evelyn"]'
 ```
 

@@ -82,6 +82,19 @@ module LoginGov
             href
           end
 
+          # The "Create an account" link on the sign-in page (identity-idp
+          # app/views/devise/sessions/new.html.erb), for flows that visit sign-in
+          # first rather than short-circuiting straight to registration with
+          # `prompt=create`.
+          #
+          # It has no stable id, so this matches on the route it points to,
+          # which is far less likely to change than its copy or styling.
+          #
+          # @return [String, nil] href, or nil if the link is not on the page
+          def create_account_href(html)
+            parse(html).css('a').find { |a| a['href'].to_s.include?('/sign_up/enter_email') }&.[]('href')
+          end
+
           # The OIDC handoff target when the IdP is configured with
           # `openid_connect_redirect: client_side_js` (the non-production
           # default). Instead of a 302, the IdP renders a page whose anchor

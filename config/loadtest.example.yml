@@ -68,7 +68,8 @@ flows:
     # profile's PII with it.
     password: salty pickles
 
-  # Full account creation via prompt=create, with phone MFA.
+  # Full account creation, starting from the IdP sign-in page like a real
+  # unregistered user, then clicking through to "Create an account".
   #
   # Each run creates a new IdP user. Emails are synthetic and no mail is sent,
   # but the rows persist in the development database after the run.
@@ -84,3 +85,7 @@ flows:
     # ones fail with no prefilled code. Set a number here only to exercise the
     # rate limit deliberately.
     # phone: 202-555-0100
+    # true skips the sign-in page by sending prompt=create directly, landing
+    # straight on /sign_up/enter_email. Requires the SP to be allow-listed for
+    # prompt=create via allowed_create_prompt_providers.
+    short_circuit_to_registration: false

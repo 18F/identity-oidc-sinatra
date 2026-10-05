@@ -6,7 +6,21 @@ module LoginGov
   module OidcSinatra
     module Loadtest
       module Flows
-        # Full account creation, started from the RP with prompt=create.
+        # Full account creation, started from the RP.
+        #
+        # By default this mirrors what a real user does: land on the IdP's
+        # sign-in page (the RP sends no `prompt`, so the IdP routes an
+        # unauthenticated user there -- OpenidConnect::AuthorizationController
+        # #redirect_to_sign_in_or_create) and click "Create an account" through
+        # to /sign_up/enter_email.
+        #
+        # Set `short_circuit_to_registration: true` in the signup config to skip
+        # the sign-in page instead, by sending `prompt=create` directly (the
+        # RP sets this when `initiate_registration` is present -- app.rb). The
+        # IdP honors that prompt value by redirecting straight to
+        # /sign_up/enter_email (same controller, #initiate_user_registration?),
+        # so this is a strictly shorter path through the same code, useful for
+        # isolating registration cost from the sign-in page's.
         #
         # Unlike the sign-in flows this creates a new IdP user per run. Two IdP
         # settings make it possible without real email or SMS:
@@ -17,21 +31,16 @@ module LoginGov
         #   * `telephony_adapter: test` (development default) makes the IdP
         #     prefill the real OTP into the phone-confirmation page.
         #
-        # It also requires the SP to be allow-listed for prompt=create via
-        # `allowed_create_prompt_providers`, otherwise the authorize request is
-        # rejected. See the README for all three settings.
+        # The short-circuit path also requires the SP to be allow-listed for
+        # prompt=create via `allowed_create_prompt_providers`, otherwise the
+        # authorize request is rejected. See the README for all three settings.
         class Signup < Base
           def self.flow_type
             'signup'
           end
 
           def run(user:)
-            response = step('rp_auth_request') do
-              begin_at_rp(
-                initiate_registration: '1',
-                'requested_scopes[]' => %w[email x509],
-              )
-            end
+            response = step('rp_auth_request') { begin_signup }
             response = step('submit_email') { submit_email(response, user.fetch(:email)) }
             response = step('confirm_email') { confirm_email(response) }
             response = step('create_password') do
@@ -44,6 +53,35 @@ module LoginGov
           end
 
           private
+
+          def begin_signup
+            if flow_settings.fetch('short_circuit_to_registration')
+              begin_registration_directly
+            else
+              begin_via_sign_in_page
+            end
+          end
+
+          # Send `prompt=create`, which the IdP honors by redirecting straight
+          # to /sign_up/enter_email, skipping the sign-in page entirely.
+          def begin_registration_directly
+            begin_at_rp(initiate_registration: '1', 'requested_scopes[]' => %w[email x509])
+          end
+
+          # GET the RP with no `prompt`, landing on the IdP sign-in page, then
+          # click "Create an account" through to /sign_up/enter_email -- the
+          # path a real user who has not registered yet actually takes.
+          def begin_via_sign_in_page
+            response = begin_at_rp('requested_scopes[]' => %w[email x509])
+
+            href = Page.create_account_href(response.body)
+            if href.nil?
+              raise Error.new("no \"Create an account\" link on #{response.uri}")
+            end
+
+            followed = http.get(http.absolutize(href, base: response.uri))
+            http.follow_redirects(followed).last
+          end
 
           # POST /sign_up/enter_email
           #

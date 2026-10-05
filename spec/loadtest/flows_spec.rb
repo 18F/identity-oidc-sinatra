@@ -140,9 +140,22 @@ RSpec.describe 'load test flows' do
   end
   let(:recorder) { LoginGov::OidcSinatra::Loadtest::StepRecorder.new }
 
-  def build_flow(flow_class, routes)
+  def build_flow(flow_class, routes, config: self.config)
     http = FakeHttp.new(routes)
     [flow_class.new(config: config, http: http, recorder: recorder), http]
+  end
+
+  # Config with signup.short_circuit_to_registration flipped on, for specs
+  # covering that path specifically. Everything else uses the default config,
+  # which exercises the sign-in-page path.
+  def config_with_short_circuit
+    LoginGov::OidcSinatra::Loadtest::Config.new(
+      env: {},
+      overrides: {
+        'flow_runs' => { 'signup' => 1 },
+        'flows' => { 'signup' => { 'short_circuit_to_registration' => true } },
+      },
+    )
   end
 
   # The happy path for both sign-in flows: the relying party redirects to the
@@ -471,6 +484,19 @@ RSpec.describe 'load test flows' do
   end
 
   describe LoginGov::OidcSinatra::Loadtest::Flows::Signup do
+    # identity-idp renders this at the IdP root for an unauthenticated,
+    # non-prompt=create request (OpenidConnect::AuthorizationController
+    # #redirect_to_sign_in_or_create -> new_user_session_url), with a "Create
+    # an account" link pointing at /sign_up/enter_email (devise/sessions/new).
+    let(:sign_in_page) do
+      <<~HTML
+        <form action="/" method="post">
+          <input type="hidden" name="authenticity_token" value="signin-token">
+          <input name="user[email]"><input name="user[password]">
+        </form>
+        <a href="/sign_up/enter_email">Create an account</a>
+      HTML
+    end
     let(:email_page) do
       <<~HTML
         <form action="/sign_up/enter_email" method="post">
@@ -505,12 +531,16 @@ RSpec.describe 'load test flows' do
         </form>
       HTML
     end
+
+    # Default routes: the RP sends no prompt, so the IdP lands the harness on
+    # the sign-in page first, matching an unregistered real user.
     let(:routes) do
       {
         'localhost:9292/auth/request' =>
-          [:redirect, 'http://localhost:3000/openid_connect/authorize?prompt=create'],
+          [:redirect, 'http://localhost:3000/openid_connect/authorize'],
         'localhost:3000/openid_connect/authorize' =>
-          [:redirect, 'http://localhost:3000/sign_up/enter_email'],
+          [:redirect, 'http://localhost:3000/'],
+        'localhost:3000/' => sign_in_page,
         'localhost:3000/sign_up/enter_email' =>
           ->(method, _p) { method == :post ? verify_page : email_page },
         'localhost:3000/sign_up/email/confirm' => password_page,
@@ -521,6 +551,19 @@ RSpec.describe 'load test flows' do
         'localhost:9292/auth/result' => RP_SUCCESS_PAGE,
       }
     end
+
+    # Routes for short_circuit_to_registration: true, where the RP sends
+    # prompt=create and the IdP redirects straight to /sign_up/enter_email,
+    # skipping the sign-in page entirely.
+    let(:short_circuit_routes) do
+      routes.merge(
+        'localhost:9292/auth/request' =>
+          [:redirect, 'http://localhost:3000/openid_connect/authorize?prompt=create'],
+        'localhost:3000/openid_connect/authorize' =>
+          [:redirect, 'http://localhost:3000/sign_up/enter_email'],
+      )
+    end
+
     let(:user) do
       {
         email: 'loadtest+abc@example.com',
@@ -535,8 +578,56 @@ RSpec.describe 'load test flows' do
       http
     end
 
-    it 'asks the relying party to initiate registration' do
-      expect(run_signup.urls.first).to include('initiate_registration=1')
+    def run_short_circuit_signup(overrides = {})
+      flow, http = build_flow(
+        described_class,
+        short_circuit_routes.merge(overrides),
+        config: config_with_short_circuit,
+      )
+      flow.run(user: user)
+      http
+    end
+
+    describe 'the default path, via the sign-in page' do
+      it 'lands on the sign-in page before registering, like a real unregistered user' do
+        expect(run_signup.urls).to include(a_string_matching(%r{localhost:3000/\z}))
+      end
+
+      it 'does not send prompt=create' do
+        expect(run_signup.urls.first).not_to include('initiate_registration=1')
+      end
+
+      it 'clicks through to registration via the "Create an account" link' do
+        expect(run_signup.request_for('/sign_up/enter_email')).not_to be_nil
+      end
+
+      it 'names what is missing when the sign-in page has no create-account link' do
+        flow, = build_flow(
+          described_class,
+          routes.merge('localhost:3000/' => '<form action="/" method="post"></form>'),
+        )
+
+        expect { flow.run(user: user) }.to raise_error(
+          LoginGov::OidcSinatra::Loadtest::Error,
+          /"Create an account" link/,
+        )
+      end
+    end
+
+    describe 'short_circuit_to_registration: true' do
+      it 'asks the relying party to initiate registration' do
+        expect(run_short_circuit_signup.urls.first).to include('initiate_registration=1')
+      end
+
+      it 'never visits the sign-in page' do
+        expect(run_short_circuit_signup.urls).not_to include(a_string_matching(%r{localhost:3000/\z}))
+      end
+
+      it 'sends scopes with the bracket-suffixed key' do
+        first_url = run_short_circuit_signup.urls.first
+        expect(first_url).to include('requested_scopes%5B%5D=')
+        expect(first_url).not_to match(/[?&]requested_scopes=/)
+      end
     end
 
     it 'sends scopes with the bracket-suffixed key' do
