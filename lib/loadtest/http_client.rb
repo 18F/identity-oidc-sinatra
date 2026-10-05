@@ -42,6 +42,11 @@ module LoginGov
         # Guard against a misconfigured flow looping forever between redirects.
         MAX_REDIRECTS = 10
 
+        # Retry transient network errors (SSL handshake failures, connection
+        # resets, timeouts) with exponential backoff before giving up.
+        MAX_RETRIES = 5
+        RETRY_BASE_DELAY = 1.0 # seconds
+
         # Serializes trace output so concurrent virtual users do not interleave
         # partial lines on stderr.
         TRACE_MUTEX = Mutex.new
@@ -173,15 +178,39 @@ module LoginGov
         end
 
         def perform(uri, req)
-          Net::HTTP.start(
-            uri.host,
-            uri.port,
-            use_ssl: uri.scheme == 'https',
-            open_timeout: @timeout_seconds,
-            read_timeout: @timeout_seconds,
-          ) { |http| http.request(req) }
-        rescue SystemCallError, Net::OpenTimeout, Net::ReadTimeout, IOError => e
-          raise Error.new("#{req.method} #{uri} failed: #{e.class}: #{e.message}")
+          attempt = 0
+          begin
+            attempt += 1
+            Net::HTTP.start(
+              uri.host,
+              uri.port,
+              use_ssl: uri.scheme == 'https',
+              open_timeout: @timeout_seconds,
+              read_timeout: @timeout_seconds,
+            ) { |http| http.request(req) }
+          rescue OpenSSL::SSL::SSLError, SystemCallError, Net::OpenTimeout, Net::ReadTimeout, IOError => e
+            if attempt < MAX_RETRIES && transient_error?(e)
+              delay = RETRY_BASE_DELAY * (2**(attempt - 1))
+              sleep(delay)
+              retry
+            end
+            raise Error.new("#{req.method} #{uri} failed: #{e.class}: #{e.message}")
+          end
+        end
+
+        def transient_error?(error)
+          case error
+          when OpenSSL::SSL::SSLError
+            # "unexpected eof while reading" is a transient SSL handshake failure
+            error.message.include?('unexpected eof')
+          when SystemCallError
+            # Connection reset, broken pipe, etc.
+            true
+          when Net::OpenTimeout, Net::ReadTimeout, IOError
+            true
+          else
+            false
+          end
         end
 
         # Rails form params are nested (`user[email]`), and `set_form_data`
