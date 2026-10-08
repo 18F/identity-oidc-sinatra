@@ -25,7 +25,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   let(:identity_claims) do
     {
       sub: 'agency-pairwise-sub-1',
-      iss: host,
       email: 'demo.user@example.com',
       email_verified: true,
       all_emails: ['demo.user@example.com'],
@@ -50,6 +49,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   let(:token_members) do
     {
       active: true,
+      iss: host,
+      jti: 'tok-1',
+      auth_time: Time.now.to_i - 60,
       aud: resource_identifier,
       scope: 'token_exchange:records_read',
       act: { sub: actor },
@@ -66,7 +68,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   # email only and says so.
   let(:identifiers_only_introspection) do
     token_members.merge(
-      identity_claims.slice(:sub, :iss, :email, :email_verified, :all_emails),
+      identity_claims.slice(:sub, :email, :email_verified, :all_emails),
       attributes: 'identifiers_only',
     )
   end
@@ -143,7 +145,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         claims = JSON.parse(last_response.body)['claims']
         expect(claims).to include(
           'sub' => 'agency-pairwise-sub-1',
-          'iss' => host,
           'email' => 'demo.user@example.com',
           'email_verified' => true,
           'all_emails' => ['demo.user@example.com'],
@@ -181,8 +182,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
 
         echoed = JSON.parse(last_response.body)['_introspection']
         expect(echoed.keys).to match_array(
-          %w[active aud scope sub act client_id acr iat exp delegation_id token_type],
+          %w[active iss jti auth_time aud scope sub act client_id acr iat exp delegation_id token_type],
         )
+        expect(echoed).to include('iss' => host, 'jti' => 'tok-1')
         expect(echoed.keys).not_to include('email', 'given_name', 'social_security_number', 'address')
       end
 
@@ -304,8 +306,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         body = JSON.parse(last_response.body)
         expect(body['records']).not_to be_empty
         expect(body['claims']).to include(
-          'sub' => 'agency-pairwise-sub-1', 'iss' => host, 'email' => 'demo.user@example.com',
+          'sub' => 'agency-pairwise-sub-1', 'email' => 'demo.user@example.com',
         )
+        # Issuer, token id and authentication time describe the token, not the person.
+        expect(body['claims'].keys).not_to include('iss', 'jti', 'auth_time')
         expect(body['claims'].keys).not_to include('given_name', 'family_name', 'birthdate',
                                                    'social_security_number', 'address', 'phone')
         expect(body['attributes']).to eq 'identifiers_only'
@@ -324,7 +328,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         get_records
 
         expect(decisions.first).to include('decision' => 'allowed', 'attributes' => 'identifiers_only')
-        expect(decisions.first['claims'].keys).to match_array(%w[sub iss email email_verified all_emails])
+        expect(decisions.first['claims'].keys).to match_array(%w[sub email email_verified all_emails])
       end
     end
 

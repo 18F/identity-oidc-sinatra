@@ -10,6 +10,10 @@ small Sinatra app in Ruby. It plays two roles for one fictional agency, the "Dep
    with RFC 7662 introspection, enforce scope per route, and record every decision.
 3. **The agency-role Attempts API viewer** — polls Login.gov's Attempts API with the agency's
    credentials and joins the delivered events to the API's decisions on `delegation_id`.
+4. **A login initiation endpoint** — `GET /initiate_login`, the relying-party side of
+   [OpenID Connect Third-Party-Initiated Login](https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin),
+   so a third party such as America.gov can send a user here to sign in to this agency directly
+   (see [Third-party-initiated login](#third-party-initiated-login)).
 
 Everything served is fictional demo data. Do not use real personal information.
 
@@ -119,6 +123,7 @@ with the same token reuses the `active: true` answer and its claims without aski
 | `GET /decisions` | — | Every authorization decision, newest first, with the user's claims from introspection (also `/decisions.json`) |
 | `GET /attempts-api` | — | Attempts events delivered to this agency; `?tab=delegated` groups them by `delegation_id` with the matching API decisions beneath |
 | `GET /api/health` | — | Includes `resource_identifier` and the discovered `introspection_endpoint` |
+| `GET /initiate_login` | `iss`, `target_link_uri` (and optional `login_hint`) query parameters | 302 to Login.gov after the §4 checks; 400 with the reason otherwise. See [Third-party-initiated login](#third-party-initiated-login) |
 
 `claims` is the user as the agency knows them from the token: the identity claims Login.gov put in
 the introspection response, SSN redacted (see [Identity claims for delegated
@@ -169,6 +174,8 @@ Then open http://localhost:9393/decisions and http://localhost:9393/attempts-api
 | `INTROSPECTION_CACHE_SECONDS` | Max reuse of an `active: true` answer (Login.gov publishes 60) | `60` |
 | `DPOP_ALLOWED_ALGS` | JWS algorithms accepted on a DPoP proof (asymmetric only); advertised in the DPoP challenge | `ES256 RS256` |
 | `DPOP_IAT_LEEWAY_SECONDS` | Tolerance on a proof's `iat`, either side of now | `60` |
+| `THIRD_PARTY_TARGET_LINK_ALLOWLIST` | Exact origins a third party may name in `target_link_uri` (space- or comma-separated; no wildcards) | `http://localhost:9292` |
+| `THIRD_PARTY_SIGN_IN_IAL` | IAL this agency signs users in at when a third party starts the sign-in | `2` |
 | `idp_url` | Login.gov base URL (discovery, introspection, Attempts poll) | `http://localhost:3000` |
 | `client_id` | The agency SP's issuer: direct sign-in client and Attempts API poll identity | `urn:gov:gsa:openidconnect:sp:records_agency` |
 | `redirect_uri` | Base for the direct sign-in redirect URIs | `http://localhost:9393/` |
@@ -208,6 +215,54 @@ In `identity-idp`:
 3. In `config/application.yml`, enroll the agency in `allowed_attempts_providers` with issuer
    `urn:gov:gsa:openidconnect:sp:records_agency`, shared secret `records-agency-attempts-secret`
    and the `rs_records_demo` public key, and set `token_exchange_enabled: true`.
+
+## Third-party-initiated login
+
+This app also implements the relying-party side of **Third-Party-Initiated Login**,
+[OpenID Connect Core 1.0 §4](https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
+It is the second integration pattern available to America.gov, alongside delegated access, and it is
+a different thing: nothing is delegated and no token is exchanged. The agency signs the user in
+itself, with its own Login.gov client, its own consent screen, its own tokens, its own Attempts API
+events and its own billing. The only thing the third party contributes is the suggestion to start.
+
+```
+America.gov ──► browser ──► GET /initiate_login?iss=<Login.gov issuer>
+                                               &login_hint=<UUID America.gov generated>
+                                               &target_link_uri=<America.gov URL to return to>
+                 │
+                 │  this app: verify iss, verify target_link_uri, remember the hand-off
+                 ▼
+             GET <Login.gov>/openid_connect/authorize   (the agency's ordinary request; the user
+                 │                                       already has a Login.gov session, so no
+                 │                                       credentials are asked for again)
+                 ▼
+             GET /auth/result?code=…                    (tokens, userinfo: the agency's own session)
+                 │
+                 ▼
+             302 <target_link_uri>?login_hint=<same UUID>&iss=<this agency's client_id>&status=signed_in
+```
+
+The value this agency registers as its `initiate_login_uri` is `http://localhost:9393/initiate_login`
+locally (`https://<agency host>/initiate_login` in production).
+
+**The two checks §4 says the relying party MUST make**, both in `third_party_login.rb`:
+
+| Check | Why | What this app does |
+|---|---|---|
+| `iss` is an OpenID Provider this app trusts | A forged `iss` would send the user to an attacker's provider | Must equal the configured Login.gov issuer (`idp_url`); a trailing slash is the only difference tolerated. 400 otherwise. |
+| `target_link_uri` is verified | Otherwise the endpoint is an open redirector | Its origin (`scheme://host[:port]`, exact) must be in `THIRD_PARTY_TARGET_LINK_ALLOWLIST`. Path and query may vary; host, scheme and port may not. 400 otherwise. |
+
+What else to know:
+
+- `login_hint` is **opaque**. America.gov generates a UUID it will recognize when the user comes
+  back; this app stores it for the one sign-in, echoes it on the return, and never treats it as
+  identity or forwards it to Login.gov. Identity comes only from Login.gov's answer to this agency's
+  own sign-in. The hint is capped at 128 characters.
+- The hand-off is single use: it is consumed when the user is returned (or when the sign-in fails,
+  returned with `status=failed`), so a later sign-in in the same browser is not bounced again.
+- The agency page shows that the current session was third-party initiated and by which site.
+- The return URL's three query parameters (`login_hint`, `iss`, `status`) are this reference
+  setup's convention, not part of §4; §4 only says to send the user to `target_link_uri`.
 
 ## What this app deliberately does not do
 

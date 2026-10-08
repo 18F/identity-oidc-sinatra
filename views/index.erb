@@ -12,6 +12,22 @@
   <div class="grid-container">
     <div class="grid-row grid-gap">
       <%== erb :alerts, locals: { logout_msg:, login_msg:, error:, error_type: } %>
+      <% if third_party_initiated_from %>
+        <%# This session began with Third-Party-Initiated Login (OpenID Connect
+            Core 1.0 §4): another site sent the user here to sign in, and this
+            agency signed them in through Login.gov as usual. The hint the third
+            party supplied was echoed back to it and is not identity. %>
+        <div class="tablet:grid-col">
+          <div class="usa-alert usa-alert--info usa-alert--slim" data-third-party-initiated>
+            <div class="usa-alert__body">
+              <p class="usa-alert__text">
+                This sign-in was started by <strong><%= Rack::Utils.escape_html(third_party_initiated_from) %></strong>
+                (third-party-initiated login). Your identity came from Login.gov, not from that site.
+              </p>
+            </div>
+          </div>
+        </div>
+      <% end %>
     <% unless userinfo %>
       <%== erb :auth_options, locals: { aal:, ial: } %>
     <% end %>

@@ -44,6 +44,27 @@ module LoginGov
         Integer(@config.fetch('dpop_iat_leeway_seconds'))
       end
 
+      # Origins a third party may name in `target_link_uri` when it starts a
+      # sign-in here (OpenID Connect Core 1.0 §4,
+      # https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
+      # Exact `scheme://host[:port]` values, space- or comma-separated in the
+      # environment; the default is the local America.gov reference app.
+      # The identity assurance level this agency signs users in at when a
+      # third party starts the sign-in; the agency decides this, not the third
+      # party, because the agency owns the session that results.
+      def third_party_sign_in_ial
+        @config.fetch('third_party_sign_in_ial')
+      end
+
+      # @return [Array<String>]
+      def third_party_target_link_allowlist
+        @config.fetch('third_party_target_link_allowlist').to_s.split(/[\s,]+/).
+          reject(&:empty?).
+          # Normalize the same way the request's origin is normalized, so a
+          # trailing slash or upper-case host in configuration still matches.
+          map { |origin| origin.chomp('/').downcase }
+      end
+
       # @return [OpenSSL::PKey::RSA] key that signs introspection assertions
       def rs_private_key
         return @rs_private_key if @rs_private_key
@@ -137,6 +158,9 @@ module LoginGov
           'introspection_cache_seconds' => ENV['INTROSPECTION_CACHE_SECONDS'] || '60',
           'dpop_allowed_algs' => ENV['DPOP_ALLOWED_ALGS'] || 'ES256 RS256',
           'dpop_iat_leeway_seconds' => ENV['DPOP_IAT_LEEWAY_SECONDS'] || '60',
+          'third_party_target_link_allowlist' =>
+            ENV['THIRD_PARTY_TARGET_LINK_ALLOWLIST'] || 'http://localhost:9292',
+          'third_party_sign_in_ial' => ENV['THIRD_PARTY_SIGN_IN_IAL'] || '2',
           'attempts_private_key_path' => ENV['attempts_private_key_path'] ||
                                          ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'redact_ssn' => true,

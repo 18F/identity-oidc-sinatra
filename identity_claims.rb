@@ -33,8 +33,11 @@ module LoginGov
       # `cnf` (RFC 7800, RFC 9449 §6) names the key a DPoP-bound token is tied
       # to; it describes the token, not the user, so it is echoed with the other
       # token members and never shown as an identity claim.
+      # `iss`, `jti` and `auth_time` (RFC 7662 §2.2) say who issued the token,
+      # which token this is, and when the user last authenticated; they are
+      # about the token and the sign-in, not attributes of the person.
       TOKEN_MEMBERS = %w[
-        active aud scope sub act client_id acr iat exp nbf jti token_type
+        active iss aud scope sub act client_id acr iat exp nbf jti auth_time token_type
         delegation_id attributes cnf
       ].freeze
 
