@@ -98,7 +98,10 @@ module LoginGov::OidcSinatra
         settings.logger.info('enabling logging')
     end
 
-    enable :sessions
+    # A cookie name of our own rather than Sinatra's default `rack.session`: browsers scope cookies
+    # by host, not port, so on localhost a default-named cookie would collide with the other
+    # reference apps' sessions when the browser moves between them (third-party-initiated login).
+    set :sessions, key: 'records_agency.session'
     # The resource server routes authenticate with a bearer token (RFC 6750)
     # and carry no session cookie, so browser CSRF protections do not apply.
     API_REQUEST = ->(env) { env['PATH_INFO'].to_s.start_with?('/records') }
