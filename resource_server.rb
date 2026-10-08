@@ -175,6 +175,9 @@ module LoginGov
         # token must not pretend to be bound. Runs on every request, cached
         # introspection or not: the cache answers "is the token valid", the
         # proof answers "is this caller the key holder".
+        # It runs after active/aud/scope so those checks keep their existing
+        # error codes, and so that a proof is never recorded (jti) for a token
+        # that was going to be refused anyway.
         check_key_binding!(scheme, token, route:, required_scope:)
 
         log_decision(@introspection, route:, decision: 'allowed', required_scope:)
@@ -188,9 +191,16 @@ module LoginGov
       # Either way the challenge advertises the algorithms this server accepts
       # so the client knows what to send.
       def check_key_binding!(scheme, token, route:, required_scope:)
+        # `cnf.jkt` (RFC 7800, RFC 9449 §6) is Login.gov's statement of which
+        # key the token is bound to. Its presence, not the Authorization scheme
+        # the caller chose, decides which rules apply below.
         jkt = @introspection.dig('cnf', 'jkt')
 
         if jkt.nil?
+          # Unbound token: Bearer is the only valid scheme. A client that sends
+          # it as DPoP is either misconfigured or trying to make a plain bearer
+          # token look key-bound; refusing keeps the two token kinds distinct
+          # (§7.1: the scheme must match the token).
           return if scheme == BEARER_SCHEME
 
           log_decision(@introspection, route:, decision: 'denied', reason: 'dpop_not_bound',
@@ -200,6 +210,9 @@ module LoginGov
                                    'The token is not bound to a key; present it as Bearer.')
         end
 
+        # Bound token presented as Bearer: this is the attack DPoP exists to
+        # stop (a stolen token used without the key), so it is refused even
+        # though introspection says the token itself is valid (§7.2).
         unless scheme == DPOP_SCHEME
           log_decision(@introspection, route:, decision: 'denied', reason: 'dpop_scheme_required',
                                        required_scope:)
@@ -209,11 +222,16 @@ module LoginGov
                                    'scheme and a DPoP proof.')
         end
 
+        # Bound token presented as DPoP: verify the proof against this request.
+        # This runs even when @introspection came from the cache: the cache
+        # only proves the token is valid, which a thief's copy also is. The
+        # proof is per request (method, URL, time, jti) and is what proves the
+        # caller holds the key.
         begin
           DpopVerifier.new(
             proof: dpop_proof_header(request),
             method: request.request_method,
-            url: request_url_without_query(request),
+            url: request_url_without_query(request), # what the client addressed, not the gateway
             access_token: token,
             expected_jkt: jkt,
             allowed_algs: config.dpop_allowed_algs,
@@ -241,6 +259,10 @@ module LoginGov
       # behind a TLS-terminating gateway the comparison sees the client's
       # https URL rather than the gateway's http one.
       def request_url_without_query(request)
+        # base_url is "scheme://host[:port]" as Rack derives it, preferring the
+        # X-Forwarded-Proto / X-Forwarded-Host (or Forwarded) headers a reverse
+        # proxy sets, so it reproduces the URL the client actually used. path is
+        # the path only; the query string is deliberately left out (§4.3 (9)).
         request.base_url + request.path
       end
 
@@ -263,10 +285,15 @@ module LoginGov
       # @return [Array(String, String), Array(nil, nil)]
       def presented_credentials(request)
         header = request.env['HTTP_AUTHORIZATION'].to_s
+        # One regexp for both schemes: scheme name (case-insensitive, per
+        # RFC 9110 §11.1), one or more spaces, then token68 characters only.
+        # Anything else (another scheme, extra parameters, a missing token) is
+        # treated as no credentials at all.
         pattern = /\A(?<scheme>Bearer|DPoP)[ ]+(?<token>[A-Za-z0-9\-._~+\/]+=*)\z/i
         match = pattern.match(header.strip)
         return [nil, nil] unless match
 
+        # Normalize the spelling so callers compare against the constants.
         scheme = match[:scheme].casecmp?(DPOP_SCHEME) ? DPOP_SCHEME : BEARER_SCHEME
         [scheme, match[:token]]
       end
@@ -382,11 +409,16 @@ module LoginGov
       # @return [Hash] headers
       def www_authenticate(scheme, error: nil, scope: nil)
         parts = []
+        # Bearer challenges carry the realm (RFC 6750 §3); DPoP challenges carry
+        # the accepted algorithms instead (RFC 9449 §7.1).
         parts << "realm=\"#{config.resource_identifier}\"" if scheme == BEARER_SCHEME
         parts << "algs=\"#{config.dpop_allowed_algs.join(' ')}\"" if scheme == DPOP_SCHEME
         parts << "error=\"#{error}\"" if error
         parts << "scope=\"#{scope}\"" if scope
         challenge = "#{scheme} #{parts.join(', ')}"
+        # A Bearer challenge is followed by a second, DPoP challenge (RFC 9110
+        # §11.6.1 allows several per header) so a client holding a key-bound
+        # token learns it may use it here and with which algorithms.
         if scheme == BEARER_SCHEME
           challenge += ", #{DPOP_SCHEME} algs=\"#{config.dpop_allowed_algs.join(' ')}\""
         end

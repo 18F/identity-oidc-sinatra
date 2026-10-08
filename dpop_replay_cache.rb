@@ -25,9 +25,11 @@ module LoginGov
       #   `iat` plus the leeway); the entry can be dropped then
       # @return [Boolean] true if this is the first time the jti has been seen
       def first_use?(jti, expires_at:)
+        # Check-and-insert under one lock so two concurrent requests presenting
+        # the same proof cannot both be told "first use".
         @mutex.synchronize do
-          purge_expired
-          return false if @seen.key?(jti)
+          purge_expired                   # drop proofs that are too old to be accepted anyway
+          return false if @seen.key?(jti) # seen before: a replay
 
           @seen[jti] = expires_at
           true

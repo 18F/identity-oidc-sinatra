@@ -30,9 +30,12 @@ module LoginGov
       # than the user. Everything else in the response is an identity claim.
       # `sub` is both: the user's pairwise identifier for this agency and the
       # token's subject, so it is kept on both sides.
+      # `cnf` (RFC 7800, RFC 9449 §6) names the key a DPoP-bound token is tied
+      # to; it describes the token, not the user, so it is echoed with the other
+      # token members and never shown as an identity claim.
       TOKEN_MEMBERS = %w[
         active aud scope sub act client_id acr iat exp nbf jti token_type
-        delegation_id attributes
+        delegation_id attributes cnf
       ].freeze
 
       # Value of `attributes` when the user's Login.gov session has ended:

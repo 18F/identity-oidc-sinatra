@@ -34,6 +34,8 @@ module LoginGov
       # only; advertised in the DPoP challenge (§7.1).
       # @return [Array<String>]
       def dpop_allowed_algs
+        # Space-separated in the environment (DPOP_ALLOWED_ALGS="ES256 RS256"),
+        # the same form the challenge header uses.
         @config.fetch('dpop_allowed_algs').to_s.split
       end
 

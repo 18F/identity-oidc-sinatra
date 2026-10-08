@@ -363,6 +363,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         expect(decisions.first).to include('decision' => 'allowed', 'bound_key' => dpop_jkt)
       end
 
+      it 'echoes cnf.jkt in _introspection unchanged and never as an identity claim' do
+        get_records(scheme: 'DPoP', dpop: dpop_proof)
+
+        body = JSON.parse(last_response.body)
+        expect(body['_introspection']['cnf']).to eq('jkt' => dpop_jkt)
+        expect(body['_introspection']['token_type']).to eq 'DPoP'
+        expect(body['claims']).not_to have_key('cnf')
+      end
+
       it 'verifies the proof on every request, even when the introspection result is cached' do
         get_records(scheme: 'DPoP', dpop: dpop_proof)
         expect(last_response.status).to eq 200
