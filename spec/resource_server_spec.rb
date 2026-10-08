@@ -92,9 +92,29 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       to_return(status:, body: response.is_a?(String) ? response : response.to_json)
   end
 
-  def get_records(bearer: token)
-    header 'Authorization', "Bearer #{bearer}" if bearer
+  def get_records(bearer: token, scheme: 'Bearer', dpop: nil)
+    header 'Authorization', "#{scheme} #{bearer}" if bearer
+    header 'DPoP', dpop if dpop
     get '/records'
+  end
+
+  # --- RFC 9449 DPoP fixtures: a key the token is bound to, and proofs for this request ---
+  let(:dpop_key) { OpenSSL::PKey::EC.generate('prime256v1') }
+  let(:dpop_jwk) { JWT::JWK.new(dpop_key).export.transform_keys(&:to_s).except('kid') }
+  let(:dpop_jkt) { LoginGov::OidcSinatra::DpopVerifier.thumbprint(dpop_jwk) }
+  let(:bound_introspection) do
+    active_introspection.merge(token_type: 'DPoP', cnf: { jkt: dpop_jkt })
+  end
+  let(:records_url) { 'http://example.org/records' }
+
+  def dpop_proof(htm: 'GET', htu: records_url, iat: Time.now.to_i, jti: SecureRandom.uuid,
+                 ath: LoginGov::OidcSinatra::DpopVerifier.access_token_hash(token),
+                 key: dpop_key, jwk: dpop_jwk, alg: 'ES256')
+    JWT.encode({ jti:, htm:, htu:, iat:, ath: }.compact, key, alg, { typ: 'dpop+jwt', jwk: })
+  end
+
+  def dpop_challenge
+    last_response.headers['WWW-Authenticate']
   end
 
   def decisions
@@ -315,6 +335,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         expect(last_response.status).to eq 401
         expect(last_response.headers['WWW-Authenticate']).to start_with('Bearer realm=')
         expect(last_response.headers['WWW-Authenticate']).not_to include('error=')
+        # RFC 9449 §7.1: the challenge also says key-bound tokens are accepted and with which algs.
+        expect(last_response.headers['WWW-Authenticate']).to include('DPoP algs="ES256 RS256"')
         expect(a_request(:post, introspection_endpoint)).not_to have_been_made
         expect(decisions.first).to include('decision' => 'denied', 'reason' => 'missing_token')
       end
@@ -323,6 +345,103 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         get "/records?access_token=#{token}"
 
         expect(last_response.status).to eq 401
+      end
+    end
+
+
+    # RFC 9449 — a token Login.gov bound to a key (introspection carries cnf.jkt).
+    context 'with a key-bound token (introspection returns cnf.jkt)' do
+      before do
+        stub_introspection(bound_introspection)
+        LoginGov::OidcSinatra::DpopReplayCache.instance.clear
+      end
+
+      it 'serves the records when presented as DPoP with a valid proof for this request' do
+        get_records(scheme: 'DPoP', dpop: dpop_proof)
+
+        expect(last_response.status).to eq 200
+        expect(decisions.first).to include('decision' => 'allowed', 'bound_key' => dpop_jkt)
+      end
+
+      it 'verifies the proof on every request, even when the introspection result is cached' do
+        get_records(scheme: 'DPoP', dpop: dpop_proof)
+        expect(last_response.status).to eq 200
+
+        get_records(scheme: 'DPoP', dpop: dpop_proof(ath: 'wrong'))
+        expect(last_response.status).to eq 401
+        expect(dpop_challenge).to eq 'DPoP algs="ES256 RS256", error="invalid_dpop_proof"'
+        expect(a_request(:post, introspection_endpoint)).to have_been_made.once
+      end
+
+      it 'refuses the token presented as Bearer: 401 invalid_token with a DPoP challenge' do
+        get_records(scheme: 'Bearer')
+
+        expect(last_response.status).to eq 401
+        expect(dpop_challenge).to eq 'DPoP algs="ES256 RS256", error="invalid_token"'
+        expect(JSON.parse(last_response.body)['error']).to eq 'invalid_token'
+        expect(decisions.first).to include('decision' => 'denied', 'reason' => 'dpop_scheme_required')
+      end
+
+      it 'refuses the DPoP scheme without a DPoP header' do
+        get_records(scheme: 'DPoP')
+
+        expect(last_response.status).to eq 401
+        expect(dpop_challenge).to eq 'DPoP algs="ES256 RS256", error="invalid_dpop_proof"'
+        expect(JSON.parse(last_response.body)['error']).to eq 'invalid_dpop_proof'
+        expect(decisions.first).to include('decision' => 'denied', 'reason' => 'invalid_dpop_proof')
+      end
+
+      {
+        'ath for another token' => -> { dpop_proof(ath: LoginGov::OidcSinatra::DpopVerifier.access_token_hash('other')) },
+        'htu for another URL' => -> { dpop_proof(htu: 'http://example.org/other') },
+        'htm for another method' => -> { dpop_proof(htm: 'POST') },
+        'stale iat' => -> { dpop_proof(iat: Time.now.to_i - 120) },
+        'a key other than the one the token is bound to' => lambda {
+          other = OpenSSL::PKey::EC.generate('prime256v1')
+          dpop_proof(key: other, jwk: JWT::JWK.new(other).export.transform_keys(&:to_s).except('kid'))
+        },
+        'private members in jwk' => lambda {
+          dpop_proof(jwk: JWT::JWK.new(dpop_key).export(include_private: true).transform_keys(&:to_s).except('kid'))
+        },
+        'alg none' => -> { dpop_proof(key: nil, alg: 'none') },
+        'HS256' => -> { dpop_proof(key: 'secret', alg: 'HS256') },
+      }.each do |description, build_proof|
+        it "refuses a proof with #{description}: 401 invalid_dpop_proof" do
+          get_records(scheme: 'DPoP', dpop: instance_exec(&build_proof))
+
+          expect(last_response.status).to eq 401
+          expect(dpop_challenge).to eq 'DPoP algs="ES256 RS256", error="invalid_dpop_proof"'
+          expect(decisions.first).to include('reason' => 'invalid_dpop_proof')
+        end
+      end
+
+      it 'refuses a replayed proof' do
+        proof = dpop_proof
+        get_records(scheme: 'DPoP', dpop: proof)
+        expect(last_response.status).to eq 200
+
+        get_records(scheme: 'DPoP', dpop: proof)
+        expect(last_response.status).to eq 401
+        expect(JSON.parse(last_response.body)['error_description']).to include('jti')
+      end
+
+      it 'still checks scope before the proof' do
+        stub_introspection(bound_introspection.merge(scope: 'token_exchange:records_write'))
+        get_records(scheme: 'DPoP', dpop: dpop_proof)
+
+        expect(last_response.status).to eq 403
+      end
+    end
+
+    context 'with an unbound token (no cnf) presented with the DPoP scheme' do
+      before { stub_introspection(active_introspection) }
+
+      it 'returns 401 invalid_token with a DPoP challenge' do
+        get_records(scheme: 'DPoP', dpop: dpop_proof)
+
+        expect(last_response.status).to eq 401
+        expect(dpop_challenge).to eq 'DPoP algs="ES256 RS256", error="invalid_token"'
+        expect(decisions.first).to include('decision' => 'denied', 'reason' => 'dpop_not_bound')
       end
     end
 

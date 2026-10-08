@@ -51,6 +51,9 @@ module LoginGov
           'scope' => introspection['scope'],
           'aud' => introspection['aud'],
           'attributes' => introspection['attributes'],
+          # RFC 9449: thumbprint of the key the token is bound to, when Login.gov
+          # bound it; nil for a plain bearer token.
+          'bound_key' => introspection.dig('cnf', 'jkt'),
           'claims' => claims,
         }
         @mutex.synchronize do

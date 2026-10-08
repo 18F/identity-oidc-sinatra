@@ -48,6 +48,7 @@
                 <% tag = d['decision'] == 'allowed' ? 'bg-success' : (d['decision'] == 'unavailable' ? 'bg-warning' : 'bg-error') %>
                 <span class="usa-tag <%= tag %>"><%= d['decision'] %></span>
                 <% if d['reason'] %><br><code><%= d['reason'] %></code><% end %>
+                <% if d['bound_key'] %><br><span class="usa-tag bg-base-dark" title="RFC 9449 key-bound token (cnf.jkt <%= d['bound_key'] %>)">DPoP</span><% end %>
               </td>
               <td><code><%= d['required_scope'] %></code></td>
               <td><code><%= d['scope'] %></code></td>

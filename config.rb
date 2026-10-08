@@ -30,6 +30,18 @@ module LoginGov
         Integer(@config.fetch('introspection_cache_seconds'))
       end
 
+      # RFC 9449 §4.2 — JWS algorithms accepted on a DPoP proof. Asymmetric
+      # only; advertised in the DPoP challenge (§7.1).
+      # @return [Array<String>]
+      def dpop_allowed_algs
+        @config.fetch('dpop_allowed_algs').to_s.split
+      end
+
+      # RFC 9449 §4.3 (10) — tolerance on a proof's `iat`, in seconds, either side of now.
+      def dpop_iat_leeway_seconds
+        Integer(@config.fetch('dpop_iat_leeway_seconds'))
+      end
+
       # @return [OpenSSL::PKey::RSA] key that signs introspection assertions
       def rs_private_key
         return @rs_private_key if @rs_private_key
@@ -121,6 +133,8 @@ module LoginGov
                                    'https://records-api.agency.localdev',
           'rs_private_key_path' => ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'introspection_cache_seconds' => ENV['INTROSPECTION_CACHE_SECONDS'] || '60',
+          'dpop_allowed_algs' => ENV['DPOP_ALLOWED_ALGS'] || 'ES256 RS256',
+          'dpop_iat_leeway_seconds' => ENV['DPOP_IAT_LEEWAY_SECONDS'] || '60',
           'attempts_private_key_path' => ENV['attempts_private_key_path'] ||
                                          ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'redact_ssn' => true,

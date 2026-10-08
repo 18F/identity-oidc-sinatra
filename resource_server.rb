@@ -5,6 +5,7 @@ require 'jwt'
 require 'securerandom'
 require_relative './introspection_cache'
 require_relative './decision_log'
+require_relative './dpop_verifier'
 
 module LoginGov
   module OidcSinatra
@@ -14,12 +15,13 @@ module LoginGov
     #
     #   authorize!(required_scope)
     #     -> introspection_endpoint         (OpenID Connect Discovery / RFC 8414 §2)
-    #     -> bearer_token                   (RFC 6750 §2.1)
+    #     -> presented_credentials          (RFC 6750 §2.1 Bearer, RFC 9449 §7.1 DPoP)
     #     -> id_token?                      (never accept an ID token as delegation)
     #     -> cached_introspection           (RFC 7662; Login.gov's 60 s reuse window)
     #     -> introspect                     (RFC 7662 §2.1)
     #        -> rs_client_assertion         (RFC 7523 §3, RFC 8725)
     #     -> check active / aud / act / scope (RFC 7662 §2.2, RFC 8693 §4.1)
+    #     -> check_key_binding!             (RFC 9449 §4.3, §7.1: proof for a cnf-bound token)
     #     -> log_decision                   (join key to Attempts events: delegation_id)
     #
     # The active response also carries the user's identity claims; see
@@ -41,6 +43,13 @@ module LoginGov
       # Raised when Login.gov cannot be reached or answers unexpectedly. Callers
       # respond 503 and serve nothing.
       class IntrospectionUnavailable < StandardError; end
+
+      # RFC 6750 §2.1 bearer scheme and RFC 9449 §7.1 DPoP scheme. Which one a
+      # request must use is decided by the token: a token Login.gov bound to a
+      # key (introspection returns `cnf`) must come as DPoP with a proof; an
+      # unbound token must come as Bearer.
+      BEARER_SCHEME = 'Bearer'
+      DPOP_SCHEME = 'DPoP'
 
       # Gate a route on a delegated token carrying `required_scope`.
       # Sets @introspection for the route body. Halts with 401/403/503 otherwise.
@@ -71,8 +80,9 @@ module LoginGov
           )
         end
 
-        # RFC 6750 §2.1 — the token arrives only in the Authorization header.
-        token = bearer_token(request)
+        # RFC 6750 §2.1 / RFC 9449 §7.1 — the token arrives only in the
+        # Authorization header, with the Bearer or the DPoP scheme.
+        scheme, token = presented_credentials(request)
         unless token
           log_decision(nil, route:, decision: 'denied', reason: 'missing_token', required_scope:)
           halt 401, www_authenticate('Bearer'), ''
@@ -160,8 +170,78 @@ module LoginGov
                                    "This endpoint requires #{required_scope}.")
         end
 
+        # RFC 9449 §4.3, §7.1 — a key-bound token (`cnf` present) is good only
+        # with a proof signed by that key for this exact request; an unbound
+        # token must not pretend to be bound. Runs on every request, cached
+        # introspection or not: the cache answers "is the token valid", the
+        # proof answers "is this caller the key holder".
+        check_key_binding!(scheme, token, route:, required_scope:)
+
         log_decision(@introspection, route:, decision: 'allowed', required_scope:)
         @introspection
+      end
+
+      # RFC 9449 §7.1 — when introspection says the token is bound to a key
+      # (`cnf.jkt`), the request must use the DPoP scheme and carry exactly one
+      # valid DPoP proof; presented as Bearer it is refused as `invalid_token`
+      # (§7.2). When the token is not bound, the DPoP scheme is wrong too.
+      # Either way the challenge advertises the algorithms this server accepts
+      # so the client knows what to send.
+      def check_key_binding!(scheme, token, route:, required_scope:)
+        jkt = @introspection.dig('cnf', 'jkt')
+
+        if jkt.nil?
+          return if scheme == BEARER_SCHEME
+
+          log_decision(@introspection, route:, decision: 'denied', reason: 'dpop_not_bound',
+                                       required_scope:)
+          halt 401, www_authenticate(DPOP_SCHEME, error: 'invalid_token'),
+               json_error_response('invalid_token',
+                                   'The token is not bound to a key; present it as Bearer.')
+        end
+
+        unless scheme == DPOP_SCHEME
+          log_decision(@introspection, route:, decision: 'denied', reason: 'dpop_scheme_required',
+                                       required_scope:)
+          halt 401, www_authenticate(DPOP_SCHEME, error: 'invalid_token'),
+               json_error_response('invalid_token',
+                                   'The token is bound to a key; present it with the DPoP ' \
+                                   'scheme and a DPoP proof.')
+        end
+
+        begin
+          DpopVerifier.new(
+            proof: dpop_proof_header(request),
+            method: request.request_method,
+            url: request_url_without_query(request),
+            access_token: token,
+            expected_jkt: jkt,
+            allowed_algs: config.dpop_allowed_algs,
+            iat_leeway_seconds: config.dpop_iat_leeway_seconds,
+          ).verify!
+        rescue DpopVerifier::InvalidProof => e
+          log_decision(@introspection, route:, decision: 'denied', reason: 'invalid_dpop_proof',
+                                       required_scope:)
+          settings.logger.info("DPoP proof refused: #{e.message} route=#{route}")
+          halt 401, www_authenticate(DPOP_SCHEME, error: 'invalid_dpop_proof'),
+               json_error_response('invalid_dpop_proof', e.message)
+        end
+      end
+
+      # RFC 9449 §4.1 — the proof travels in a single `DPoP` request header.
+      # Rack folds repeated headers into one comma-separated value; a compact
+      # JWS never contains a comma, so the verifier treats one as "more than one
+      # header" and refuses it.
+      def dpop_proof_header(request)
+        request.env['HTTP_DPOP']
+      end
+
+      # RFC 9449 §4.3 (9) — `htu` is compared to the request URL without query
+      # or fragment. `base_url` honors X-Forwarded-Proto / X-Forwarded-Host, so
+      # behind a TLS-terminating gateway the comparison sees the client's
+      # https URL rather than the gateway's http one.
+      def request_url_without_query(request)
+        request.base_url + request.path
       end
 
       # OpenID Connect Discovery 1.0 / RFC 8414 §2 — `introspection_endpoint` is
@@ -175,14 +255,27 @@ module LoginGov
         raise IntrospectionUnavailable.new(e.message)
       end
 
-      # RFC 6750 §2.1 — Authorization: Bearer b64token. Returns nil for any
-      # other scheme or a malformed header; the query and body forms (§2.2,
-      # §2.3) are deliberately not accepted.
+      # RFC 6750 §2.1 — Authorization: Bearer b64token; RFC 9449 §7.1 —
+      # Authorization: DPoP token68. Returns [scheme, token] with the scheme
+      # normalized to its canonical spelling, or [nil, nil] for any other scheme
+      # or a malformed header. The query and body forms (RFC 6750 §2.2, §2.3)
+      # are deliberately not accepted.
+      # @return [Array(String, String), Array(nil, nil)]
+      def presented_credentials(request)
+        header = request.env['HTTP_AUTHORIZATION'].to_s
+        pattern = /\A(?<scheme>Bearer|DPoP)[ ]+(?<token>[A-Za-z0-9\-._~+\/]+=*)\z/i
+        match = pattern.match(header.strip)
+        return [nil, nil] unless match
+
+        scheme = match[:scheme].casecmp?(DPOP_SCHEME) ? DPOP_SCHEME : BEARER_SCHEME
+        [scheme, match[:token]]
+      end
+
+      # RFC 6750 §2.1 only: the token when presented with the Bearer scheme.
       # @return [String, nil]
       def bearer_token(request)
-        header = request.env['HTTP_AUTHORIZATION'].to_s
-        match = /\ABearer[ ]+(?<token>[A-Za-z0-9\-._~+\/]+=*)\z/.match(header.strip)
-        match && match[:token]
+        scheme, token = presented_credentials(request)
+        scheme == BEARER_SCHEME ? token : nil
       end
 
       # A Login.gov delegated access token is opaque; an id_token is a signed JWT
@@ -281,14 +374,24 @@ module LoginGov
         )
       end
 
-      # RFC 6750 §3 — WWW-Authenticate challenge.
+      # RFC 6750 §3 / RFC 9449 §7.1 — WWW-Authenticate challenge. A Bearer
+      # challenge is followed by a DPoP challenge listing the accepted proof
+      # algorithms, so a client learns this API accepts key-bound tokens
+      # (RFC 9449 §7.1: "the resource server includes the DPoP challenge").
+      # A DPoP challenge carries `algs` and the error on its own.
       # @return [Hash] headers
       def www_authenticate(scheme, error: nil, scope: nil)
-        parts = ["realm=\"#{config.resource_identifier}\""]
+        parts = []
+        parts << "realm=\"#{config.resource_identifier}\"" if scheme == BEARER_SCHEME
+        parts << "algs=\"#{config.dpop_allowed_algs.join(' ')}\"" if scheme == DPOP_SCHEME
         parts << "error=\"#{error}\"" if error
         parts << "scope=\"#{scope}\"" if scope
+        challenge = "#{scheme} #{parts.join(', ')}"
+        if scheme == BEARER_SCHEME
+          challenge += ", #{DPOP_SCHEME} algs=\"#{config.dpop_allowed_algs.join(' ')}\""
+        end
         {
-          'WWW-Authenticate' => "#{scheme} #{parts.join(', ')}",
+          'WWW-Authenticate' => challenge,
           'Content-Type' => 'application/json',
         }
       end

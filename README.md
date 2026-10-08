@@ -20,6 +20,8 @@ SAML-consuming agency in `identity-saml-sinatra`.
 
 ```
 Service provider ──► GET /records, Authorization: Bearer <delegated token>        RFC 6750 §2.1
+       │              or, for a key-bound token:  Authorization: DPoP <delegated token>  RFC 9449 §7.1
+       │                                          DPoP: <proof JWS: jwk, jti, htm, htu, iat, ath>
        │
        │   resource server ──► POST /api/openid_connect/introspect                 RFC 7662 §2.1
        │        token=<delegated token>
@@ -27,11 +29,15 @@ Service provider ──► GET /records, Authorization: Bearer <delegated token>
        │        client_assertion=<RS256 JWT: iss=sub=RESOURCE_IDENTIFIER,        RFC 7523 §3
        │                          aud=introspection_endpoint, jti, iat, exp<=iat+300>
        │   Login.gov ──► {active:true, aud, scope, sub, act:{sub}, client_id, acr, iat, exp, delegation_id,
-       │                  token_type, + the user's identity claims as userinfo would return them}
+       │                  token_type ("Bearer" or "DPoP"), cnf:{jkt} when key-bound,
+       │                  + the user's identity claims as userinfo would return them}
        │                 or {active:false}
        │
        ├─ not active / aud != RESOURCE_IDENTIFIER ──► 401 WWW-Authenticate: Bearer error="invalid_token"
        ├─ scope lacks the route's value ──────────────────────► 403 error="insufficient_scope"
+       ├─ cnf present but scheme is Bearer ──► 401 WWW-Authenticate: DPoP algs="ES256 RS256", error="invalid_token"
+       ├─ cnf present, DPoP proof missing or invalid ──► 401 DPoP algs="ES256 RS256", error="invalid_dpop_proof"
+       ├─ no cnf but scheme is DPoP ─────────────────► 401 DPoP algs="ES256 RS256", error="invalid_token"
        ├─ Login.gov unreachable, error, or no introspection_endpoint in discovery ──► 503 (fail closed)
        └─ otherwise ──► 200 with the records and the user's claims from introspection,
                         log decision {sub, act.sub, delegation_id, scope, route, decision, claims}
@@ -44,17 +50,22 @@ standard it implements cited above it, so it can be copied into another Ruby API
 |---|---|---|
 | `authorize!(required_scope)` | — | Runs the steps below in order; halts 401/403/503 |
 | `introspection_endpoint` | OIDC Discovery / RFC 8414 §2 | Reads `introspection_endpoint`; absent means Login.gov has delegation off |
-| `bearer_token(request)` | RFC 6750 §2.1 | Header form only; query/body forms are refused |
+| `presented_credentials(request)` | RFC 6750 §2.1, RFC 9449 §7.1 | `[scheme, token]` from the `Authorization` header, Bearer or DPoP; query/body forms are refused |
 | `id_token?(token)` | RFC 7519 | Refuses a JWT-shaped token (an ID token proves sign-in, not delegation) before any network call |
 | `cached_introspection(token)` | RFC 7662 | Reuses `active: true` for at most `INTROSPECTION_CACHE_SECONDS` (Login.gov publishes 60) |
 | `introspect(token, endpoint)` | RFC 7662 §2.1 | Only HTTP 200 + JSON object is an answer; anything else is "unavailable" |
 | `rs_client_assertion(audience:)` | RFC 7523 §3, RFC 8725 | `iss`=`sub`=identifier, `aud`=introspection URL, fresh `jti`, `exp` = `iat` + 300, RS256 |
 | `scope_granted?(scope, required)` | RFC 6749 §3.3 | Whole-string comparison of `token_exchange:<name>` values |
+| `check_key_binding!(scheme, token, ...)` | RFC 9449 §4.3, §7.1 | When introspection carries `cnf.jkt`, requires the DPoP scheme and verifies the proof on every request (cached introspection or not); refuses the DPoP scheme for an unbound token |
 | `log_decision(...)` | — | Ring buffer of `sub`, `act.sub`, `delegation_id`, scope, route, decision, and the redacted identity claims; never the token |
-| `www_authenticate(...)` | RFC 6750 §3 | Challenge header |
+| `www_authenticate(...)` | RFC 6750 §3, RFC 9449 §7.1 | Challenge header; a Bearer challenge is followed by `DPoP algs="…"` so clients learn key-bound tokens are accepted |
 
 Supporting classes: [`introspection_cache.rb`](introspection_cache.rb) (keyed by SHA-256 of the
-token, active results only, never past the token's `exp`), [`decision_log.rb`](decision_log.rb),
+token, active results only, never past the token's `exp`), [`dpop_verifier.rb`](dpop_verifier.rb)
+(the RFC 9449 §4.3 checks, one method each: `typ`, allowed asymmetric `alg`, public-only `jwk`,
+signature, `htm`, `htu`, `iat`, unused `jti`, `ath`, and thumbprint = `cnf.jkt`),
+[`dpop_replay_cache.rb`](dpop_replay_cache.rb) (accepted `jti` values until their `iat` ages out),
+[`decision_log.rb`](decision_log.rb),
 [`demo_records.rb`](demo_records.rb), and [`identity_claims.rb`](identity_claims.rb), which reads
 the user's claims from an introspection response or a userinfo response alike (next section).
 
@@ -156,6 +167,8 @@ Then open http://localhost:9393/decisions and http://localhost:9393/attempts-api
 | `RESOURCE_IDENTIFIER` | This API's identifier (RFC 8707 `resource`); `iss`/`sub` of introspection assertions and expected `aud` of tokens | `https://records-api.agency.localdev` |
 | `RS_PRIVATE_KEY_PATH` / `RS_PRIVATE_KEY` | Key that signs introspection assertions (path, or PEM inline) | `./config/rs_demo.key` |
 | `INTROSPECTION_CACHE_SECONDS` | Max reuse of an `active: true` answer (Login.gov publishes 60) | `60` |
+| `DPOP_ALLOWED_ALGS` | JWS algorithms accepted on a DPoP proof (asymmetric only); advertised in the DPoP challenge | `ES256 RS256` |
+| `DPOP_IAT_LEEWAY_SECONDS` | Tolerance on a proof's `iat`, either side of now | `60` |
 | `idp_url` | Login.gov base URL (discovery, introspection, Attempts poll) | `http://localhost:3000` |
 | `client_id` | The agency SP's issuer: direct sign-in client and Attempts API poll identity | `urn:gov:gsa:openidconnect:sp:records_agency` |
 | `redirect_uri` | Base for the direct sign-in redirect URIs | `http://localhost:9393/` |
@@ -208,7 +221,30 @@ In `identity-idp`:
 - Call userinfo with a delegated token, or fall back to it when introspection says
   `identifiers_only`. The claims come from introspection; when they are missing, the service
   provider has to send the user back through Login.gov.
-- DPoP / sender-constrained tokens (Appendix C). Optional and not built.
+- Accept a key-bound token (introspection carries `cnf.jkt`) without a DPoP proof, or with the
+  Bearer scheme. The proof is verified on every request, cached introspection or not: the cache says
+  the token is valid, the proof says the caller holds the key it is bound to.
+- Trust the `kid` in a proof; the key thumbprint is recomputed from the embedded `jwk`.
+
+## Key-bound (DPoP) tokens: agency checklist
+
+Login.gov binds a delegated token to the service provider's key when the exchange carried a DPoP
+proof. Introspection then returns `token_type: "DPoP"` and `cnf: { jkt: <thumbprint> }`, and the
+token is useless to anyone who does not hold that key. An agency API that accepts such tokens must:
+
+1. Read the scheme from `Authorization`: `DPoP <token>` for a bound token, `Bearer <token>` for an
+   unbound one. Refuse a bound token presented as Bearer (`401`, `DPoP … error="invalid_token"`).
+2. Verify the `DPoP` header on every request, including when the introspection result is cached:
+   `typ` is `dpop+jwt`; `alg` is on your allow-list and asymmetric; the embedded `jwk` has no private
+   members; the signature verifies with that `jwk`; `htm` is this request's method; `htu` is this
+   request's URL without query or fragment; `iat` is within your leeway; `jti` has not been seen;
+   `ath` is the base64url SHA-256 of the token exactly as presented; the `jwk` thumbprint (RFC 7638)
+   equals `cnf.jkt`. Any failure is `401`, `DPoP algs="…", error="invalid_dpop_proof"`.
+3. Keep a replay cache of accepted `jti` values for at least the `iat` leeway, shared across
+   instances in a multi-instance deployment.
+4. Compare `htu` to the URL the client used. Behind a TLS-terminating gateway that means honoring
+   `X-Forwarded-Proto` / `X-Forwarded-Host` (Rack's `base_url` does), or every proof will fail.
+5. Include `DPoP algs="…"` in your `WWW-Authenticate` challenges so clients know proofs are accepted.
 
 ## Contributing
 
