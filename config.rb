@@ -48,7 +48,7 @@ module LoginGov
       # sign-in here (OpenID Connect Core 1.0 §4,
       # https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
       # Exact `scheme://host[:port]` values, space- or comma-separated in the
-      # environment; the default is the local America.gov reference app.
+      # environment; the default is the local MyBenefits Assistant reference app.
       # The identity assurance level this agency signs users in at when a
       # third party starts the sign-in; the agency decides this, not the third
       # party, because the agency owns the session that results.
@@ -63,6 +63,19 @@ module LoginGov
           # Normalize the same way the request's origin is normalized, so a
           # trailing slash or upper-case host in configuration still matches.
           map { |origin| origin.chomp('/').downcase }
+      end
+
+      # Browser origins allowed to call the resource server routes (/records)
+      # from a web page on another origin (CORS, Fetch standard
+      # https://fetch.spec.whatwg.org/#http-cors-protocol). The reference service
+      # provider is a browser-based public client, so its pages call this API with
+      # fetch and the browser enforces this list. Exact `scheme://host[:port]`
+      # values, space- or comma-separated, no wildcards; the default is the local
+      # MyBenefits Assistant reference app.
+      # @return [Array<String>] normalized origins
+      def cors_allowed_origins
+        @config.fetch('cors_allowed_origins').to_s.split(/[\s,]+/).
+          reject(&:empty?).map { |origin| origin.chomp('/').downcase }
       end
 
       # @return [OpenSSL::PKey::RSA] key that signs introspection assertions
@@ -161,6 +174,7 @@ module LoginGov
           'third_party_target_link_allowlist' =>
             ENV['THIRD_PARTY_TARGET_LINK_ALLOWLIST'] || 'http://localhost:9292',
           'third_party_sign_in_ial' => ENV['THIRD_PARTY_SIGN_IN_IAL'] || '2',
+          'cors_allowed_origins' => ENV['CORS_ALLOWED_ORIGINS'] || 'http://localhost:9292',
           'attempts_private_key_path' => ENV['attempts_private_key_path'] ||
                                          ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'redact_ssn' => true,

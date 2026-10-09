@@ -121,6 +121,7 @@ with the same token reuses the `active: true` answer and its claims without aski
 | `GET /records` | `token_exchange:records_read` | `{ records: [...], claims: {...}, _introspection: {...} }` (+ `attributes`, `notice` when identifiers only) |
 | `POST /records` | `token_exchange:records_write` | 201 `{ record: {...}, claims: {...}, _introspection: {...} }`; JSON or form body with `title`, `note` |
 | `GET /decisions` | — | Every authorization decision, newest first, with the user's claims from introspection (also `/decisions.json`) |
+| `OPTIONS /records` | — | CORS preflight answer for the service provider's browser pages (see [CORS](#cors-for-the-service-providers-browser)) |
 | `GET /attempts-api` | — | Attempts events delivered to this agency; `?tab=delegated` groups them by `delegation_id` with the matching API decisions beneath |
 | `GET /api/health` | — | Includes `resource_identifier` and the discovered `introspection_endpoint` |
 | `GET /initiate_login` | `iss`, `target_link_uri` (and optional `login_hint`) query parameters | 302 to Login.gov after the §4 checks; 400 with the reason otherwise. See [Third-party-initiated login](#third-party-initiated-login) |
@@ -139,6 +140,29 @@ reason alone: an agency API that also accepts non-delegated tokens has legitimat
 and the scope check still governs what the call may do. Login.gov's introspection endpoint only ever
 answers for delegated tokens, so this app logs a missing `act` as an anomaly. Login.gov decides which *API* a token is for
 (`aud`); the agency decides which *endpoints* each scope reaches.
+
+## CORS for the service provider's browser
+
+The reference service provider is a browser-based public client: the page the user is looking at
+holds the delegated token and calls `GET`/`POST /records` with `fetch`. Because that page is served
+from another origin, the browser first sends a preflight `OPTIONS /records` naming the method and
+the request headers, and only sends the real request if the answer allows them (Fetch standard,
+https://fetch.spec.whatwg.org/#http-cors-protocol). For requests whose `Origin` is in
+`CORS_ALLOWED_ORIGINS` the API answers with:
+
+```
+Access-Control-Allow-Origin: <the matching origin>
+Vary: Origin
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Authorization, DPoP, Content-Type
+Access-Control-Expose-Headers: WWW-Authenticate
+Access-Control-Max-Age: 600
+```
+
+The headers are added to every `/records` response, including 401, 403 and 503, so the page can
+read the `WWW-Authenticate` challenge (RFC 6750 §3, RFC 9449 §7.1). The preflight checks no
+credentials; the token and the DPoP proof arrive with the request that follows. A request from an
+origin not in the list gets no CORS headers and the browser withholds the response.
 
 ## Running locally
 
@@ -173,6 +197,7 @@ Then open http://localhost:9393/decisions and http://localhost:9393/attempts-api
 | `RS_PRIVATE_KEY_PATH` / `RS_PRIVATE_KEY` | Key that signs introspection assertions (path, or PEM inline) | `./config/rs_demo.key` |
 | `INTROSPECTION_CACHE_SECONDS` | Max reuse of an `active: true` answer (Login.gov publishes 60) | `60` |
 | `DPOP_ALLOWED_ALGS` | JWS algorithms accepted on a DPoP proof (asymmetric only); advertised in the DPoP challenge | `ES256 RS256` |
+| `CORS_ALLOWED_ORIGINS` | Browser origins allowed to call `/records` cross-origin (exact `scheme://host[:port]`, space- or comma-separated). The service provider reference app is a browser public client and calls this API with `fetch` | `http://localhost:9292` |
 | `DPOP_IAT_LEEWAY_SECONDS` | Tolerance on a proof's `iat`, either side of now | `60` |
 | `THIRD_PARTY_TARGET_LINK_ALLOWLIST` | Exact origins a third party may name in `target_link_uri` (space- or comma-separated; no wildcards) | `http://localhost:9292` |
 | `THIRD_PARTY_SIGN_IN_IAL` | IAL this agency signs users in at when a third party starts the sign-in | `2` |

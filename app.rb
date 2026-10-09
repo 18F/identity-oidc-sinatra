@@ -516,6 +516,25 @@ module LoginGov::OidcSinatra
     # decides which endpoint each scope may reach.
     # ---------------------------------------------------------------------
 
+    # CORS (Fetch standard, https://fetch.spec.whatwg.org/#http-cors-protocol).
+    # The reference service provider is a browser-based public client: its pages
+    # call this API with fetch from another origin. Before a request that carries
+    # an Authorization or DPoP header the browser sends a preflight OPTIONS naming
+    # the method and headers it intends to use; the real request follows only if
+    # the preflight answer allows them. Both answers must carry the CORS headers,
+    # including error answers (401/403/503), or the page cannot read the status
+    # or the WWW-Authenticate challenge and sees only a network error.
+    before do
+      cors_headers! if API_REQUEST.call(request.env)
+    end
+
+    # Preflight: no credentials are checked here. The browser only asks whether
+    # the origin, method and headers are acceptable; the token arrives with the
+    # request that follows.
+    options %r{/records.*} do
+      halt 204
+    end
+
     # Requires token_exchange:records_read (access_type read).
     get '/records' do
       authorize!('token_exchange:records_read')
@@ -577,6 +596,27 @@ module LoginGov::OidcSinatra
         payload[:notice] = IdentityClaims::IDENTIFIERS_ONLY_NOTICE
       end
       payload.merge(_introspection: introspection_metadata(introspection))
+    end
+
+    # Add the CORS response headers when the request comes from an allowed origin.
+    # `Access-Control-Allow-Origin` echoes the one matching origin (never `*`:
+    # the responses carry per-user data), `Vary: Origin` keeps caches from
+    # serving one origin's answer to another, and the allow lists name exactly
+    # what the service provider sends: GET and POST with `Authorization`
+    # (Bearer or DPoP scheme), the `DPoP` proof header and a JSON body.
+    # `WWW-Authenticate` is exposed so the page can read the challenge
+    # (RFC 6750 §3, RFC 9449 §7.1) on a 401 or 403. A request from any other
+    # origin gets no CORS headers and the browser withholds the response.
+    def cors_headers!
+      origin = request.env['HTTP_ORIGIN'].to_s.chomp('/').downcase
+      return if origin.empty? || !config.cors_allowed_origins.include?(origin)
+
+      headers 'Access-Control-Allow-Origin' => request.env['HTTP_ORIGIN'],
+              'Vary' => 'Origin',
+              'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Headers' => 'Authorization, DPoP, Content-Type',
+              'Access-Control-Expose-Headers' => 'WWW-Authenticate',
+              'Access-Control-Max-Age' => '600'
     end
 
     def json_response(payload)
