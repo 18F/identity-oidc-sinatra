@@ -14,7 +14,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:idp_private_key) { OpenSSL::PKey::RSA.new(read_fixture_file('idp.key')) }
   let(:client_id) { 'urn:gov:gsa:openidconnect:sp:records_agency' }
 
-  # The third party in the reference setup is the America.gov app; its origin is
+  # The third party in the reference setup is the MyBenefits Assistant app; its origin is
   # the default allow-list entry.
   let(:target_link_uri) { 'http://localhost:9292/third-party/return?task=passport' }
   let(:login_hint) { SecureRandom.uuid }

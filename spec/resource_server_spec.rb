@@ -53,7 +53,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       jti: 'tok-1',
       auth_time: Time.now.to_i - 60,
       aud: resource_identifier,
-      scope: 'token_exchange:records_read',
+      scope: 'token_exchange:housing_records',
       act: { sub: actor },
       client_id: actor,
       acr: 'urn:acr.login.gov:verified',
@@ -124,7 +124,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   end
 
   describe 'GET /records' do
-    context 'with an active token carrying records_read' do
+    context 'with an active token carrying the application\'s scope' do
       let!(:stub) { stub_introspection(active_introspection) }
 
       it 'serves fictional records for sub and echoes the introspection result' do
@@ -268,11 +268,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         expect(decisions.first).to include(
           'route' => 'GET /records',
           'decision' => 'allowed',
-          'required_scope' => 'token_exchange:records_read',
+          'required_scope' => 'token_exchange:housing_records',
           'sub' => 'agency-pairwise-sub-1',
           'actor' => actor,
           'delegation_id' => delegation_id,
-          'scope' => 'token_exchange:records_read',
+          'scope' => 'token_exchange:housing_records',
         )
         expect(decisions.first.to_json).not_to include(token)
       end
@@ -439,7 +439,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       end
 
       it 'still checks scope before the proof' do
-        stub_introspection(bound_introspection.merge(scope: 'token_exchange:records_write'))
+        stub_introspection(bound_introspection.merge(scope: 'token_exchange:retirement_benefits'))
         get_records(scheme: 'DPoP', dpop: dpop_proof)
 
         expect(last_response.status).to eq 403
@@ -503,25 +503,38 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       end
     end
 
-    context 'when the token lacks the required scope' do
-      before { stub_introspection(active_introspection.merge(scope: 'token_exchange:records_write')) }
+    context 'when the token carries another application\'s scope' do
+      before { stub_introspection(active_introspection.merge(scope: 'token_exchange:retirement_benefits')) }
 
-      it 'returns 403 insufficient_scope naming the scope' do
+      it 'returns 403 insufficient_scope naming this application\'s scope' do
         get_records
 
         expect(last_response.status).to eq 403
         expect(last_response.headers['WWW-Authenticate']).to include('error="insufficient_scope"')
-        expect(last_response.headers['WWW-Authenticate']).to include('scope="token_exchange:records_read"')
+        expect(last_response.headers['WWW-Authenticate']).to include('scope="token_exchange:housing_records"')
         expect(JSON.parse(last_response.body)['error']).to eq 'insufficient_scope'
         expect(decisions.first).to include('decision' => 'denied', 'reason' => 'insufficient_scope')
       end
 
       it 'does not match on a prefix or substring of the scope value' do
-        stub_introspection(active_introspection.merge(scope: 'token_exchange:records_readonly records_read'))
+        stub_introspection(active_introspection.merge(scope: 'token_exchange:housing_records_archive housing_records'))
 
         get_records
 
         expect(last_response.status).to eq 403
+      end
+    end
+
+    context 'when introspection reports whether the sign-in is live' do
+      it 'echoes session_live with the token members and keeps it out of the claims' do
+        stub_introspection(active_introspection.merge(session_live: true))
+
+        get_records
+
+        body = JSON.parse(last_response.body)
+        expect(body['_introspection']['session_live']).to eq true
+        expect(body['claims']).not_to have_key('session_live')
+        expect(decisions.first).to include('session_live' => true)
       end
     end
 
@@ -607,10 +620,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   end
 
   describe 'POST /records' do
-    it 'creates a record when the token carries records_write' do
-      stub_introspection(
-        active_introspection.merge(scope: 'token_exchange:records_read token_exchange:records_write'),
-      )
+    after { ENV.delete('DELEGATION_ACCESS_TYPE') }
+
+    it 'creates a record under the same scope as a read: the application is registered read-write' do
+      stub_introspection(active_introspection)
       header 'Authorization', "Bearer #{token}"
       header 'Content-Type', 'application/json'
       post '/records', { title: 'Fictional filing', note: 'demo' }.to_json
@@ -623,15 +636,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       expect(body['_introspection']).not_to have_key('given_name')
       expect(a_request(:any, userinfo_endpoint)).not_to have_been_made
       expect(decisions.first).to include('route' => 'POST /records', 'decision' => 'allowed',
-                                          'required_scope' => 'token_exchange:records_write')
+                                          'required_scope' => 'token_exchange:housing_records')
 
       header 'Content-Type', nil
       get_records
       expect(JSON.parse(last_response.body)['records'].map { |r| r['title'] }).to include('Fictional filing')
     end
 
-    it 'refuses a read-only delegation with 403 insufficient_scope' do
-      stub_introspection(active_introspection)
+    it 'refuses a token for another application with 403 insufficient_scope' do
+      stub_introspection(active_introspection.merge(scope: 'token_exchange:retirement_benefits'))
       header 'Authorization', "Bearer #{token}"
       post '/records', title: 'Should not be written'
 
@@ -639,8 +652,19 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       expect(JSON.parse(last_response.body)['error']).to eq 'insufficient_scope'
     end
 
+    it 'has no write when the application is registered read-only, whatever the token' do
+      ENV['DELEGATION_ACCESS_TYPE'] = 'read'
+      header 'Authorization', "Bearer #{token}"
+      post '/records', title: 'Should not be written'
+
+      expect(last_response.status).to eq 405
+      expect(last_response.headers['Allow']).to eq 'GET, OPTIONS'
+      expect(JSON.parse(last_response.body)['error']).to eq 'method_not_allowed'
+      expect(a_request(:post, introspection_endpoint)).not_to have_been_made
+    end
+
     it 'rejects a malformed JSON body with 400' do
-      stub_introspection(active_introspection.merge(scope: 'token_exchange:records_write'))
+      stub_introspection(active_introspection)
       header 'Authorization', "Bearer #{token}"
       header 'Content-Type', 'application/json'
       post '/records', '{not json'

@@ -51,10 +51,11 @@ module LoginGov
       BEARER_SCHEME = 'Bearer'
       DPOP_SCHEME = 'DPoP'
 
-      # Gate a route on a delegated token carrying `required_scope`.
+      # Gate a route on a delegated token carrying `required_scope`: this
+      # application's one delegation scope, the same for every route.
       # Sets @introspection for the route body. Halts with 401/403/503 otherwise.
       #
-      # @param [String] required_scope full wire value, e.g. "token_exchange:records_read"
+      # @param [String] required_scope full wire value, e.g. "token_exchange:housing_records"
       def authorize!(required_scope)
         content_type :json
         route = "#{request.request_method} #{request.path_info}"
@@ -144,8 +145,9 @@ module LoginGov
         # tokens has legitimate tokens without it. Login.gov's introspection
         # endpoint answers only for delegated tokens, so here a missing `act`
         # is merely logged as an anomaly. Agency policy for delegated callers
-        # is expressed through the scope check below: a service provider may
-        # write only if the user approved the write scope.
+        # is expressed through the scope check below and the application's
+        # registered access type: a token for another application never
+        # reaches a route here, and a read-only application has no write.
         actor = @introspection.dig('act', 'sub')
         if actor
           settings.logger.info(
@@ -159,8 +161,9 @@ module LoginGov
           )
         end
 
-        # Login.gov decided which API the token is for; the agency decides which
-        # endpoint each scope reaches. Scope values are compared as full strings
+        # Login.gov decided which API the token is for and put that
+        # application's one scope in `scope`; a token whose scope is some other
+        # application's is refused. Scope values are compared as full strings
         # (RFC 6749 §3.3).
         unless scope_granted?(@introspection['scope'], required_scope)
           log_decision(@introspection, route:, decision: 'denied', reason: 'insufficient_scope',

@@ -17,7 +17,7 @@ module LoginGov
     # `address`, `phone`, `phone_verified`, `verified_at`, `ial`, `aal`,
     # `x509_*`), limited to the agency's configured attribute bundle, next to
     # the token members (`active`, `aud`, `scope`, `act`, `client_id`, `acr`,
-    # `iat`, `exp`, `delegation_id`, `token_type`).
+    # `iat`, `exp`, `delegation_id`, `token_type`, `session_live`).
     #
     # Because the two responses agree on claim names, the same helpers below
     # (and the identity_claims.erb partial) render either one, and the agency
@@ -36,9 +36,12 @@ module LoginGov
       # `iss`, `jti` and `auth_time` (RFC 7662 §2.2) say who issued the token,
       # which token this is, and when the user last authenticated; they are
       # about the token and the sign-in, not attributes of the person.
+      # `session_live` says whether the user's Login.gov sign-in is still live:
+      # the attribute bundle is released while it is, identifiers only once it
+      # has ended (`attributes: "identifiers_only"`).
       TOKEN_MEMBERS = %w[
         active iss aud scope sub act client_id acr iat exp nbf jti auth_time token_type
-        delegation_id attributes cnf
+        delegation_id attributes session_live cnf
       ].freeze
 
       # Value of `attributes` when the user's Login.gov session has ended:

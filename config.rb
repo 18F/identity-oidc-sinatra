@@ -24,6 +24,24 @@ module LoginGov
         @config.fetch('resource_identifier')
       end
 
+      # The one delegation scope this application is registered with at
+      # Login.gov, in its full wire form. Every delegated token for this API
+      # carries exactly this value in `scope`; every route requires it.
+      def delegation_scope
+        @config.fetch('delegation_scope')
+      end
+
+      # The access type the application is registered with: `read` or
+      # `read_write`. It is part of the registration, not of the token, and it
+      # decides whether this API offers a write at all.
+      def delegation_access_type
+        @config.fetch('delegation_access_type')
+      end
+
+      def read_write?
+        delegation_access_type == 'read_write'
+      end
+
       # Upper bound on how long an `active: true` introspection result may be
       # reused before asking Login.gov again (Login.gov publishes 60 seconds).
       def introspection_cache_seconds
@@ -167,6 +185,8 @@ module LoginGov
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/rs_demo.key',
           'resource_identifier' => ENV['RESOURCE_IDENTIFIER'] ||
                                    'https://records-api.agency.localdev',
+          'delegation_scope' => ENV['DELEGATION_SCOPE'] || 'token_exchange:housing_records',
+          'delegation_access_type' => ENV['DELEGATION_ACCESS_TYPE'] || 'read_write',
           'rs_private_key_path' => ENV['RS_PRIVATE_KEY_PATH'] || './config/rs_demo.key',
           'introspection_cache_seconds' => ENV['INTROSPECTION_CACHE_SECONDS'] || '60',
           'dpop_allowed_algs' => ENV['DPOP_ALLOWED_ALGS'] || 'ES256 RS256',

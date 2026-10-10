@@ -21,7 +21,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
       sub: 'agency-pairwise-sub-1',
       email: 'demo.user@example.com',
       aud: 'https://records-api.agency.localdev',
-      scope: 'token_exchange:records_read token_exchange:records_write',
+      scope: 'token_exchange:housing_records',
       act: { sub: 'urn:gov:gsa:openidconnect:sp:sinatra_sts' },
       delegation_id: 'a1b2c3d4-0000-4000-8000-000000000001',
       token_type: 'Bearer',
@@ -38,7 +38,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
     LoginGov::OidcSinatra::DemoRecords.instance.clear
   end
 
-  after { ENV.delete('CORS_ALLOWED_ORIGINS') }
+  after do
+    ENV.delete('CORS_ALLOWED_ORIGINS')
+    ENV.delete('DELEGATION_ACCESS_TYPE')
+  end
 
   describe 'preflight (OPTIONS)' do
     it 'allows GET and POST with Authorization, DPoP and Content-Type from the configured origin' do
@@ -52,6 +55,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
       expect(last_response.headers['Access-Control-Allow-Methods']).to eq 'GET, POST, OPTIONS'
       expect(last_response.headers['Access-Control-Allow-Headers']).to eq 'Authorization, DPoP, Content-Type'
       expect(last_response.headers['Vary']).to include 'Origin'
+    end
+
+    it 'offers no POST when the application is registered read-only' do
+      ENV['DELEGATION_ACCESS_TYPE'] = 'read'
+      header 'Origin', sp_origin
+      header 'Access-Control-Request-Method', 'POST'
+      options '/records'
+
+      expect(last_response.headers['Access-Control-Allow-Methods']).to eq 'GET, OPTIONS'
     end
 
     it 'answers an origin that is not allowed without any CORS headers' do

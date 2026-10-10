@@ -51,6 +51,7 @@ module LoginGov
           'scope' => introspection['scope'],
           'aud' => introspection['aud'],
           'attributes' => introspection['attributes'],
+          'session_live' => introspection['session_live'],
           # RFC 9449: thumbprint of the key the token is bound to, when Login.gov
           # bound it; nil for a plain bearer token. Recorded so an operator can
           # see on /decisions which calls were key-bound and tell a refused

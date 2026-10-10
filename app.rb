@@ -365,7 +365,7 @@ module LoginGov::OidcSinatra
     # (OpenID Connect Core 1.0 §4,
     # https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
     # This is the `initiate_login_uri` this agency registers. A third party
-    # (America.gov in the reference setup) sends the user's browser here with
+    # (MyBenefits Assistant in the reference setup) sends the user's browser here with
     # `iss`, `login_hint` and `target_link_uri`; after the §4 checks pass, the
     # agency runs its normal Login.gov sign-in and, once that completes, returns
     # the user to `target_link_uri`. See ThirdPartyLogin for the checks.
@@ -512,8 +512,9 @@ module LoginGov::OidcSinatra
     # ---------------------------------------------------------------------
     # Resource server routes. Both require a delegated access token obtained by
     # a service provider through RFC 8693 token exchange, presented per
-    # RFC 6750 §2.1. Login.gov bound the token to this API (`aud`); the agency
-    # decides which endpoint each scope may reach.
+    # RFC 6750 §2.1. Login.gov bound the token to this API (`aud`) and gave it
+    # this application's one delegation scope; the agency's registered access
+    # type decides whether a write route exists.
     # ---------------------------------------------------------------------
 
     # CORS (Fetch standard, https://fetch.spec.whatwg.org/#http-cors-protocol).
@@ -535,9 +536,11 @@ module LoginGov::OidcSinatra
       halt 204
     end
 
-    # Requires token_exchange:records_read (access_type read).
+    # The application's one delegation scope covers every route. Whether a
+    # route reads or writes is this application's registered access type, not
+    # a second scope.
     get '/records' do
-      authorize!('token_exchange:records_read')
+      authorize!(config.delegation_scope)
 
       json_response(
         records: DemoRecords.instance.for_sub(@introspection['sub']),
@@ -545,10 +548,12 @@ module LoginGov::OidcSinatra
       )
     end
 
-    # Requires token_exchange:records_write (access_type read_write). A service
-    # provider whose user approved only records_read gets 403 here.
+    # A write exists only because the application is registered read-write; a
+    # read-only registration offers no write route at all. The token check is
+    # the same as for a read: its scope must be this application's scope.
     post '/records' do
-      authorize!('token_exchange:records_write')
+      require_read_write!
+      authorize!(config.delegation_scope)
 
       record = DemoRecords.instance.create(@introspection['sub'], record_attributes)
       status 201
@@ -602,8 +607,9 @@ module LoginGov::OidcSinatra
     # `Access-Control-Allow-Origin` echoes the one matching origin (never `*`:
     # the responses carry per-user data), `Vary: Origin` keeps caches from
     # serving one origin's answer to another, and the allow lists name exactly
-    # what the service provider sends: GET and POST with `Authorization`
-    # (Bearer or DPoP scheme), the `DPoP` proof header and a JSON body.
+    # what the service provider sends: GET (and POST for a read-write
+    # application) with `Authorization` (Bearer or DPoP scheme), the `DPoP`
+    # proof header and a JSON body.
     # `WWW-Authenticate` is exposed so the page can read the challenge
     # (RFC 6750 §3, RFC 9449 §7.1) on a 401 or 403. A request from any other
     # origin gets no CORS headers and the browser withholds the response.
@@ -613,15 +619,34 @@ module LoginGov::OidcSinatra
 
       headers 'Access-Control-Allow-Origin' => request.env['HTTP_ORIGIN'],
               'Vary' => 'Origin',
-              'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Methods' => allowed_methods,
               'Access-Control-Allow-Headers' => 'Authorization, DPoP, Content-Type',
               'Access-Control-Expose-Headers' => 'WWW-Authenticate',
               'Access-Control-Max-Age' => '600'
     end
 
+    # The methods this API offers, for the preflight answer and the `Allow`
+    # header: POST only when the application is registered read-write.
+    def allowed_methods
+      config.read_write? ? 'GET, POST, OPTIONS' : 'GET, OPTIONS'
+    end
+
     def json_response(payload)
       content_type :json
       JSON.pretty_generate(payload)
+    end
+
+    # A read-only application has no write route: the method is not allowed
+    # here for anyone, whatever token they hold, so this is decided before the
+    # token is looked at.
+    def require_read_write!
+      return if config.read_write?
+
+      headers 'Allow' => allowed_methods
+      halt 405, json_error_response(
+        'method_not_allowed',
+        'This application is registered read-only; it offers no write.',
+      )
     end
 
     # POST /records accepts a JSON object or form fields (title, note).

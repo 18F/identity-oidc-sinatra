@@ -33,12 +33,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'agency-role At
             application_url: 'http://localhost:9292/auth/result'),
       event(jti: 'jti-2', iat: 1_800_000_010, type: 'delegated-access-consented',
             user_uuid: 'agency-pairwise-sub-1', actor_issuer: actor,
-            scopes: ['token_exchange:records_read'],
+            scopes: ['token_exchange:housing_records'],
             resources: ['https://records-api.agency.localdev'], remembered: false,
             delegation_id: delegation_id),
       event(jti: 'jti-3', iat: 1_800_000_020, type: 'delegated-access-token-issued',
             user_uuid: 'agency-pairwise-sub-1', actor_issuer: actor,
-            resource: 'https://records-api.agency.localdev', scopes: ['token_exchange:records_read'],
+            resource: 'https://records-api.agency.localdev', scopes: ['token_exchange:housing_records'],
             ial: 2, aal: 2, token_format: 'oauth', delegation_id: delegation_id),
       event(jti: 'jti-4', iat: 1_800_000_030, type: 'delegated-access-revoked',
             user_uuid: 'agency-pairwise-sub-2', reason: 'refresh_token_reuse',
@@ -81,7 +81,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'agency-role At
 
       expect(last_response.body).to include(delegation_id)
       expect(last_response.body).to include(actor)
-      expect(last_response.body).to include('token_exchange:records_read')
+      expect(last_response.body).to include('token_exchange:housing_records')
       expect(last_response.body).to include('refresh_token_reuse')
       expect(last_response.body).to include('&quot;token_format&quot;: &quot;oauth&quot;')
       expect(last_response.body).to include('&quot;remembered&quot;: false')
@@ -110,16 +110,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'agency-role At
     before do
       introspection = {
         'active' => true, 'sub' => 'agency-pairwise-sub-1', 'act' => { 'sub' => actor },
-        'client_id' => actor, 'scope' => 'token_exchange:records_read',
+        'client_id' => actor, 'scope' => 'token_exchange:housing_records',
         'aud' => 'https://records-api.agency.localdev', 'delegation_id' => delegation_id,
       }
       LoginGov::OidcSinatra::DecisionLog.instance.record(
-        introspection:, route: 'GET /records', decision: 'allowed', required_scope: 'token_exchange:records_read',
+        introspection:, route: 'GET /records', decision: 'allowed', required_scope: 'token_exchange:housing_records',
       )
       LoginGov::OidcSinatra::DecisionLog.instance.record(
-        introspection: introspection.merge('scope' => 'token_exchange:records_read'),
+        introspection: introspection.merge('scope' => 'token_exchange:retirement_benefits'),
         route: 'POST /records', decision: 'denied', reason: 'insufficient_scope',
-        required_scope: 'token_exchange:records_write'
+        required_scope: 'token_exchange:housing_records'
       )
       LoginGov::OidcSinatra::DecisionLog.instance.record(
         introspection: introspection.merge('delegation_id' => 'decision-only-delegation'),

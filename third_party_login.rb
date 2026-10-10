@@ -8,7 +8,7 @@ module LoginGov
     # (OpenID Connect Core 1.0 §4,
     # https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
     #
-    # A third party that is not this agency (America.gov in the reference
+    # A third party that is not this agency (MyBenefits Assistant in the reference
     # setup) sends the user's browser to this app's login initiation endpoint
     # with three query parameters:
     #

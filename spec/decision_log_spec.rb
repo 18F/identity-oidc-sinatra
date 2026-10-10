@@ -5,18 +5,18 @@ RSpec.describe LoginGov::OidcSinatra::DecisionLog do
   let(:introspection) do
     {
       'active' => true, 'sub' => 'sub-1', 'act' => { 'sub' => 'urn:sp' },
-      'client_id' => 'urn:sp', 'delegation_id' => 'd-1', 'scope' => 'token_exchange:records_read',
+      'client_id' => 'urn:sp', 'delegation_id' => 'd-1', 'scope' => 'token_exchange:housing_records',
       'aud' => 'https://records-api.agency.localdev',
     }
   end
 
   it 'records the join fields from the introspection result' do
     entry = log.record(introspection:, route: 'GET /records', decision: 'allowed',
-                       required_scope: 'token_exchange:records_read')
+                       required_scope: 'token_exchange:housing_records')
 
     expect(entry).to include(
       'sub' => 'sub-1', 'actor' => 'urn:sp', 'delegation_id' => 'd-1',
-      'scope' => 'token_exchange:records_read', 'route' => 'GET /records', 'decision' => 'allowed'
+      'scope' => 'token_exchange:housing_records', 'route' => 'GET /records', 'decision' => 'allowed'
     )
     expect(entry['time']).to match(/\A\d{4}-\d{2}-\d{2}T/)
   end
