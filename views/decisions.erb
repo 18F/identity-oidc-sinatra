@@ -19,8 +19,9 @@
       Login.gov delivered to this agency (see <a href="/attempts-api?tab=delegated">Delegated sessions</a>).
       <strong>Identity claims</strong> are what the introspection response carried for the token:
       the same claims, under the same names, that the agency's own web app receives from userinfo
-      after a direct sign-in. Only the source differs. <code>identifiers_only</code> means the user's
-      Login.gov session had ended, so Login.gov released identifiers and email and nothing else.
+      after a direct sign-in. Only the source differs. <code>identifiers_only</code> means introspection
+      reported <code>session_live: false</code>: the user's Login.gov session had ended, so Login.gov
+      released identifiers and email and nothing else.
     </p>
     <% if decisions.empty? %>
       <p>No decisions yet. Present a delegated token to <code>GET /records</code> or <code>POST /records</code>.</p>
@@ -58,7 +59,7 @@
               <td style="overflow-wrap: anywhere;"><code><%= d['delegation_id'] %></code></td>
               <td style="overflow-wrap: anywhere; min-width: 16rem;">
                 <% claims = d['claims'] || {} %>
-                <% identifiers_only = d['attributes'] == LoginGov::OidcSinatra::IdentityClaims::IDENTIFIERS_ONLY %>
+                <% identifiers_only = d['session_live'] == false %>
                 <% if claims.empty? && !identifiers_only %>
                   <span class="text-base">none (no active token)</span>
                 <% else %>

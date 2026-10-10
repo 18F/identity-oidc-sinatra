@@ -1,8 +1,9 @@
 <%# The user's identity claims, rendered the same way whether they came from the
     userinfo endpoint (direct sign-in) or from the introspection response for a
     delegated token. `claims` is the output of identity_claims (SSN already
-    redacted); `identifiers_only` is true when the user's Login.gov session has
-    ended and Login.gov released identifiers and email only. %>
+    redacted); `identifiers_only` is true when introspection reported
+    `session_live: false`: the user's Login.gov session has ended and Login.gov
+    released identifiers and email only. %>
 <div class="identity-claims">
   <span><%= heading %></span>
   <% if identifiers_only %>

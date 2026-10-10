@@ -10,9 +10,10 @@ module LoginGov
     # (`act.sub`, RFC 8693 §4.1), the `delegation_id`, the token's `scope`, the
     # route called, the decision and the time. Tokens are never stored.
     # Each entry also keeps the identity claims the introspection response
-    # carried (`claims`, SSN already redacted) and whether Login.gov marked the
-    # response `identifiers_only`, so GET /decisions can show what the API
-    # learned about the user on that call.
+    # carried (`claims`, SSN already redacted) and `session_live`, false when
+    # Login.gov released identifiers and email only because the user's sign-in
+    # had ended, so GET /decisions can show what the API learned about the user
+    # on that call.
     # A production API would write the identifiers to its audit log and keep
     # the claims out of it; the buffer exists so the demo can show every
     # decision on GET /decisions.
@@ -50,7 +51,6 @@ module LoginGov
           'delegation_id' => introspection['delegation_id'],
           'scope' => introspection['scope'],
           'aud' => introspection['aud'],
-          'attributes' => introspection['attributes'],
           'session_live' => introspection['session_live'],
           # RFC 9449: thumbprint of the key the token is bound to, when Login.gov
           # bound it; nil for a plain bearer token. Recorded so an operator can

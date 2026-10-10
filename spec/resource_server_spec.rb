@@ -65,11 +65,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
   end
   let(:active_introspection) { token_members.merge(identity_claims) }
   # After the user's Login.gov session ends Login.gov releases identifiers and
-  # email only and says so.
+  # email only and reports `session_live: false`.
   let(:identifiers_only_introspection) do
     token_members.merge(
       identity_claims.slice(:sub, :email, :email_verified, :all_emails),
-      attributes: 'identifiers_only',
+      session_live: false,
     )
   end
   let(:rs_public_key) { OpenSSL::PKey::RSA.new(File.read('config/rs_demo.key')).public_key }
@@ -223,7 +223,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
           'given_name' => 'Fakey', 'social_security_number' => '###-##-####',
         )
         expect(decisions.first['claims'].keys).not_to include('scope', 'act', 'delegation_id')
-        expect(decisions.first['attributes']).to be_nil
+        expect(decisions.first).not_to have_key('attributes')
       end
 
       it 'sends an RFC 7523 client assertion signed by the resource server key' do
@@ -296,7 +296,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
       end
     end
 
-    context "when the user's Login.gov session has ended (attributes: identifiers_only)" do
+    context "when the user's Login.gov session has ended (session_live: false)" do
       let!(:stub) { stub_introspection(identifiers_only_introspection) }
 
       it 'serves the records with identifiers and email only and says why' do
@@ -315,7 +315,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         expect(body['attributes']).to eq 'identifiers_only'
         expect(body['notice']).to include('Login.gov session has ended')
         expect(body['notice']).to include('send the user back through Login.gov')
-        expect(body['_introspection']).to include('attributes' => 'identifiers_only')
+        expect(body['_introspection']).to include('session_live' => false)
+        expect(body['_introspection']).not_to have_key('attributes')
       end
 
       it 'does not try userinfo to fill in the missing attributes' do
@@ -324,10 +325,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'resource serve
         expect(a_request(:any, userinfo_endpoint)).not_to have_been_made
       end
 
-      it 'records identifiers_only with the decision' do
+      it 'records session_live false with the decision' do
         get_records
 
-        expect(decisions.first).to include('decision' => 'allowed', 'attributes' => 'identifiers_only')
+        expect(decisions.first).to include('decision' => 'allowed', 'session_live' => false)
+        expect(decisions.first).not_to have_key('attributes')
         expect(decisions.first['claims'].keys).to match_array(%w[sub email email_verified all_emails])
       end
     end

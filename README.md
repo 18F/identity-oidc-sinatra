@@ -108,11 +108,12 @@ own key (RFC 7523 client assertion). The specs assert that no request to `userin
 made for a delegated token.
 
 **Identifiers only.** When the user's Login.gov session has ended, Login.gov still answers
-`active: true` while the token is valid, but releases only identifiers and email and adds
-`attributes: "identifiers_only"`. The `/records` response then carries `attributes: "identifiers_only"`
-and a `notice`, and the `/decisions` row is tagged `identifiers_only`, both saying why: the user's
-Login.gov session ended, and the service provider must send the user back through Login.gov to
-receive identity attributes again. The agency does not try to fill the gap from userinfo.
+`active: true` while the token is valid, but releases only identifiers and email and reports
+`session_live: false` (the member is `true` while the sign-in is live). This API's `/records`
+response then carries its own marker, `attributes: "identifiers_only"`, and a `notice`, and the
+`/decisions` row is tagged `identifiers_only`, both saying why: the user's Login.gov session ended,
+and the service provider must send the user back through Login.gov to receive identity attributes
+again. The agency does not try to fill the gap from userinfo.
 
 Claims are cached with the introspection result: within `INTROSPECTION_CACHE_SECONDS` a second call
 with the same token reuses the `active: true` answer and its claims without asking Login.gov again.
@@ -121,7 +122,7 @@ with the same token reuses the `active: true` answer and its claims without aski
 
 | Route | Requires | Returns |
 |---|---|---|
-| `GET /records` | `token_exchange:housing_records` | `{ records: [...], claims: {...}, _introspection: {...} }` (+ `attributes`, `notice` when identifiers only) |
+| `GET /records` | `token_exchange:housing_records` | `{ records: [...], claims: {...}, _introspection: {...} }` (+ `attributes: "identifiers_only"`, `notice` when introspection reported `session_live: false`) |
 | `POST /records` | `token_exchange:housing_records`, and `DELEGATION_ACCESS_TYPE=read_write` | 201 `{ record: {...}, claims: {...}, _introspection: {...} }`; JSON or form body with `title`, `note`. `405` when the application is registered read-only |
 | `GET /decisions` | — | Every authorization decision, newest first, with the user's claims from introspection (also `/decisions.json`) |
 | `OPTIONS /records` | — | CORS preflight answer for the service provider's browser pages (see [CORS](#cors-for-the-service-providers-browser)) |
@@ -313,8 +314,8 @@ What else to know:
 - Cache `active: false`, or keep any token in plaintext (only SHA-256 digests are held).
 - Refresh or revoke tokens: those are the service provider's job. Revocation is observed here as
   `active: false` on the next introspection.
-- Call userinfo with a delegated token, or fall back to it when introspection says
-  `identifiers_only`. The claims come from introspection; when they are missing, the service
+- Call userinfo with a delegated token, or fall back to it when introspection reports
+  `session_live: false`. The claims come from introspection; when they are missing, the service
   provider has to send the user back through Login.gov.
 - Accept a key-bound token (introspection carries `cnf.jkt`) without a DPoP proof, or with the
   Bearer scheme. The proof is verified on every request, cached introspection or not: the cache says

@@ -37,15 +37,16 @@ module LoginGov
       # which token this is, and when the user last authenticated; they are
       # about the token and the sign-in, not attributes of the person.
       # `session_live` says whether the user's Login.gov sign-in is still live:
-      # the attribute bundle is released while it is, identifiers only once it
-      # has ended (`attributes: "identifiers_only"`).
+      # the attribute bundle is released while it is; once it has ended the
+      # response carries `session_live: false` and identifiers and email only.
       TOKEN_MEMBERS = %w[
         active iss aud scope sub act client_id acr iat exp nbf jti auth_time token_type
-        delegation_id attributes session_live cnf
+        delegation_id session_live cnf
       ].freeze
 
-      # Value of `attributes` when the user's Login.gov session has ended:
-      # Login.gov then releases identifiers and email only, no other attribute.
+      # This API's own marker, sent as `attributes` in its `/records` response
+      # and shown on `/decisions`, when introspection reported
+      # `session_live: false`: Login.gov released identifiers and email only.
       IDENTIFIERS_ONLY = 'identifiers_only'
 
       IDENTIFIERS_ONLY_NOTICE =
@@ -83,11 +84,15 @@ module LoginGov
         end
       end
 
-      # True when Login.gov marked the response as identifiers only because the
-      # user's Login.gov session has ended.
+      # True when introspection reported `session_live: false`: the user's
+      # Login.gov sign-in has ended, so the response carries identifiers and
+      # email only. A userinfo body never carries the member and is never
+      # identifiers only.
       # @param [Hash, nil] source
       def identifiers_only?(source)
-        source.is_a?(Hash) && (source['attributes'] || source[:attributes]) == IDENTIFIERS_ONLY
+        return false unless source.is_a?(Hash)
+
+        source.fetch('session_live') { source[:session_live] } == false
       end
     end
   end

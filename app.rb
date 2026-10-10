@@ -587,9 +587,10 @@ module LoginGov::OidcSinatra
     # tokens out of it and puts the claims in the introspection response, which
     # this resource server authenticates to with its own key.
     #
-    # `attributes: "identifiers_only"` means the user's Login.gov session has
-    # ended and only identifiers and email were released; `notice` says so and
-    # what the service provider must do about it.
+    # When introspection reports `session_live: false`, the user's Login.gov
+    # sign-in has ended and only identifiers and email were released; this
+    # API then adds its own `attributes: "identifiers_only"` marker and a
+    # `notice` saying so and what the service provider must do about it.
     #
     # Demo affordance: `_introspection` echoes the token members of the
     # introspection response (identifiers only, no attributes) so the service
