@@ -6,7 +6,7 @@ module LoginGov
     #
     # Each entry records what the agency needs to join an API call to Login.gov's
     # Attempts API events (both carry the same `delegation_id`): the user's `sub`,
-    # the acting service provider
+    # the acting broker
     # (`act.sub`, RFC 8693 §4.1), the `delegation_id`, the token's `scope`, the
     # route called, the decision and the time. Tokens are never stored.
     # Each entry also keeps the identity claims the introspection response

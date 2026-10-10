@@ -6,7 +6,7 @@ small Sinatra app in Ruby. It plays two roles for one fictional agency, the "Dep
 1. **The agency's own web app** — the existing direct OpenID Connect sign-in (`/`, `/auth/request`,
    `/auth/result`, `/logout`), unchanged in behavior.
 2. **The agency's API, a resource server** — `GET /records` and `POST /records` accept the delegated
-   access tokens a service provider obtains from Login.gov by RFC 8693 token exchange, confirm them
+   access tokens a client broker obtains from Login.gov by RFC 8693 token exchange, confirm them
    with RFC 7662 introspection, require the application's one delegation scope
    (`token_exchange:housing_records`), and record every decision. The application is registered
    read-write, which is why a write route exists at all.
@@ -14,19 +14,19 @@ small Sinatra app in Ruby. It plays two roles for one fictional agency, the "Dep
    credentials and joins the delivered events to the API's decisions on `delegation_id`.
 4. **A login initiation endpoint** — `GET /initiate_login`, the relying-party side of
    [OpenID Connect Third-Party-Initiated Login](https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin),
-   so a third party such as the MyBenefits Assistant service provider can send a user here to sign
+   so a third party such as the MyBenefits Assistant broker can send a user here to sign
    in to this agency directly
    (see [Third-party-initiated login](#third-party-initiated-login)).
 
 Everything served is fictional demo data. Do not use real personal information.
 
-The service provider side of the demo lives in a sibling repository (`identity-sts-sinatra`); the
+The broker side of the demo lives in a sibling repository (`identity-sts-sinatra`); the
 SAML-consuming agency in `identity-saml-sinatra`.
 
 ## How a delegated call is checked
 
 ```
-Service provider ──► GET /records, Authorization: Bearer <delegated token>        RFC 6750 §2.1
+Client broker    ──► GET /records, Authorization: Bearer <delegated token>        RFC 6750 §2.1
        │              or, for a key-bound token:  Authorization: DPoP <delegated token>  RFC 9449 §7.1
        │                                          DPoP: <proof JWS: jwk, jti, htm, htu, iat, ath>
        │
@@ -112,7 +112,7 @@ made for a delegated token.
 `session_live: false` (the member is `true` while the sign-in is live). This API's `/records`
 response then carries its own marker, `attributes: "identifiers_only"`, and a `notice`, and the
 `/decisions` row is tagged `identifiers_only`, both saying why: the user's Login.gov session ended,
-and the service provider must send the user back through Login.gov to receive identity attributes
+and the broker must send the user back through Login.gov to receive identity attributes
 again. The agency does not try to fill the gap from userinfo.
 
 Claims are cached with the introspection result: within `INTROSPECTION_CACHE_SECONDS` a second call
@@ -125,7 +125,7 @@ with the same token reuses the `active: true` answer and its claims without aski
 | `GET /records` | `token_exchange:housing_records` | `{ records: [...], claims: {...}, _introspection: {...} }` (+ `attributes: "identifiers_only"`, `notice` when introspection reported `session_live: false`) |
 | `POST /records` | `token_exchange:housing_records`, and `DELEGATION_ACCESS_TYPE=read_write` | 201 `{ record: {...}, claims: {...}, _introspection: {...} }`; JSON or form body with `title`, `note`. `405` when the application is registered read-only |
 | `GET /decisions` | — | Every authorization decision, newest first, with the user's claims from introspection (also `/decisions.json`) |
-| `OPTIONS /records` | — | CORS preflight answer for the service provider's browser pages (see [CORS](#cors-for-the-service-providers-browser)) |
+| `OPTIONS /records` | — | CORS preflight answer for the broker's browser pages (see [CORS](#cors-for-the-brokers-browser)) |
 | `GET /attempts-api` | — | Attempts events delivered to this agency; `?tab=delegated` groups them by `delegation_id` with the matching API decisions beneath |
 | `GET /api/health` | — | Includes `resource_identifier` and the discovered `introspection_endpoint` |
 | `GET /initiate_login` | `iss`, `target_link_uri` (and optional `login_hint`) query parameters | 302 to Login.gov after the §4 checks; 400 with the reason otherwise. See [Third-party-initiated login](#third-party-initiated-login) |
@@ -134,7 +134,7 @@ with the same token reuses the `active: true` answer and its claims without aski
 the introspection response, SSN redacted (see [Identity claims for delegated
 tokens](#identity-claims-for-delegated-tokens)). `_introspection` echoes the token members of the
 introspection response (`active`, `aud`, `scope`, `act`, `delegation_id`, `session_live`,
-`token_type`, `cnf` and the rest; identifiers only, no attributes) so the service provider UI can
+`token_type`, `cnf` and the rest; identifiers only, no attributes) so the broker UI can
 show why a call was allowed or refused. **`_introspection` is a demo affordance; a production API
 would not return it.**
 
@@ -153,9 +153,9 @@ governs what the call may do. Login.gov's introspection endpoint only ever answe
 tokens, so this app logs a missing `act` as an anomaly. Login.gov decides which *API* a token is for
 (`aud`) and which *application's* scope it carries; the agency decides what its routes do with it.
 
-## CORS for the service provider's browser
+## CORS for the broker's browser
 
-The reference service provider is a browser-based public client: the page the user is looking at
+The reference broker is a browser-based public client: the page the user is looking at
 holds the delegated token and calls `GET`/`POST /records` with `fetch`. Because that page is served
 from another origin, the browser first sends a preflight `OPTIONS /records` naming the method and
 the request headers, and only sends the real request if the answer allows them (Fetch standard,
@@ -189,7 +189,7 @@ A local `identity-idp` must be running at `http://localhost:3000` with `token_ex
 and the fixtures below. If the IdP's discovery document has no `introspection_endpoint`, protected
 routes answer 503 with a message saying so.
 
-Try it without a service provider:
+Try it without a broker:
 
 ```
 $ curl -i http://localhost:9393/records
@@ -211,7 +211,7 @@ Then open http://localhost:9393/decisions and http://localhost:9393/attempts-api
 | `RS_PRIVATE_KEY_PATH` / `RS_PRIVATE_KEY` | Key that signs introspection assertions (path, or PEM inline) | `./config/rs_demo.key` |
 | `INTROSPECTION_CACHE_SECONDS` | Max reuse of an `active: true` answer (Login.gov publishes 60) | `60` |
 | `DPOP_ALLOWED_ALGS` | JWS algorithms accepted on a DPoP proof (asymmetric only); advertised in the DPoP challenge | `ES256 RS256` |
-| `CORS_ALLOWED_ORIGINS` | Browser origins allowed to call `/records` cross-origin (exact `scheme://host[:port]`, space- or comma-separated). The service provider reference app is a browser public client and calls this API with `fetch` | `http://localhost:9292` |
+| `CORS_ALLOWED_ORIGINS` | Browser origins allowed to call `/records` cross-origin (exact `scheme://host[:port]`, space- or comma-separated). The broker reference app is a browser public client and calls this API with `fetch` | `http://localhost:9292` |
 | `DPOP_IAT_LEEWAY_SECONDS` | Tolerance on a proof's `iat`, either side of now | `60` |
 | `THIRD_PARTY_TARGET_LINK_ALLOWLIST` | Exact origins a third party may name in `target_link_uri` (space- or comma-separated; no wildcards) | `http://localhost:9292` |
 | `THIRD_PARTY_SIGN_IN_IAL` | IAL this agency signs users in at when a third party starts the sign-in | `2` |
@@ -252,7 +252,7 @@ In `identity-idp`:
    (`token_exchange:housing_records` on the wire), `delegation_access_type: read_write`, and one
    resource server, `identifier: https://records-api.agency.localdev`, `token_format: oauth`,
    `certs: [rs_records_demo]`. Nothing in that file turns key binding on or off: tokens are
-   key-bound whenever the service provider is a public client.
+   key-bound whenever the broker is a public client.
 3. In `config/application.yml`, enroll the agency in `allowed_attempts_providers` with issuer
    `urn:gov:gsa:openidconnect:sp:records_agency`, shared secret `records-agency-attempts-secret`
    and the `rs_records_demo` public key, and set `token_exchange_enabled: true`.
@@ -261,15 +261,15 @@ In `identity-idp`:
 
 This app also implements the relying-party side of **Third-Party-Initiated Login**,
 [OpenID Connect Core 1.0 §4](https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
-It is the second integration pattern available to a service provider, alongside delegated access, and it is
+It is the second integration pattern available to a broker, alongside delegated access, and it is
 a different thing: nothing is delegated and no token is exchanged. The agency signs the user in
 itself, with its own Login.gov client, its own consent screen, its own tokens, its own Attempts API
 events and its own billing. The only thing the third party contributes is the suggestion to start.
 
 ```
-Service provider ──► browser ──► GET /initiate_login?iss=<Login.gov issuer>
-                                                    &login_hint=<UUID the service provider generated>
-                                                    &target_link_uri=<service provider URL to return to>
+Client broker    ──► browser ──► GET /initiate_login?iss=<Login.gov issuer>
+                                                    &login_hint=<UUID the broker generated>
+                                                    &target_link_uri=<broker URL to return to>
                  │
                  │  this app: verify iss, verify target_link_uri, remember the hand-off
                  ▼
@@ -295,7 +295,7 @@ locally (`https://<agency host>/initiate_login` in production).
 
 What else to know:
 
-- `login_hint` is **opaque**. The service provider generates a UUID it will recognize when the user comes
+- `login_hint` is **opaque**. The broker generates a UUID it will recognize when the user comes
   back; this app stores it for the one sign-in, echoes it on the return, and never treats it as
   identity or forwards it to Login.gov. Identity comes only from Login.gov's answer to this agency's
   own sign-in. The hint is capped at 128 characters.
@@ -308,15 +308,15 @@ What else to know:
 ## What this app deliberately does not do
 
 - Accept a Login.gov `id_token` as proof of delegation. An ID token proves the user signed in to the
-  service provider and names the service provider, not this API, in `aud`; it is refused before any
+  broker and names the broker, not this API, in `aud`; it is refused before any
   network call.
 - Serve anything when introspection fails, times out, or returns a non-JSON body (fail closed).
 - Cache `active: false`, or keep any token in plaintext (only SHA-256 digests are held).
-- Refresh or revoke tokens: those are the service provider's job. Revocation is observed here as
+- Refresh or revoke tokens: those are the broker's job. Revocation is observed here as
   `active: false` on the next introspection.
 - Call userinfo with a delegated token, or fall back to it when introspection reports
-  `session_live: false`. The claims come from introspection; when they are missing, the service
-  provider has to send the user back through Login.gov.
+  `session_live: false`. The claims come from introspection; when they are missing, the broker
+  has to send the user back through Login.gov.
 - Accept a key-bound token (introspection carries `cnf.jkt`) without a DPoP proof, or with the
   Bearer scheme. The proof is verified on every request, cached introspection or not: the cache says
   the token is valid, the proof says the caller holds the key it is bound to.
@@ -324,8 +324,8 @@ What else to know:
 
 ## Key-bound (DPoP) tokens: agency checklist
 
-Whether a delegated token is key-bound follows the service provider's client type: a public
-client's tokens (the browser-based reference service provider's) always are, a confidential
+Whether a delegated token is key-bound follows the broker's client type: a public
+client's tokens (the browser-based reference broker's) always are, a confidential
 client's never. No application sets or waives it, so this API has no switch for it; it reads
 `cnf` from introspection and applies the rules below when it is there. For a bound token
 introspection returns `token_type: "DPoP"` and `cnf: { jkt: <thumbprint> }`, and the token is useless

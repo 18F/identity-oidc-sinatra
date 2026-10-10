@@ -89,8 +89,8 @@ module LoginGov
           halt 401, www_authenticate('Bearer'), ''
         end
 
-        # An id_token is proof that the user signed in to the service provider;
-        # it names the service provider in `aud`, never this API, and says
+        # An id_token is proof that the user signed in to the broker;
+        # it names the broker in `aud`, never this API, and says
         # nothing about what the user delegated. It is refused outright.
         if id_token?(token)
           log_decision(nil, route:, decision: 'denied', reason: 'id_token_presented',
@@ -115,7 +115,7 @@ module LoginGov
 
         # RFC 7662 §2.2 — `active: false` is the only signal for expired,
         # revoked, unknown, or someone-else's tokens; Login.gov deliberately
-        # does not say which. Revocation (by the user, by the service provider,
+        # does not say which. Revocation (by the user, by the broker,
         # by refresh-token reuse detection, or by account suspension) is
         # observed here, on the next introspection, not by any callback.
         unless @introspection['active'] == true
@@ -136,9 +136,9 @@ module LoginGov
                json_error_response('invalid_token', 'The token was issued for a different API.')
         end
 
-        # RFC 8693 §4.1 — `act` marks delegated access: `act.sub` is the service
-        # provider acting for the user. Because `sub` is per agency, `act` is the
-        # only way to tell a service provider's call from the user's own when
+        # RFC 8693 §4.1 — `act` marks delegated access: `act.sub` is the broker
+        # acting for the user. Because `sub` is per agency, `act` is the
+        # only way to tell a broker's call from the user's own when
         # both belong to the same agency, so observe it on every call: log the
         # actor with the decision and join it to Attempts events. Its absence
         # is NOT a reason to reject: an API that also accepts non-delegated

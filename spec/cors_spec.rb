@@ -1,12 +1,12 @@
 # CORS on the resource server routes (Fetch standard,
-# https://fetch.spec.whatwg.org/#http-cors-protocol). The reference service provider is a browser
+# https://fetch.spec.whatwg.org/#http-cors-protocol). The reference broker is a browser
 # public client, so the browser enforces these headers on its calls to /records.
 require 'spec_helper'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /records' do
   let(:host) { 'http://localhost:3000' }
   let(:introspection_endpoint) { "#{host}/api/openid_connect/introspect" }
-  let(:sp_origin) { 'http://localhost:9292' }
+  let(:broker_origin) { 'http://localhost:9292' }
   let(:token) { 'opaque-delegated-token-abc123' }
   let(:discovery) do
     {
@@ -45,13 +45,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
 
   describe 'preflight (OPTIONS)' do
     it 'allows GET and POST with Authorization, DPoP and Content-Type from the configured origin' do
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       header 'Access-Control-Request-Method', 'GET'
       header 'Access-Control-Request-Headers', 'authorization, dpop'
       options '/records'
 
       expect(last_response.status).to eq 204
-      expect(last_response.headers['Access-Control-Allow-Origin']).to eq sp_origin
+      expect(last_response.headers['Access-Control-Allow-Origin']).to eq broker_origin
       expect(last_response.headers['Access-Control-Allow-Methods']).to eq 'GET, POST, OPTIONS'
       expect(last_response.headers['Access-Control-Allow-Headers']).to eq 'Authorization, DPoP, Content-Type'
       expect(last_response.headers['Vary']).to include 'Origin'
@@ -59,7 +59,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
 
     it 'offers no POST when the application is registered read-only' do
       ENV['DELEGATION_ACCESS_TYPE'] = 'read'
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       header 'Access-Control-Request-Method', 'POST'
       options '/records'
 
@@ -85,36 +85,36 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty, 'CORS on /recor
 
   describe 'actual requests' do
     it 'carries the CORS headers and exposes WWW-Authenticate on a 401 challenge' do
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       get '/records'
 
       expect(last_response.status).to eq 401
       expect(last_response.headers['WWW-Authenticate']).to start_with('Bearer realm=')
-      expect(last_response.headers['Access-Control-Allow-Origin']).to eq sp_origin
+      expect(last_response.headers['Access-Control-Allow-Origin']).to eq broker_origin
       expect(last_response.headers['Access-Control-Expose-Headers']).to eq 'WWW-Authenticate'
     end
 
     it 'carries the CORS headers on a successful call from the allowed origin' do
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       header 'Authorization', "Bearer #{token}"
       get '/records'
 
       expect(last_response.status).to eq(200), last_response.body
-      expect(last_response.headers['Access-Control-Allow-Origin']).to eq sp_origin
+      expect(last_response.headers['Access-Control-Allow-Origin']).to eq broker_origin
     end
 
     it 'accepts a cross-origin POST with a JSON body from the allowed origin' do
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       header 'Authorization', "Bearer #{token}"
       header 'Content-Type', 'application/json'
       post '/records', { note: 'written from the browser' }.to_json
 
       expect(last_response.status).to eq(201), last_response.body
-      expect(last_response.headers['Access-Control-Allow-Origin']).to eq sp_origin
+      expect(last_response.headers['Access-Control-Allow-Origin']).to eq broker_origin
     end
 
     it 'adds no CORS headers to routes outside the API' do
-      header 'Origin', sp_origin
+      header 'Origin', broker_origin
       get '/decisions.json'
 
       expect(last_response.headers).not_to have_key('Access-Control-Allow-Origin')

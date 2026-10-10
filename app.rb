@@ -72,14 +72,14 @@ module LoginGov::OidcSinatra
   # agency and tagged with the same `delegation_id`.
   DELEGATION_EVENT_TYPES = {
     'delegated-access-consented' =>
-      'The user approved letting a service provider (actor_issuer) act for them at ' \
+      'The user approved letting a broker (actor_issuer) act for them at ' \
       'this agency\'s API(s) (scopes, resources). remembered: true means a remembered ' \
       'grant was reused without a new consent screen.',
     'delegated-access-token-issued' =>
-      'The service provider exchanged its token for a delegated token bound to ' \
+      'The broker exchanged its token for a delegated token bound to ' \
       'one resource (resource, scopes, ial, aal, token_format).',
     'delegated-access-token-refreshed' =>
-      'The service provider refreshed the delegated token family; no new consent, ' \
+      'The broker refreshed the delegated token family; no new consent, ' \
       'no new billing row.',
     'delegated-access-revoked' =>
       'The grant or token family was revoked (reason: user revocation, ' \
@@ -246,8 +246,8 @@ module LoginGov::OidcSinatra
       end
 
       # Any event carrying delegation_id or actor_issuer belongs to a delegated
-      # session: the user signed in at a service provider, not at this agency,
-      # so its subject.session_id is the service provider's and will not match
+      # session: the user signed in at a broker, not at this agency,
+      # so its subject.session_id is the broker's and will not match
       # a session this agency started.
       def delegated_event?(event)
         !event_property(event, 'delegation_id').nil? ||
@@ -511,14 +511,14 @@ module LoginGov::OidcSinatra
 
     # ---------------------------------------------------------------------
     # Resource server routes. Both require a delegated access token obtained by
-    # a service provider through RFC 8693 token exchange, presented per
+    # a broker through RFC 8693 token exchange, presented per
     # RFC 6750 §2.1. Login.gov bound the token to this API (`aud`) and gave it
     # this application's one delegation scope; the agency's registered access
     # type decides whether a write route exists.
     # ---------------------------------------------------------------------
 
     # CORS (Fetch standard, https://fetch.spec.whatwg.org/#http-cors-protocol).
-    # The reference service provider is a browser-based public client: its pages
+    # The reference broker is a browser-based public client: its pages
     # call this API with fetch from another origin. Before a request that carries
     # an Authorization or DPoP header the browser sends a preflight OPTIONS naming
     # the method and headers it intends to use; the real request follows only if
@@ -590,11 +590,11 @@ module LoginGov::OidcSinatra
     # When introspection reports `session_live: false`, the user's Login.gov
     # sign-in has ended and only identifiers and email were released; this
     # API then adds its own `attributes: "identifiers_only"` marker and a
-    # `notice` saying so and what the service provider must do about it.
+    # `notice` saying so and what the broker must do about it.
     #
     # Demo affordance: `_introspection` echoes the token members of the
-    # introspection response (identifiers only, no attributes) so the service
-    # provider UI can show why a call was allowed. A production API would omit it.
+    # introspection response (identifiers only, no attributes) so the broker
+    # UI can show why a call was allowed. A production API would omit it.
     def user_payload(introspection)
       payload = { claims: identity_claims(introspection) }
       if identifiers_only?(introspection)
@@ -608,7 +608,7 @@ module LoginGov::OidcSinatra
     # `Access-Control-Allow-Origin` echoes the one matching origin (never `*`:
     # the responses carry per-user data), `Vary: Origin` keeps caches from
     # serving one origin's answer to another, and the allow lists name exactly
-    # what the service provider sends: GET (and POST for a read-write
+    # what the broker sends: GET (and POST for a read-write
     # application) with `Authorization` (Bearer or DPoP scheme), the `DPoP`
     # proof header and a JSON body.
     # `WWW-Authenticate` is exposed so the page can read the challenge

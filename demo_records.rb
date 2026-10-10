@@ -7,7 +7,7 @@ module LoginGov
     # Obviously fictional "records" served by the demo resource server, keyed by
     # the user's pairwise `sub` for this agency. Login.gov computes `sub` per
     # agency, so a user who signs in to the agency directly and one whose
-    # service provider calls this API with a delegated token get the same
+    # broker calls this API with a delegated token get the same
     # `sub` and therefore the same records. Nothing here is real:
     # the seed records are derived from a hash of `sub` and live only in memory.
     class DemoRecords

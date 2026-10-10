@@ -85,8 +85,8 @@ module LoginGov
 
       # Browser origins allowed to call the resource server routes (/records)
       # from a web page on another origin (CORS, Fetch standard
-      # https://fetch.spec.whatwg.org/#http-cors-protocol). The reference service
-      # provider is a browser-based public client, so its pages call this API with
+      # https://fetch.spec.whatwg.org/#http-cors-protocol). The reference broker
+      # is a browser-based public client, so its pages call this API with
       # fetch and the browser enforces this list. Exact `scheme://host[:port]`
       # values, space- or comma-separated, no wildcards; the default is the local
       # MyBenefits Assistant reference app.

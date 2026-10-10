@@ -6,7 +6,7 @@ module LoginGov
     # access token it obtained itself and receives the user's claims (OpenID
     # Connect Core 1.0 §5.3).
     #
-    # Delegated access: a service provider presents a delegated token to the
+    # Delegated access: a broker presents a delegated token to the
     # agency's API. The API does NOT call userinfo with that token. Userinfo is
     # authenticated only by the bearer token itself, so Login.gov keeps
     # delegated tokens out of it; instead the introspection response (RFC 7662
@@ -52,7 +52,7 @@ module LoginGov
       IDENTIFIERS_ONLY_NOTICE =
         'Identifiers only: the user\'s Login.gov session has ended, so Login.gov released ' \
         'identifiers and email with this token and no other attribute. To receive identity ' \
-        'attributes again, the service provider must send the user back through Login.gov.'
+        'attributes again, the broker must send the user back through Login.gov.'
 
       # The user's identity claims from either a userinfo response or an
       # introspection response, with the SSN redacted the same way the direct
