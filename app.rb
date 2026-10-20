@@ -511,11 +511,34 @@ module LoginGov::OidcSinatra
       JWT.encode(jwt_payload, config.sp_private_key, 'RS256')
     end
 
+    # Login.gov answers the userinfo request with plain JSON, or, for a client it has configured
+    # for encrypted responses, with the same claims as one compact JWE (OpenID Connect Core 1.0
+    # section 5.3.2) under the content type application/jwt. The JWE is encrypted to the public
+    # key of the certificate registered for this client, so the private key that signs the
+    # client assertion also decrypts the response.
     def userinfo(access_token)
       url = openid_configuration[:userinfo_endpoint]
 
       connection = Faraday.new(url: url, headers:{'Authorization' => "Bearer #{access_token}" })
-      JSON.parse(connection.get('').body).with_indifferent_access
+      response = connection.get('')
+
+      body = if encrypted_userinfo_response?(response)
+               decrypt_userinfo(response.body)
+             else
+               response.body
+             end
+
+      JSON.parse(body).with_indifferent_access
+    end
+
+    def encrypted_userinfo_response?(response)
+      response.headers['Content-Type'].to_s.start_with?('application/jwt')
+    end
+
+    def decrypt_userinfo(jwe)
+      JWE.decrypt(jwe, config.sp_private_key)
+    rescue JWE::DecodeError, OpenSSL::OpenSSLError => e
+      raise AppError.new("Could not decrypt the encrypted userinfo response: #{e.message}")
     end
 
     def client_id

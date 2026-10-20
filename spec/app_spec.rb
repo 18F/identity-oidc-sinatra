@@ -477,6 +477,49 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           end
         end
 
+        context 'when the userinfo response is encrypted to the client certificate' do
+          let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
+          let(:other_private_key) { idp_private_key }
+
+          it 'decrypts it with the client private key and renders the email' do
+            get '/auth/request'
+            stub_token_response(
+              code:,
+              bearer_token: bearer_token,
+              id_token: generate_id_token(nonce: last_request.session['nonce']),
+            )
+            stub_encrypted_userinfo_response(
+              bearer_token:, email:, public_key: sp_private_key.public_key,
+            )
+
+            get '/auth/result', { code:, state: last_request.session['state'] },
+                'rack.session' => last_request.session
+
+            expect(last_response).to be_redirect
+            follow_redirect!
+            expect(last_response.body).to include(email)
+          end
+
+          it 'renders an error when the response is encrypted to some other key' do
+            get '/auth/request'
+            stub_token_response(
+              code:,
+              bearer_token: bearer_token,
+              id_token: generate_id_token(nonce: last_request.session['nonce']),
+            )
+            stub_encrypted_userinfo_response(
+              bearer_token:, email:, public_key: other_private_key.public_key,
+            )
+
+            get '/auth/result', { code:, state: last_request.session['state'] },
+                'rack.session' => last_request.session
+
+            follow_redirect!
+            expect(last_response.body).to include('Could not decrypt the encrypted userinfo response')
+            expect(last_response.body).not_to include(email)
+          end
+        end
+
         it 'has a logout link to the handle-logout endpoint' do
           get '/auth/request'
           stub_token_response(
@@ -678,6 +721,19 @@ end
     stub_request(:get, userinfo_endpoint).
       with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
       to_return(body: { email: email }.to_json)
+  end
+
+  # The shape Login.gov uses for an encrypted userinfo response: one compact JWE of the claims
+  # JSON, RSA-OAEP and A256GCM, served as application/jwt.
+  def stub_encrypted_userinfo_response(bearer_token:, email:, public_key:)
+    jwe = JWE.encrypt(
+      { email: email }.to_json,
+      public_key,
+      alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', typ: 'JWT', kid: JWT::JWK.new(public_key).kid,
+    )
+    stub_request(:get, userinfo_endpoint).
+      with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
+      to_return(body: jwe, headers: { 'Content-Type' => 'application/jwt' })
   end
 
   def parameter_value(url, parameter_name)
