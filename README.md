@@ -39,6 +39,12 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
+3. Encrypted userinfo responses. When the identity provider is configured to encrypt this client's
+   userinfo responses, it answers the userinfo request with one compact JWE (content type
+   `application/jwt`) instead of plain JSON. The app detects the content type and decrypts the
+   response with the private key at `sp_private_key_path`, the same key that signs its
+   `private_key_jwt` client assertion, so nothing needs to be configured here.
+
 ## Delegated access
 
 Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
