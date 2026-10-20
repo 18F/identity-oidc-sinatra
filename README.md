@@ -41,6 +41,13 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
+3. Encrypted userinfo responses. When the identity provider is configured to encrypt this client's
+   userinfo responses, it answers the userinfo request with one compact JWE (content type
+   `application/jwt`) instead of plain JSON. The app detects the content type and decrypts the
+   response with the private key at `sp_private_key_path`, whose certificate is the one registered for
+   this client (for a confidential client it is also the key that signs the `private_key_jwt` client
+   assertion), so nothing needs to be configured here.
+
 ## Delegated access
 
 Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sample act as a
