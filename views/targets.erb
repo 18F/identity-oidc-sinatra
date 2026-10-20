@@ -1,0 +1,45 @@
+<a class="usa-skipnav" href="#main-content">Skip to main content</a>
+ <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
+  <p>TEST Do not use real personal information (demo purposes only) TEST</p>
+</div>
+<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs text-center">
+  <img class="width-2" aria-hidden="true" src="vendor/identity-design-system/assets/img/us_flag_small.png" alt="U.S. flag">
+  A DEMO website of the United States government
+</div>
+<%== erb :header, locals: { user_email: nil } %>
+<main id="main-content">
+  <div class="grid-container">
+    <div class="grid-row grid-gap">
+
+      <div class="usa-overlay"></div>
+      <div class="grid-container padding-0">
+        <h1> Select Target </h1>
+        
+        <form action="/send-access-token" method="POST">
+          <label class="usa-label" for="aal">
+          Target Scopes
+          </label>
+          <select name="target" id="target" class="usa-select">
+            <% targets.each do |target| %>
+              <% [
+                    [target['issuer'], target['scope']],
+                  ].each do |value, label| %>
+                <option value="<%= value %>">
+                  <%= label %>
+                </option>
+              <% end %>
+            <% end %>
+          </select>
+
+           <button type="submit" class="usa-button usa-button--secondary">
+            <%== csrf_tag %>
+            <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+              <use xlink:href="/vendor/identity-design-system/img/sprite.svg#submit"></use>
+            </svg>
+            Send brokered request
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>

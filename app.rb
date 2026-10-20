@@ -14,6 +14,7 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
+require 'pry'
 if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
@@ -108,6 +109,7 @@ module LoginGov::OidcSinatra
           x509_issuer
           x509_subject
           x509_presented
+          token_exchange:passport
         ]
       end
 
@@ -150,7 +152,7 @@ module LoginGov::OidcSinatra
         params = {
           maxEvents: 100,
           ack:,
-        }
+}
 
         connection = Faraday.new(
           url: config.attempts_url,
@@ -316,6 +318,7 @@ module LoginGov::OidcSinatra
       session[:document_test] = params[:document_test] == '1'
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
+      session[:broker_request] = params[:initiate_broker_token_exchange]
 
       session[:state] = random_value
       session[:nonce] = random_value
@@ -342,6 +345,7 @@ module LoginGov::OidcSinatra
 
     # rubocop:disable Metrics/BlockLength
     get '/auth/result' do
+
       code = params[:code] 
       error = params[:error]
 
@@ -355,10 +359,12 @@ module LoginGov::OidcSinatra
 
       token_response = token(code)
       access_token = token_response[:access_token]
-      id_token = token_response[:id_token]
-      jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
 
-      return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
+      if session[:broker_request] == 'true'
+        token_output = token_exchange(access_token, code) 
+        session[:access_token] = token_output['access_token']
+        redirect to('/targets')
+      end
 
       if session.delete(:document_test)
         session[:document_test_id] = DocumentTestSession.put(access_token)
@@ -377,12 +383,37 @@ module LoginGov::OidcSinatra
         redirect to("/auth/request?aal=#{aal}&ial=2")
       elsif session.delete(:simulate_csp)
         redirect to('https://www.example.com/')
+         
       else
-        session[:login_msg] = 'ok'
-        session[:userinfo] = userinfo_response
-        session[:email] = session[:userinfo][:email]
 
-        redirect to('/')
+      # "{\"access_token\":\"PeixsEefxgzNTVMOpOphMfuyrAfYM652OCc2P278IEY\",\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\",\"token_type\":\"Bearer\",\"expires_in\":600,\"scope\":\"email profile address phone social_security_number x509 token_exchange:passport openid\"}"
+
+
+
+        id_token = token_response[:id_token]
+        jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
+        
+
+
+        return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
+
+        userinfo_response = userinfo(access_token)
+        session.delete(:nonce)
+        session.delete(:state)
+
+        if session.delete(:step_up_enabled)
+          aal = session.delete(:step_up_aal)
+
+          redirect to("/auth/request?aal=#{aal}&ial=2")
+        elsif session.delete(:simulate_csp)
+          redirect to('https://www.example.com/')
+        else
+          session[:login_msg] = 'ok'
+          session[:userinfo] = userinfo_response
+          session[:email] = session[:userinfo][:email]
+
+          redirect to('/')
+        end
       end
     rescue AppError => e
       render_error('Application', e.message)
@@ -435,6 +466,21 @@ module LoginGov::OidcSinatra
       attempts_events(ack:)
 
       redirect to('attempts-api')
+    end
+
+    get '/targets' do
+      erb :targets, locals: {
+        targets: config.targets,
+      }
+    end
+
+    post '/send-access-token' do
+      metadata = config.targets.find {|target| target['issuer'] == params['target'] }
+      
+      Faraday.post(
+        metadata['api'],
+        { access_token: session[:access_token] },
+        )
     end
 
     private
@@ -602,9 +648,28 @@ module LoginGov::OidcSinatra
       JSON.parse(connection.get('').body).with_indifferent_access
     end
 
-    def client_id
-      return config.mock_irs_client_id if session[:irs]
+    def token_exchange(access_token, code)
+       token_params = {
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        code:,
+        code_verifier: session[:code_verifier],
+        client_id:,
+        subject_token: access_token,
+        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        audience: 'state',
+        resource: 'https://api.agency-b.gov/records',
+        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+      }
 
+      response = Faraday.post(
+        openid_configuration[:token_endpoint],
+        token_params,
+      )
+
+      json response.body
+    end
+
+    def client_id
       use_pkce? ? config.client_id_pkce : config.client_id
     end
 
