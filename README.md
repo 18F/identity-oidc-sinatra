@@ -37,6 +37,12 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
+3. Encrypted userinfo responses. When the identity provider is configured to encrypt this client's
+   userinfo responses, it answers the userinfo request with one compact JWE (content type
+   `application/jwt`) instead of plain JSON. The app detects the content type and decrypts the
+   response with the private key at `sp_private_key_path`, the same key that signs its
+   `private_key_jwt` client assertion, so nothing needs to be configured here.
+
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md) for additional information.
