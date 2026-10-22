@@ -49,110 +49,95 @@ This project is in the worldwide [public domain](LICENSE.md). As stated in [CONT
 >
 > All contributions to this project will be released under the CC0 dedication. By submitting a pull request, you are agreeing to comply with this waiver of copyright interest.
 
-## Test document artifacts with the local Socure simulator
+## Testing document artifacts and release (IdP PRs #13648 / #13651)
 
-These steps test the document storage/release stack (#13648–#13651) with synthetic
-Socure fixtures. They do not connect to Socure's external sandbox.
-
-### 1. Get both branches
-
-Start with a working local IdP environment (Ruby, Node, PostgreSQL, Redis, and the
-standard configuration/certificate links). For first-time setup, follow the
-[IdP local development guide](https://github.com/18F/identity-idp/blob/dcl/secure-protocols/document_images_idp/docs/local-development.md).
-
-In your `identity-idp` checkout:
+Start against the local IdP (override any sandbox settings in your environment):
 
 ```sh
-git fetch origin
-git switch dcl/secure-protocols/document_images_idp
-bundle install
-npm ci
-bundle exec rails db:migrate db:seed
-npm run build:js_and_css
-mkdir -p tmp/pids
+idp_url=http://localhost:3000 make run
 ```
 
-In your `identity-oidc-sinatra` checkout:
+Open http://localhost:9292/document-artifacts. The page provides:
+
+- Document-sharing sign-in and release checks backed by the #13648 models.
+- A release sign-in requesting `document_images`, with IAL1/IAL2 and missing-scope controls.
+- Userinfo rechecks that distinguish absent claims, empty objects, and populated claims.
+- Front/back/passport/selfie requests with the current, missing, or invalid bearer token.
+- HTTP status, content type, cache headers, and byte counts without retaining image bytes.
+
+For #13651, run an IdP containing its full prerequisite stack with migrations applied.
+Set `document_images_sharing_enabled: true` and add the exact client ID shown on the
+page to `document_images_sharing_service_providers`. Restart the IdP after configuration
+changes. Use a synthetic verified user, purpose-specific consent, and synthetic stored
+artifacts; this app does not seed data or change IdP configuration. #13648 alone cannot
+populate or release images through a browser flow.
+
+Test tokens stay in bounded process-local memory for 15 minutes, referenced by a random
+session ID. Restarting the sample app clears them; use one process for the manual test.
+IdP expiry may be shorter. Clear the token when done. All checks use fixed paths on
+`idp_url`, do not follow redirects, and never send the bearer token to a returned claim URL.
+Normal sign-in defaults and the existing PKCE `demo/` are unchanged.
+
+Use the same token to recheck after revoking consent, removing partner eligibility,
+expiring a synthetic artifact, or removing its synthetic Redis object. Compare results
+with the table on the page and inspect IdP audit logs. Missing/invalid bearer tokens use
+the bearer-authentication audit path; authenticated 403/404 image requests use
+`document_image_release`. An empty claim alone cannot tell asynchronous retrieval from
+expired artifacts or mDL. A 200 plus byte count does not verify image content correctness.
+
+Compare identical flag-off requests against the pre-change IdP, including previously
+accepted optional scopes. Do not mark a new rejection as compatible merely because a
+new spec expects it. Repeat for supported public, confidential, and legacy configurations.
+
+The release-specific IdP tests are:
 
 ```sh
-git fetch origin
-git switch dcl/secure-protocols/document_images_sampleapp
-make setup
+bundle exec rspec spec/controllers/openid_connect/document_images_controller_spec.rb spec/controllers/openid_connect/user_info_controller_spec.rb spec/presenters/openid_connect_user_info_presenter_spec.rb spec/services/openid_connect_attribute_scoper_spec.rb spec/forms/openid_connect_authorize_form_spec.rb
 ```
 
-### 2. Configure the IdP
-
-Merge these settings into the existing `development` section of the IdP's
-`config/application.yml`. Preserve your database, Redis, and other local settings.
-
-```yaml
-development:
-  document_images_sharing_enabled: true
-  document_images_sharing_service_providers: '["urn:gov:gsa:openidconnect:sp:sinatra"]'
-  socure_docv_enabled: true
-  doc_auth_vendor_default: mock_socure
-  doc_auth_selfie_vendor_default: mock_socure
-  doc_auth_passport_vendor_default: mock_socure
-  doc_auth_passport_selfie_vendor_default: mock_socure
-  socure_docv_images_request_endpoint: http://localhost:3000/test/mock_socure/api/5.0/documents/
-  socure_docv_webhook_secret_key: local-socure-test-only
-```
-
-The webhook value is for localhost testing only. The standard IdP seeds register
-the Sinatra client and its `http://localhost:9292/auth/result` callback.
-
-### 3. Start the apps
-
-Keep PostgreSQL and Redis running. Use three separate terminals:
-
-**IdP web server** (from `identity-idp`):
+Sample-app regression checks (use an installed Ruby matching the bundle):
 
 ```sh
-RAILS_MAX_THREADS=5 bundle exec rackup config.ru --port 3000 --host localhost
+idp_url=http://localhost:3000 bundle exec rspec
 ```
 
-**IdP worker** (from `identity-idp`):
+### Prepared local stack
+
+The isolated checkout at `../identity-idp-document-artifacts-test` is pinned to
+PR #13651 head `0c34add6386b87912d62d0aeb1b3a6d3e0e4063d` (including its stack).
+It uses separate `identity_idp_artifacts_development` and
+`identity_idp_artifacts_worker_jobs_development` PostgreSQL databases and Redis on
+localhost:16390. Local config enables document sharing for the sample Sinatra client.
+It has seeded partner registrations but no pre-created test users.
+
+To restart, run each long-running command in its own terminal:
 
 ```sh
-bundle exec good_job start
+cd ../identity-idp-document-artifacts-test
+redis-server --port 16390 --bind 127.0.0.1 --save '' --appendonly no
+RAILS_MAX_THREADS=5 RBENV_VERSION=3.4.10 rbenv exec bundle exec rackup config.ru --port 3000 --host localhost
+RBENV_VERSION=3.4.10 rbenv exec bundle exec good_job start
 ```
 
-**Sample app** (from `identity-oidc-sinatra`):
+The Redis command is only needed if that instance is stopped. Assets are compiled;
+no webpack watch process is needed until frontend sources change. The model and
+release checks are documented above; technical walkthroughs are kept off the test page.
 
-```sh
-idp_url=http://localhost:3000 PKCE=false client_id=urn:gov:gsa:openidconnect:sp:sinatra redirect_uri=http://localhost:9292/ make run
-```
+### Local Socure flow
 
-Restart both IdP processes after changing configuration. Multiple web threads are
-required because the simulator makes HTTP callbacks to the same IdP.
+The isolated IdP uses `mock_socure`, the repository's Socure simulator, with
+`socure_docv_enabled: true`. This exercises Socure-specific webhook, result,
+image-retrieval, persistence, and release code using synthetic fixtures. It is not
+a connection to the external Socure sandbox and does not test that vendor's capture SDK.
+The local-only simulator image route/action was repaired to serve the ZIP expected
+by `ImagesRequest`; production result, persistence, and release code is unchanged.
+A local webhook secret is configured, and the IdP needs multiple threads because
+the simulator calls back into the same server.
 
-### 4. Run the test
-
-1. Open http://localhost:9292/document-artifacts.
-2. Leave **Identity verified** selected and **Request document images** checked.
-   Click **Sign in to test**.
-3. Create a **new test account** so previous verification does not skip proofing.
-   Use a private window or sign out of Login.gov if an existing login is reused.
-4. Choose **driver's license/state ID**.
-5. At **Test Socure Configuration**, select **License Pass**, then **Continue**.
-6. Complete proofing and grant document-sharing consent.
-7. Back in the sample app, select **userinfo**, keep **Current test token**, and
-   click **Run request**. Then return and check **front** and **back**.
-
-| Check | Expected result |
-| --- | --- |
-| userinfo / current token | Image URLs and document metadata |
-| front or back / current token | HTTP 200, `image/jpeg`, `Cache-Control: no-store` |
-| front / missing or invalid token | HTTP 401 |
-
-License Pass supplies synthetic front/back images, not selfie or passport images.
-Image checks show status, headers, and byte counts rather than rendering images.
-Empty `{}` claims mean sharing is authorized but records are unavailable; retry
-userinfo after retrieval completes. Persistently empty claims need investigation.
-
-The sample app retains test tokens in server memory for 15 minutes. Restarting it
-clears them but does not sign you out of Login.gov. Sign in again if the checks disappear.
-
-This is a positive-flow smoke test, not full PR acceptance. Separately verify
-flag-off compatibility against the pre-change IdP, consent revocation, retention,
-account deletion, encryption/key rotation, and cross-user isolation.
+Start **Sign in to test**, create a new test account (an already verified account
+may skip proofing), and choose a driver's license/state ID. At **Test Socure
+Configuration**, select **License Pass**, then **Continue**. Complete the remaining
+proofing and sharing-consent steps. On return, request userinfo, then front/back.
+Expect populated claims and image responses with HTTP 200. Selfie and passport are
+not supplied by the License Pass scenario. Test images come from repository fixtures,
+not from the generic mock flow's uploads.
