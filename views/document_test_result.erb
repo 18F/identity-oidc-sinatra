@@ -1,0 +1,10 @@
+<div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
+  <p>TEST Do not use real personal information (demo purposes only) TEST</p>
+</div>
+<%== erb :header, locals: { user_email: nil } %>
+<main class="grid-container usa-section">
+  <h1>Test document artifacts</h1>
+  <h2><%= kind %> result</h2>
+  <pre><code><%= JSON.pretty_generate(report) %></code></pre>
+  <a href="/document-artifacts">Return to tests</a>
+</main>

@@ -440,6 +440,26 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:bearer_token) { 'abc' }
 
       context 'with valid token' do
+        it 'keeps a document test token server-side and returns to the test page' do
+          get '/auth/request', document_test: '1', ial: '2',
+            requested_scopes: ['email', 'document_images']
+          stub_token_response(
+            code:,
+            bearer_token: bearer_token,
+            id_token: generate_id_token(nonce: last_request.session['nonce']),
+          )
+          get '/auth/result', { code:, state: last_request.session['state'] },
+            'rack.session' => last_request.session
+          expect(last_response.location).to end_with('/document-artifacts')
+          id = last_request.session['document_test_id']
+          store = LoginGov::OidcSinatra::DocumentTestSession
+          expect(store.get(id)).to eq(bearer_token)
+          expect(last_request.session.values).not_to include(bearer_token)
+          follow_redirect!
+          expect(last_response.body).to include('A test token is available.')
+          store.delete(id)
+        end
+
         it 'takes an authorization code and gets a token, and renders the email from the token' do
           get '/auth/request'
 

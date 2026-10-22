@@ -1,0 +1,54 @@
+<div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
+  <p>TEST Do not use real personal information (demo purposes only) TEST</p>
+</div>
+<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs text-center">
+  A DEMO website of the United States government
+</div>
+<%== erb :header, locals: { user_email: nil } %>
+<main id="main-content" class="grid-container usa-section">
+  <div class="grid-row grid-gap"><section class="tablet:grid-col-6">
+  <h1>Test document artifacts</h1>
+  <p>Sign in with Login.gov to test document images and attributes.</p>
+  <form id="login-form" action="/auth/request" method="get">
+    <input type="hidden" name="document_test" value="1">
+    <input type="hidden" name="requested_scopes[]" value="email">
+    <label class="usa-label" for="test-ial">Level of service</label>
+    <select id="test-ial" name="ial" class="usa-select">
+      <option value="2">Identity verified</option>
+      <option value="1">Authentication only (negative test)</option>
+    </select>
+    <div class="usa-checkbox margin-top-2">
+      <input class="usa-checkbox__input" id="request-document-images" type="checkbox"
+        name="requested_scopes[]" value="document_images" checked>
+      <label class="usa-checkbox__label" for="request-document-images">Request document images</label>
+    </div>
+    <p><button class="usa-button" type="submit">Sign in to test</button></p>
+  </form>
+  <% if LoginGov::OidcSinatra::DocumentTestSession.get(session[:document_test_id]) %>
+    <p><strong>A test token is available.</strong></p>
+    <form action="/document-artifacts/check" method="post">
+      <%== csrf_tag %>
+      <label class="usa-label" for="test-kind">Request</label>
+      <select id="test-kind" name="kind" class="usa-select">
+        <% %w[userinfo front back passport selfie].each do |kind| %>
+          <option value="<%= kind %>"><%= kind %></option>
+        <% end %>
+      </select>
+      <label class="usa-label" for="test-token">Bearer token</label>
+      <select id="test-token" name="token_mode" class="usa-select">
+        <option value="current">Current test token</option>
+        <option value="missing">No token</option>
+        <option value="invalid">Invalid token</option>
+      </select>
+      <p><button class="usa-button" type="submit">Run request</button></p>
+    </form>
+    <form action="/document-artifacts/clear" method="post">
+      <%== csrf_tag %>
+      <button class="usa-button usa-button--outline" type="submit">Clear test token</button>
+    </form>
+  <% else %>
+    <p>Sign in to check document images and attributes.</p>
+  <% end %>
+  <p><a href="/">Back to sample app</a></p>
+  </section></div>
+</main>
