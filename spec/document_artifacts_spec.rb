@@ -20,7 +20,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   it 'renders the guide without discovery or a token in the HTML' do
     expect(last_response).to be_ok
-    expect(last_response.body).to include('Test document artifacts')
+    expect(last_response.body).to include('Test document artifacts', 'Identity verified with selfie')
     expect(last_response.body).not_to include(token)
   end
 
