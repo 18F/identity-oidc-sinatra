@@ -18,7 +18,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     }, 'rack.session' => last_request.session
   end
 
-  it 'renders the guide without discovery or a token in the HTML' do
+  it 'renders the test page without discovery or a token in the HTML' do
     expect(last_response).to be_ok
     expect(last_response.body).to include('Test document artifacts', 'Identity verified with selfie')
     expect(last_response.body).not_to include(token)
@@ -33,6 +33,23 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     expect(last_response.body).to include('empty object', 'absent')
     expect(last_response.body).not_to include(token)
     expect(last_response.headers['cache-control']).to eq('no-store')
+  end
+
+  it 'uses the configured IdP host for userinfo and selfie checks' do
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:idp_url).
+      and_return('https://configured-idp.example')
+    info = stub_request(:get, 'https://configured-idp.example/api/openid_connect/userinfo').
+      with(headers: { 'Authorization' => "Bearer #{token}" }).
+      to_return(body: '{"document_images":{"selfie":"https://configured-idp.example/api/openid_connect/document_images/selfie"},"document_metadata":{"document_number":"TEST"}}')
+    selfie = stub_request(:get, 'https://configured-idp.example/api/openid_connect/document_images/selfie').
+      with(headers: { 'Authorization' => "Bearer #{token}" }).
+      to_return(body: 'synthetic-selfie', headers: { 'Content-Type' => 'image/jpeg' })
+    check
+    expect(last_response.body).to include('present', 'TEST')
+    check(kind: 'selfie')
+    expect(last_response.body).to include('image/jpeg')
+    expect(info).to have_been_requested.once
+    expect(selfie).to have_been_requested.once
   end
 
   it 'reports image response headers and size without emitting image bytes' do
