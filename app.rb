@@ -208,30 +208,22 @@ module LoginGov::OidcSinatra
       @config ||= Config.new
     end
 
-    get '/document-artifacts' do
-      headers 'Cache-Control' => 'no-store'
-      erb :document_artifacts
-    end
-
-    post '/document-artifacts/check' do
-      headers 'Cache-Control' => 'no-store'
-      token_value = DocumentTestSession.get(session[:document_test_id])
-      halt 409, 'Test session expired or missing. Start a new test sign-in.' unless token_value
-
-      kind = params[:kind]
-      halt 400, 'Unknown check' unless %w[userinfo front back passport selfie].include?(kind)
-      mode = params[:token_mode]
-      halt 400, 'Unknown token mode' unless %w[current missing invalid].include?(mode)
+    def document_test_response(kind:, mode:, token_value:)
       path = kind == 'userinfo' ? '/api/openid_connect/userinfo' :
         "/api/openid_connect/document_images/#{kind}"
       request_headers = {}
       request_headers['Authorization'] = "Bearer #{token_value}" if mode == 'current'
-      request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token' if mode == 'invalid'
+      if mode == 'invalid'
+        request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token'
+      end
       # Fixed paths on the configured IdP only; never follow claim URLs or redirects.
-      response = Faraday.new(url: config.idp_url, headers: request_headers) do |connection|
+      Faraday.new(url: config.idp_url, headers: request_headers) do |connection|
         connection.options.timeout = 15
         connection.options.open_timeout = 5
       end.get(path)
+    end
+
+    def document_test_report(response:, kind:)
       report = {
         status: response.status,
         content_type: response.headers['content-type'],
@@ -249,6 +241,25 @@ module LoginGov::OidcSinatra
           [claim, { state: state, value: value }]
         end
       end
+      report
+    end
+
+    get '/document-artifacts' do
+      headers 'Cache-Control' => 'no-store'
+      erb :document_artifacts
+    end
+
+    post '/document-artifacts/check' do
+      headers 'Cache-Control' => 'no-store'
+      token_value = DocumentTestSession.get(session[:document_test_id])
+      halt 409, 'Test session expired or missing. Start a new test sign-in.' unless token_value
+
+      kind = params[:kind]
+      halt 400, 'Unknown check' unless %w[userinfo front back passport selfie].include?(kind)
+      mode = params[:token_mode]
+      halt 400, 'Unknown token mode' unless %w[current missing invalid].include?(mode)
+      response = document_test_response(kind: kind, mode: mode, token_value: token_value)
+      report = document_test_report(response: response, kind: kind)
       erb :document_test_result, locals: { report: report, kind: kind }
     rescue Faraday::Error, JSON::ParserError
       halt 502, 'IdP unavailable or returned invalid JSON. No successful result recorded.'
