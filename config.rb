@@ -74,6 +74,7 @@ module LoginGov
       end
 
       def targets
+        return [] unless ENV['token_exchange_targets'].present?
         JSON.parse(ENV['token_exchange_targets'])
       end
 

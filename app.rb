@@ -297,14 +297,11 @@ module LoginGov::OidcSinatra
       session.delete(:broker_request)
       session.delete(:selected_target)
 
-      ial = params[:ial]
-      aal = params[:aal]
-
-      ial = prepare_step_up_flow(session: session, ial: ial, aal: aal)
+      ial = prepare_step_up_flow(session:)
 
       erb :index, locals: {
         ial: ial,
-        aal: aal,
+        aal: params[:aal],
         login_msg: login_msg,
         logout_msg: logout_msg,
         user_email: user_email,
@@ -325,13 +322,13 @@ module LoginGov::OidcSinatra
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
       session[:broker_request] = params[:initiate_broker_token_exchange]
-      session[:token_scope] = get_token_scope(params[:requested_scopes])
+      session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
 
       session[:state] = random_value
       session[:nonce] = random_value
       session[:code_verifier] = random_value if use_pkce?
 
-      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      ial = prepare_step_up_flow(session:)
       auth_url = authorization_url(
         state: session[:state],
         nonce: session[:nonce],
@@ -507,7 +504,9 @@ module LoginGov::OidcSinatra
       end
     end
 
-    def prepare_step_up_flow(session:, ial:, aal: nil)
+    def prepare_step_up_flow(session:)
+      ial = params[:ial]
+      aal = params[:aal]
       if ial == 'step-up'
         ial = '1'
         session[:step_up_enabled] = 'true'
@@ -588,7 +587,7 @@ module LoginGov::OidcSinatra
       AttemptsConfiguration.cached_attempts_public_key(attempts_config)
     end
 
-    def get_token_scope(scopes=[])
+    def get_token_scope(scopes)
       scope = scopes.find { |scope| scope.match(/token_exchange:(.+)/) }
       return unless scope 
       
