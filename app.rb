@@ -352,7 +352,6 @@ module LoginGov::OidcSinatra
 
     # rubocop:disable Metrics/BlockLength
     get '/auth/result' do
-
       code = params[:code] 
       error = params[:error]
 
@@ -370,8 +369,13 @@ module LoginGov::OidcSinatra
       if session[:broker_request] == 'true'
         token_output = token_exchange(access_token, code) 
         session[:access_token] = token_output['access_token']
-        redirect to('/targets')
-      end
+        redirect to('/target')
+      end      
+
+      id_token = token_response[:id_token]
+      jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
+
+      return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
 
       if session.delete(:document_test)
         session[:document_test_id] = DocumentTestSession.put(access_token)
@@ -390,35 +394,17 @@ module LoginGov::OidcSinatra
         redirect to("/auth/request?aal=#{aal}&ial=2")
       elsif session.delete(:simulate_csp)
         redirect to('https://www.example.com/')
-         
       else
+        session[:login_msg] = 'ok'
+        session[:userinfo] = userinfo_response
+        session[:email] = session[:userinfo][:email]
 
-        id_token = token_response[:id_token]
-        jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
-
-        return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
-
-        userinfo_response = userinfo(access_token)
-        session.delete(:nonce)
-        session.delete(:state)
-
-        if session.delete(:step_up_enabled)
-          aal = session.delete(:step_up_aal)
-
-          redirect to("/auth/request?aal=#{aal}&ial=2")
-        elsif session.delete(:simulate_csp)
-          redirect to('https://www.example.com/')
-        else
-          session[:login_msg] = 'ok'
-          session[:userinfo] = userinfo_response
-          session[:email] = session[:userinfo][:email]
-
-          redirect to('/')
-        end
+        redirect to('/')
       end
     rescue AppError => e
       render_error('Application', e.message)
     end
+
 
     get '/failure_to_proof' do
       render_error('Proofing', 'We were unable to verify your identity')
@@ -606,8 +592,10 @@ module LoginGov::OidcSinatra
     end
 
     def get_token_scope(scopes=[])
-      scopes.find { |scope| scope.match(/token_exchange:(.+)/) }.
-        delete_prefix('token_exchange:')
+      scope = scopes.find { |scope| scope.match(/token_exchange:(.+)/) }
+      return unless scope 
+      
+      scope.delete_prefix('token_exchange:')
     end
 
     def token(code)
