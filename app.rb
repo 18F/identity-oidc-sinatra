@@ -14,7 +14,6 @@ require 'securerandom'
 require 'sinatra/base'
 require 'time'
 require 'logger'
-require 'pry'
 if ENV['NEW_RELIC_LICENSE_KEY'] && ENV['NEW_RELIC_APP_NAME']
   require 'newrelic_rpm'
   puts 'enabling newrelic'
@@ -391,14 +390,8 @@ module LoginGov::OidcSinatra
          
       else
 
-      # "{\"access_token\":\"PeixsEefxgzNTVMOpOphMfuyrAfYM652OCc2P278IEY\",\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\",\"token_type\":\"Bearer\",\"expires_in\":600,\"scope\":\"email profile address phone social_security_number x509 token_exchange:passport openid\"}"
-
-
-
         id_token = token_response[:id_token]
         jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
-        
-
 
         return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
 
