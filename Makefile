@@ -20,7 +20,8 @@ install_dependencies:
 	npm install
 
 copy_vendor: public/vendor
-	cp -R node_modules/@18f/identity-design-system/dist public/vendor/identity-design-system
+	mkdir -p public/vendor/identity-design-system
+	cp -R node_modules/@18f/identity-design-system/dist/. public/vendor/identity-design-system/
 
 setup: .env install_dependencies copy_vendor
 
@@ -32,7 +33,7 @@ lint:
 	bundle exec bundler-audit check --update
 	npm audit --audit-level=high
 
-run:
+run: copy_vendor
 	bundle exec rackup -p $(PORT) --host ${HOST}
 
 test: $(CONFIG)

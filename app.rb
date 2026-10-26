@@ -22,6 +22,7 @@ end
 require_relative './config'
 require_relative './openid_configuration'
 require_relative './attempts_configuration'
+require_relative './document_test_session'
 
 module LoginGov::OidcSinatra
   JWT_CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -48,6 +49,7 @@ module LoginGov::OidcSinatra
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
+    DOCUMENT_TEST_KINDS = %w[userinfo front back passport selfie].freeze
     set :erb, escape_html: true
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
@@ -207,6 +209,78 @@ module LoginGov::OidcSinatra
       @config ||= Config.new
     end
 
+    def document_test_response(kind:, mode:, token_value:)
+      path = kind == 'userinfo' ? '/api/openid_connect/userinfo' :
+        "/api/openid_connect/document_images/#{kind}"
+      request_headers = {}
+      
+      if mode == 'current'
+        request_headers['Authorization'] = "Bearer #{token_value}" 
+      elsif mode == 'invalid'
+        request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token'
+      end
+      # Fixed paths on the configured IdP only; never follow claim URLs or redirects.
+      Faraday.new(url: config.idp_url, headers: request_headers) do |connection|
+        connection.options.timeout = 15
+        connection.options.open_timeout = 5
+      end.get(path)
+    end
+
+    def document_test_report(response:, kind:)
+      report = {
+        status: response.status,
+        content_type: response.headers['content-type'],
+        cache_control: response.headers['cache-control'],
+        pragma: response.headers['pragma'],
+        nosniff: response.headers['x-content-type-options'],
+        bytes: response.body.bytesize,
+      }
+      if kind == 'userinfo' && response.status == 200
+        data = JSON.parse(response.body)
+        halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
+        report[:claims] = %w[document_images document_metadata].to_h do |claim|
+          value = data[claim]
+          state = 
+            if !data.key?(claim)  
+              'absent' 
+            elsif value == {} 
+              'empty object'
+            else
+              'present'
+            end
+          [claim, { state: state, value: value }]
+        end
+      end
+      report
+    end
+
+    get '/document-artifacts' do
+      headers 'Cache-Control' => 'no-store'
+      test_token_available = !DocumentTestSession.get(session[:document_test_id]).nil?
+      erb :document_artifacts, locals: { test_token_available: test_token_available }
+    end
+
+    post '/document-artifacts/check' do
+      headers 'Cache-Control' => 'no-store'
+      token_value = DocumentTestSession.get(session[:document_test_id])
+      halt 409, 'Test session expired or missing. Start a new test sign-in.' unless token_value
+
+      kind = params[:kind]
+      halt 400, 'Unknown check' unless DOCUMENT_TEST_KINDS.include?(kind)
+      mode = params[:token_mode]
+      halt 400, 'Unknown token mode' unless %w[current missing invalid].include?(mode)
+      response = document_test_response(kind: kind, mode: mode, token_value: token_value)
+      report = document_test_report(response: response, kind: kind)
+      erb :document_test_result, locals: { report: report, kind: kind }
+    rescue Faraday::Error, JSON::ParserError
+      halt 502, 'IdP unavailable or returned invalid JSON. No successful result recorded.'
+    end
+
+    post '/document-artifacts/clear' do
+      DocumentTestSession.delete(session.delete(:document_test_id))
+      redirect '/document-artifacts'
+    end
+
     get '/' do
       login_msg = session.delete(:login_msg)
       logout_msg = session.delete(:logout_msg)
@@ -238,6 +312,8 @@ module LoginGov::OidcSinatra
     end
 
     get '/auth/request' do
+      DocumentTestSession.delete(session.delete(:document_test_id))
+      session[:document_test] = params[:document_test] == '1'
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
 
@@ -284,6 +360,13 @@ module LoginGov::OidcSinatra
 
       return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
 
+      if session.delete(:document_test)
+        session[:document_test_id] = DocumentTestSession.put(access_token)
+        session.delete(:nonce)
+        session.delete(:state)
+        redirect '/document-artifacts'
+      end
+
       userinfo_response = userinfo(access_token)
       session.delete(:nonce)
       session.delete(:state)
@@ -310,6 +393,7 @@ module LoginGov::OidcSinatra
     end
 
     post '/handle-logout' do
+      DocumentTestSession.delete(session.delete(:document_test_id))
       session.delete(:userinfo)
       session.delete(:email)
       session.delete(:step_up_enabled)

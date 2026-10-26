@@ -440,6 +440,26 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       let(:bearer_token) { 'abc' }
 
       context 'with valid token' do
+        it 'keeps a document test token server-side and returns to the test page' do
+          get '/auth/request', document_test: '1', ial: '2',
+            requested_scopes: ['email', 'document_images']
+          stub_token_response(
+            code:,
+            bearer_token: bearer_token,
+            id_token: generate_id_token(nonce: last_request.session['nonce']),
+          )
+          get '/auth/result', { code:, state: last_request.session['state'] },
+            'rack.session' => last_request.session
+          expect(last_response.location).to end_with('/document-artifacts')
+          id = last_request.session['document_test_id']
+          store = LoginGov::OidcSinatra::DocumentTestSession
+          expect(store.get(id)).to eq(bearer_token)
+          expect(last_request.session.values).not_to include(bearer_token)
+          follow_redirect!
+          expect(last_response.body).to include('A test token is available.')
+          store.delete(id)
+        end
+
         it 'takes an authorization code and gets a token, and renders the email from the token' do
           get '/auth/request'
 
@@ -582,6 +602,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   context 'POST /handle-logout' do
     let(:redirect_uri) { 'http://localhost:9292/logout' }
+    let(:store) {LoginGov::OidcSinatra::DocumentTestSession }
+    let(:document_test_id) { store.put('private-test-bearer')}
+
+    after { store.delete(document_test_id) }
 
     before do
       get '/'
@@ -591,8 +615,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       last_request.session[:step_up_aal] = false
       last_request.session[:irs] = false
       last_request.session[:state] = 'abc123'
+      last_request.session[:document_test_id] = document_test_id
 
-      post '/handle-logout', authenticity_token: last_request.session[:csrf]
+      post '/handle-logout', {
+        authenticity_token: last_request.session[:csrf],
+      }, 'rack.session' => last_request.session
     end
 
     it 'deletes the session objects' do
@@ -601,6 +628,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_request.session.keys).to_not include('step_up_enabled')
       expect(last_request.session.keys).to_not include('step_up_aal')
       expect(last_request.session.keys).to_not include('irs')
+    end
+
+    it 'deletes the document test token and session ID' do
+      expect(store.get(document_test_id)).to be_nil
+      expect(last_request.session[:document_test_id]).to be_nil
     end
 
     it 'redirects to Login.gov logout' do
