@@ -617,7 +617,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       last_request.session[:state] = 'abc123'
       last_request.session[:document_test_id] = document_test_id
 
-      post '/handle-logout', authenticity_token: last_request.session[:csrf]
+      post '/handle-logout', {
+        authenticity_token: last_request.session[:csrf],
+      }, 'rack.session' => last_request.session
     end
 
     it 'deletes the session objects' do
