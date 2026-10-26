@@ -44,7 +44,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         document_images: {
           selfie: 'https://configured-idp.example/api/openid_connect/document_images/selfie',
         },
-        document_metadata {
+        document_metadata: {
           document_number: 'TEST',
         },
       }.to_json)
@@ -116,7 +116,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   it 'clears the stored token and session ID, then redirects to the test page' do
-    post '/document/artifacts/clear', {
+    post '/document-artifacts/clear', {
       authenticity_token: last_request.session[:csrf],
     }, 'rack.session' => last_request.session
 
