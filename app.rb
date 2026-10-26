@@ -249,6 +249,7 @@ module LoginGov::OidcSinatra
               'present'
             end
           [claim, { state: state, value: value }]
+        end
       end
       report
     end
