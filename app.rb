@@ -109,8 +109,13 @@ module LoginGov::OidcSinatra
           x509_issuer
           x509_subject
           x509_presented
-          token_exchange:passport
-        ]
+        ] + target_options
+      end
+
+      def target_options
+        config.targets.map do |target|
+          "token_exchange:#{target['scope']}"
+        end
       end
 
       def default_scopes_by_ial
