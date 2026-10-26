@@ -49,6 +49,7 @@ module LoginGov::OidcSinatra
   class AppError < StandardError; end
 
   class OpenidConnectRelyingParty < Sinatra::Base
+    DOCUMENT_TEST_KINDS = %w[userinfo front back passport selfie].freeze
     set :erb, escape_html: true
     set :logger, proc { Logger.new(ENV['RACK_ENV'] == 'test' ? nil : $stdout) }
 
@@ -212,8 +213,10 @@ module LoginGov::OidcSinatra
       path = kind == 'userinfo' ? '/api/openid_connect/userinfo' :
         "/api/openid_connect/document_images/#{kind}"
       request_headers = {}
-      request_headers['Authorization'] = "Bearer #{token_value}" if mode == 'current'
-      if mode == 'invalid'
+      
+      if mode == 'current'
+        request_headers['Authorization'] = "Bearer #{token_value}" 
+      elsif mode == 'invalid'
         request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token'
       end
       # Fixed paths on the configured IdP only; never follow claim URLs or redirects.
@@ -237,16 +240,23 @@ module LoginGov::OidcSinatra
         halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
         report[:claims] = %w[document_images document_metadata].to_h do |claim|
           value = data[claim]
-          state = !data.key?(claim) ? 'absent' : value == {} ? 'empty object' : 'present'
+          state = 
+            if !data.key?(claim)  
+              'absent' 
+            elsif value == {} 
+              'empty object'
+            else
+              'present'
+            end
           [claim, { state: state, value: value }]
-        end
       end
       report
     end
 
     get '/document-artifacts' do
       headers 'Cache-Control' => 'no-store'
-      erb :document_artifacts
+      test_token_available = !DocumentTestSession.get(session[:document_test_id]).nil?
+      erb :document_artifacts, locals: { test_token_available: test_token_available }
     end
 
     post '/document-artifacts/check' do
@@ -255,7 +265,7 @@ module LoginGov::OidcSinatra
       halt 409, 'Test session expired or missing. Start a new test sign-in.' unless token_value
 
       kind = params[:kind]
-      halt 400, 'Unknown check' unless %w[userinfo front back passport selfie].include?(kind)
+      halt 400, 'Unknown check' unless DOCUMENT_TEST_KINDS.include?(kind)
       mode = params[:token_mode]
       halt 400, 'Unknown token mode' unless %w[current missing invalid].include?(mode)
       response = document_test_response(kind: kind, mode: mode, token_value: token_value)

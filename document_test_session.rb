@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'securerandom'
-require 'thread'
 
 module LoginGov::OidcSinatra
   # Process-local tokens: never put bearer tokens in the browser's session cookie.

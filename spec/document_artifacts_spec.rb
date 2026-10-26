@@ -40,7 +40,14 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       and_return('https://configured-idp.example')
     info = stub_request(:get, 'https://configured-idp.example/api/openid_connect/userinfo').
       with(headers: { 'Authorization' => "Bearer #{token}" }).
-      to_return(body: '{"document_images":{"selfie":"https://configured-idp.example/api/openid_connect/document_images/selfie"},"document_metadata":{"document_number":"TEST"}}')
+      to_return(body: {
+        document_images: {
+          selfie: 'https://configured-idp.example/api/openid_connect/document_images/selfie',
+        },
+        document_metadata {
+          document_number: 'TEST',
+        },
+      }.to_json)
     selfie = stub_request(:get, 'https://configured-idp.example/api/openid_connect/document_images/selfie').
       with(headers: { 'Authorization' => "Bearer #{token}" }).
       to_return(body: 'synthetic-selfie', headers: { 'Content-Type' => 'image/jpeg' })
@@ -106,5 +113,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   it 'expires tokens after fifteen minutes' do
     allow(Time).to receive(:now).and_return(Time.now + 901)
     expect(store.get(id)).to be_nil
+  end
+
+  it 'clears the stored token and session ID, then redirects to the test page' do
+    post '/document/artifacts/clear', {
+      authenticity_token: last_request.session[:csrf],
+    }, 'rack.session' => last_request.session
+
+    expect(store.get(id)).to be_nil
+    expect(last_request.session[:document_test_id]).to be_nil
+    expect(last_response).to be_redirect
+    expect(last_response.location).to end_with('/document-artifacts')
   end
 end

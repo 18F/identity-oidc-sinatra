@@ -14,3 +14,14 @@ public/api/deploy.json
 public/vendor
 node_modules
 .idea
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml

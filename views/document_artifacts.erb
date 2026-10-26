@@ -25,13 +25,13 @@
     </div>
     <p><button class="usa-button" type="submit">Sign in to test</button></p>
   </form>
-  <% if LoginGov::OidcSinatra::DocumentTestSession.get(session[:document_test_id]) %>
+  <% if test_token_available %>
     <p><strong>A test token is available.</strong></p>
     <form action="/document-artifacts/check" method="post">
       <%== csrf_tag %>
       <label class="usa-label" for="test-kind">Request</label>
       <select id="test-kind" name="kind" class="usa-select">
-        <% %w[userinfo front back passport selfie].each do |kind| %>
+        <% self.class::DOCUMENT_TEST_KINDS.each do |kind| %>
           <option value="<%= kind %>"><%= kind %></option>
         <% end %>
       </select>

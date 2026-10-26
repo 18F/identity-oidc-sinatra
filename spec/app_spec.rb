@@ -602,6 +602,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   context 'POST /handle-logout' do
     let(:redirect_uri) { 'http://localhost:9292/logout' }
+    let(:store) {LoginGov::OidcSinatra::DocumentTestSession }
+    let(:document_test_id) { store.put('private-test-bearer')}
+
+    after { store.delete(document_test_id) }
 
     before do
       get '/'
@@ -611,6 +615,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       last_request.session[:step_up_aal] = false
       last_request.session[:irs] = false
       last_request.session[:state] = 'abc123'
+      last_request.session[:document_test_id] = document_test_id
 
       post '/handle-logout', authenticity_token: last_request.session[:csrf]
     end
@@ -621,6 +626,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_request.session.keys).to_not include('step_up_enabled')
       expect(last_request.session.keys).to_not include('step_up_aal')
       expect(last_request.session.keys).to_not include('irs')
+    end
+
+    it 'deletes the document test token and session ID' do
+      expect(store.get(document+document_test_id)).to be_nil
+      expect(last_request.session[:document_test_id]).to be_nil
     end
 
     it 'redirects to Login.gov logout' do
