@@ -156,7 +156,7 @@ module LoginGov::OidcSinatra
         params = {
           maxEvents: 100,
           ack:,
-}
+        }
 
         connection = Faraday.new(
           url: config.attempts_url,
@@ -294,6 +294,8 @@ module LoginGov::OidcSinatra
       userinfo = session.delete(:userinfo)
       error = session.delete(:error)
       error_type = session.delete(:error_type)
+      session.delete(:broker_request)
+      session.delete(:selected_target)
 
       ial = params[:ial]
       aal = params[:aal]
@@ -323,6 +325,7 @@ module LoginGov::OidcSinatra
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
       session[:broker_request] = params[:initiate_broker_token_exchange]
+      session[:token_scope] = get_token_scope(params[:requested_scopes])
 
       session[:state] = random_value
       session[:nonce] = random_value
@@ -466,9 +469,10 @@ module LoginGov::OidcSinatra
       redirect to('attempts-api')
     end
 
-    get '/targets' do
-      erb :targets, locals: {
+    get '/target' do
+      erb :target, locals: {
         targets: config.targets,
+        selected_target: session[:token_scope],
       }
     end
 
@@ -599,6 +603,11 @@ module LoginGov::OidcSinatra
 
     def attempts_public_key
       AttemptsConfiguration.cached_attempts_public_key(attempts_config)
+    end
+
+    def get_token_scope(scopes=[])
+      scopes.find { |scope| scope.match(/token_exchange:(.+)/) }.
+        delete_prefix('token_exchange:')
     end
 
     def token(code)

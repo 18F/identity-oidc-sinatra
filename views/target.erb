@@ -24,7 +24,10 @@
               <% [
                     [target['issuer'], target['scope']],
                   ].each do |value, label| %>
-                <option value="<%= value %>">
+                <option value="<%= value %>"
+                  " <%= 'selected' if selected_target == label %>" 
+                  <%= 'disabled' if selected_target != label %>
+                >
                   <%= label %>
                 </option>
               <% end %>
