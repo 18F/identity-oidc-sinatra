@@ -629,7 +629,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'deletes the document test token and session ID' do
-      expect(store.get(document+document_test_id)).to be_nil
+      expect(store.get(document_test_id)).to be_nil
       expect(last_request.session[:document_test_id]).to be_nil
     end
 
