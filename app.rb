@@ -465,10 +465,7 @@ module LoginGov::OidcSinatra
     post '/send-access-token' do
       metadata = config.targets.find {|target| target['issuer'] == params['target'] }
       
-      Faraday.post(
-        metadata['api'],
-        { access_token: session[:access_token] },
-        )
+      redirect to("#{metadata['api']}?#{{ access_token: session[:access_token] }.to_query}")
     end
 
     private
@@ -644,15 +641,17 @@ module LoginGov::OidcSinatra
     end
 
     def token_exchange(access_token, code)
-       token_params = {
+      token_metadata = config.targets.find {|target| target['scope'] == session[:token_scope] }
+
+      token_params = {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
         code:,
         code_verifier: session[:code_verifier],
         client_id:,
         subject_token: access_token,
         subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-        audience: 'state',
-        resource: 'https://api.agency-b.gov/records',
+        audience: token_metadata['issuer'],
+        resource: token_metadata['api'],
         requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
       }
 
