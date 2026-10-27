@@ -14,6 +14,9 @@
       <div class="usa-overlay"></div>
       <div class="grid-container padding-0">
         <h1> Select Target </h1>
+        <p>
+          Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
+        </p>
         
         <form action="/send-access-token" method="POST">
           <label class="usa-label" for="aal">

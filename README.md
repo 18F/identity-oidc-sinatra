@@ -34,9 +34,11 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | client_id_pkce              | Identifier for this app as configured with the identity provider. Used if `PKCE` is true     | urn:gov:gsa:openidconnect:sp:sinatra_pkce |
    | eipp_allowed                | Enhanced In Person Proofing allowed                                                          | false                                     |
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
+   | DPOP                        | With `PKCE`, binds the sign-in and the delegated token to a key held for the sign-in (RFC 9449): `dpop_jkt` on the authorization request and a `DPoP` proof on every token request | false                                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
+   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
 ## Delegated access
@@ -44,6 +46,14 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
 as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
 Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
+
+With `DPOP=true` (and `PKCE=true`) the sample generates a P-256 key per sign-in, names its thumbprint as `dpop_jkt`,
+sends a DPoP proof with the code exchange and the token exchange, and, because a key-bound token must travel with a
+proof, calls the target API itself with the `DPoP` scheme instead of redirecting the browser.
+
+`GET /api/records` is the agency API's side: it accepts a delegated token in the `Authorization` header, opens it with
+the service's private key, verifies Login.gov's signature and, when the token carries `cnf.jkt`, requires the `DPoP`
+scheme and a proof signed by that key for this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
 
 When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
 target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address
