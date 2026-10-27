@@ -52,8 +52,9 @@ sends a DPoP proof with the code exchange and the token exchange, and, because a
 proof, calls the target API itself with the `DPoP` scheme instead of redirecting the browser.
 
 `GET /api/records` is the agency API's side: it accepts a delegated token in the `Authorization` header, opens it with
-the service's private key, verifies Login.gov's signature and, when the token carries `cnf.jkt`, requires the `DPoP`
-scheme and a proof signed by that key for this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
+the service's private key, verifies Login.gov's signature, accepts only a token Login.gov (`iss`) issued for this
+service's `client_id` (`aud`) and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and a proof signed by
+that key for this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
 
 When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
 target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address
