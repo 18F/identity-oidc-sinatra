@@ -36,6 +36,8 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
    | DPOP                        | With `PKCE`, binds the sign-in and the delegated token to a key held for the sign-in (RFC 9449): `dpop_jkt` on the authorization request and a `DPoP` proof on every token request | false                                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
+   | THIRD_PARTY_TARGET_LINK_ALLOWLIST | Exact origins a service provider may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
+   | THIRD_PARTY_SIGN_IN_IAL     | The identity assurance level this agency signs people in at when a third party starts the sign-in | 2                                         |
    | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
@@ -52,6 +54,17 @@ scheme instead of redirecting the browser.
 service's private key, verifies Login.gov's signature, accepts only a token Login.gov (`iss`) issued for this service's
 `client_id` (`aud`) and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and a proof signed by that key for
 this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
+
+## Third-party-initiated login (the agency side)
+
+`GET /initiate_login` is the login-initiation address this agency registers (OpenID Connect Core 1.0 §4). A service
+provider whose delegation request Login.gov refused because the person holds no identity at this agency sends the browser
+here with `iss` (Login.gov's URL), `login_hint` (an opaque value it will recognize) and `target_link_uri` (where to return
+the person). The agency refuses unless `iss` is the Login.gov it is configured for and the origin of `target_link_uri` is
+in `THIRD_PARTY_TARGET_LINK_ALLOWLIST`, then runs its ordinary Login.gov sign-in at `THIRD_PARTY_SIGN_IN_IAL`; the person
+already holds a Login.gov session, so no credentials are asked again. When the sign-in completes, or fails, the person is
+sent to `target_link_uri` with `login_hint`, `iss` (this agency's client id) and `status` (`signed_in` or `failed`). The
+hint is never treated as identity, and the signed-in page says which site started the session.
 
 ## Contributing
 

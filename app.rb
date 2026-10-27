@@ -23,6 +23,7 @@ require_relative './config'
 require_relative './openid_configuration'
 require_relative './attempts_configuration'
 require_relative './lib/dpop'
+require_relative './third_party_login'
 require_relative './document_test_session'
 
 module LoginGov::OidcSinatra
@@ -68,6 +69,8 @@ module LoginGov::OidcSinatra
     end
 
     # rubocop:disable Metrics/BlockLength
+    helpers ThirdPartyLogin
+
     helpers do
       def ial_select_options
         options = [
@@ -310,6 +313,7 @@ module LoginGov::OidcSinatra
         userinfo: userinfo,
         error:,
         error_type:,
+        third_party_initiated_from: user_email ? session[:third_party_initiated_from] : nil,
       }
     rescue AppError => e
       render_error('Application', e)
@@ -325,27 +329,45 @@ module LoginGov::OidcSinatra
       session[:broker_request] = params[:initiate_broker_token_exchange]
       session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
 
-      session[:state] = random_value
-      session[:nonce] = random_value
-      session[:code_verifier] = random_value if use_pkce?
-      session[:dpop_key] = Dpop.generate_key.to_pem if use_dpop?
-
       ial = prepare_step_up_flow(session:)
-      auth_url = authorization_url(
-        state: session[:state],
-        nonce: session[:nonce],
-        ial: ial,
-        aal: params[:aal],
-        scopes: params[:requested_scopes] || [],
-        code_verifier: session[:code_verifier],
-        dpop_jkt: (Dpop.thumbprint(dpop_key) if use_dpop?),
-        prompt:,
+      auth_url = begin_login_gov_sign_in(
+        ial:, aal: params[:aal], scopes: params[:requested_scopes] || [], prompt:,
       )
 
       settings.logger.info("Redirecting to #{auth_url}")
 
-
       redirect to(auth_url)
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
+    end
+
+    # The login-initiation address this agency registers (OpenID Connect Core 1.0 §4, Initiating
+    # Login from a Third Party). A service provider that needs the person to hold an identity here
+    # before delegation sends the browser with `iss`, `login_hint` and `target_link_uri`; after the
+    # §4 checks pass, the agency runs its ordinary Login.gov sign-in and, once it completes, returns
+    # the person to `target_link_uri`. Nothing is delegated here and no token is exchanged: this is
+    # the agency's own sign-in, with its own consent, events and billing, and the person already
+    # holds a Login.gov session, so Login.gov signs them in without asking for credentials again.
+    get '/initiate_login' do
+      handoff = validate_third_party_initiation!(params)
+      remember_third_party_handoff(**handoff)
+
+      # The hint is not forwarded: Login.gov identifies the person from its own session, and the
+      # hint means nothing to it.
+      auth_url = begin_login_gov_sign_in(
+        ial: config.third_party_sign_in_ial,
+        aal: nil,
+        scopes: default_scopes_by_ial[config.third_party_sign_in_ial] - ['openid'],
+        prompt: 'select_account',
+      )
+
+      settings.logger.info(
+        "third-party-initiated login from #{handoff[:target_link_uri]}; redirecting to Login.gov",
+      )
+      redirect to(auth_url)
+    rescue ThirdPartyLogin::InvalidInitiation => e
+      # Refused before anything was stored or redirected; the person stays where they are.
+      halt 400, { 'Content-Type' => 'text/plain' }, "Cannot start sign-in: #{e.message}"
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       render_error('Connection', e)
     end
@@ -357,11 +379,11 @@ module LoginGov::OidcSinatra
 
       if error.present?
         msg = (error == 'access_denied') ? 'You chose to exit before signing in' : error
-        return render_error('Authentication', msg)
+        return sign_in_failed('Authentication', msg)
       end
-      return render_error('Authentication', 'missing callback param: code') if code.nil?
+      return sign_in_failed('Authentication', 'missing callback param: code') if code.nil?
 
-      return render_error('Authentication', 'invalid state') if session[:state] != params[:state]
+      return sign_in_failed('Authentication', 'invalid state') if session[:state] != params[:state]
 
       token_response = token(code)
       access_token = token_response[:access_token]
@@ -376,7 +398,7 @@ module LoginGov::OidcSinatra
       id_token = token_response[:id_token]
       jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
 
-      return render_error('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
+      return sign_in_failed('Authentication', 'invalid nonce') if jwt['nonce'] != session[:nonce]
 
       if session.delete(:document_test)
         session[:document_test_id] = DocumentTestSession.put(access_token)
@@ -400,10 +422,19 @@ module LoginGov::OidcSinatra
         session[:userinfo] = userinfo_response
         session[:email] = session[:userinfo][:email]
 
+        handoff = take_third_party_handoff
+        if handoff
+          # OpenID Connect Core 1.0 §4: the sign-in a third party started has completed, so the
+          # person goes back to `target_link_uri`. The hand-off is consumed above, so a later
+          # sign-in in this browser ends on this page as usual.
+          session[:third_party_initiated_from] = URI.parse(handoff[:target_link_uri]).host
+          redirect to(third_party_return_url(handoff, status: 'signed_in'))
+        end
+
         redirect to('/')
       end
     rescue AppError => e
-      render_error('Application', e.message)
+      sign_in_failed('Application', e.message)
     end
 
 
@@ -415,6 +446,7 @@ module LoginGov::OidcSinatra
       DocumentTestSession.delete(session.delete(:document_test_id))
       session.delete(:userinfo)
       session.delete(:email)
+      session.delete(:third_party_initiated_from)
       session.delete(:step_up_enabled)
       session.delete(:step_up_aal)
       session.delete(:irs)
@@ -523,6 +555,38 @@ module LoginGov::OidcSinatra
     end
 
     private
+
+    # A sign-in that did not complete: the usual error page, or, when a third party started the
+    # sign-in (OpenID Connect Core 1.0 §4), the return to `target_link_uri` with `status=failed` so
+    # the third party shows its own message; the hand-off is consumed either way.
+    def sign_in_failed(error_type, error)
+      handoff = take_third_party_handoff
+      return render_error(error_type, error) if handoff.nil?
+
+      settings.logger.info("third-party-initiated login failed: #{error_type}: #{error}")
+      redirect to(third_party_return_url(handoff, status: 'failed'))
+    end
+
+    # Starts the Login.gov authorization code flow: fresh `state` and `nonce`, the PKCE verifier and
+    # the DPoP key when enabled, then the authorize URL. Shared by the sign-in button and by
+    # third-party-initiated login so both produce the same request to Login.gov.
+    def begin_login_gov_sign_in(ial:, aal:, scopes:, prompt:)
+      session[:state] = random_value
+      session[:nonce] = random_value
+      session[:code_verifier] = random_value if use_pkce?
+      session[:dpop_key] = Dpop.generate_key.to_pem if use_dpop?
+
+      authorization_url(
+        state: session[:state],
+        nonce: session[:nonce],
+        ial:,
+        aal:,
+        scopes:,
+        code_verifier: session[:code_verifier],
+        dpop_jkt: (Dpop.thumbprint(dpop_key) if use_dpop?),
+        prompt:,
+      )
+    end
 
     def render_error(error_type, error=nil)
       session[:error] = error.to_s || 'Unknown error occurred'
