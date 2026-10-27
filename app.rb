@@ -50,6 +50,24 @@ module LoginGov::OidcSinatra
 
   class AppError < StandardError; end
 
+  # Login.gov refused the token exchange (RFC 8693 §2.2.2): the OAuth error, its description and,
+  # when the person holds no identity at the agency, the agency's login-initiation address.
+  # How long a hand-off to an agency may take before its return is refused (TPL-2: ten minutes).
+  HANDOFF_LIFETIME_SECONDS = 600
+
+  class ExchangeRefused < AppError
+    attr_reader :error, :initiate_login_uri
+
+    def initialize(body)
+      refusal = JSON.parse(body.to_s)
+      @error = refusal['error']
+      @initiate_login_uri = refusal['initiate_login_uri']
+      super(refusal['error_description'] || refusal['error'] || body.to_s)
+    rescue JSON::ParserError
+      super(body.to_s)
+    end
+  end
+
   class OpenidConnectRelyingParty < Sinatra::Base
     DOCUMENT_TEST_KINDS = %w[userinfo front back passport selfie].freeze
     set :erb, escape_html: true
@@ -328,6 +346,9 @@ module LoginGov::OidcSinatra
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
       session[:broker_request] = params[:initiate_broker_token_exchange]
       session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
+      # Kept only for a delegation request, so it can be repeated as-is after a hand-off to the
+      # agency.
+      session[:auth_request_query] = (request.query_string if session[:broker_request] == 'true')
 
       ial = prepare_step_up_flow(session:)
       auth_url = begin_login_gov_sign_in(
@@ -390,6 +411,7 @@ module LoginGov::OidcSinatra
 
       if session[:broker_request] == 'true'
         token_output = token_exchange(access_token)
+        session.delete(:auth_request_query)
         session[:access_token] = token_output['access_token']
         session[:access_token_type] = token_output['token_type']
         redirect to('/target')
@@ -433,8 +455,39 @@ module LoginGov::OidcSinatra
 
         redirect to('/')
       end
+    rescue ExchangeRefused => e
+      # The person holds no identity at the agency, and delegation does not create one: Login.gov
+      # names the agency's login-initiation address, so the person signs in there first.
+      return start_third_party_login(e.initiate_login_uri) if e.initiate_login_uri
+
+      sign_in_failed('Delegation', e.message)
     rescue AppError => e
       sign_in_failed('Application', e.message)
+    end
+
+    # Where the agency returns the person after the sign-in this sample started there (OpenID
+    # Connect Core 1.0 §4). The return is honored once, only for the hand-off this browser session
+    # started, and only within the hand-off's lifetime; the hint carries no identity and is only
+    # matched. On `signed_in` the delegation request is repeated exactly as first made: the person's
+    # Login.gov session is still live, so the sign-in completes without credentials and the exchange
+    # now finds the identity the agency's sign-in created.
+    get '/third_party/return' do
+      handoff = take_actor_handoff
+      if handoff.nil? || handoff[:login_hint] != params[:login_hint]
+        return render_error(
+          'Delegation', 'The return from the agency does not match a sign-in this site started'
+        )
+      end
+      if handoff[:started_at] < Time.now.to_i - HANDOFF_LIFETIME_SECONDS
+        return render_error('Delegation', 'The sign-in at the agency took too long; start again')
+      end
+      unless params[:status] == 'signed_in'
+        return render_error(
+          'Delegation', "The sign-in at the agency (#{params[:iss]}) did not complete"
+        )
+      end
+
+      redirect to("/auth/request?#{handoff[:auth_request_query]}")
     end
 
 
@@ -555,6 +608,36 @@ module LoginGov::OidcSinatra
     end
 
     private
+
+    # OpenID Connect Core 1.0 §4 from the service provider's side: send the browser to the agency's
+    # login-initiation address naming Login.gov (`iss`), a fresh opaque hint this session will
+    # recognize on the return, and this site's return address. The hint and the request to repeat
+    # stay in the session for one hand-off.
+    def start_third_party_login(initiate_login_uri)
+      login_hint = SecureRandom.uuid
+      session[:handoff_login_hint] = login_hint
+      session[:handoff_started_at] = Time.now.to_i
+      uri = URI.parse(initiate_login_uri)
+      uri.query = URI.encode_www_form(
+        URI.decode_www_form(uri.query.to_s) + [
+          ['iss', config.idp_url],
+          ['login_hint', login_hint],
+          ['target_link_uri', File.join(config.redirect_uri, 'third_party/return')],
+        ],
+      )
+      settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
+      redirect to(uri.to_s)
+    end
+
+    # Removes and returns the pending hand-off so it is honored at most once.
+    def take_actor_handoff
+      login_hint = session.delete(:handoff_login_hint)
+      started_at = session.delete(:handoff_started_at)
+      auth_request_query = session.delete(:auth_request_query)
+      return nil if login_hint.nil?
+
+      { login_hint:, started_at: started_at.to_i, auth_request_query: }
+    end
 
     # A sign-in that did not complete: the usual error page, or, when a third party started the
     # sign-in (OpenID Connect Core 1.0 §4), the return to `target_link_uri` with `status=failed` so
@@ -843,7 +926,7 @@ module LoginGov::OidcSinatra
         token_params,
         dpop_headers(access_token: subject_token),
       )
-      raise AppError.new(response.body) if response.status != 200
+      raise ExchangeRefused.new(response.body) if response.status != 200
 
       json response.body
     end

@@ -50,6 +50,13 @@ generates a P-256 key per sign-in, names its thumbprint as `dpop_jkt`, sends a D
 token exchange, and, because a key-bound token must travel with a proof, calls the target API itself with the `DPoP`
 scheme instead of redirecting the browser.
 
+When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, the person holds no identity at the
+agency yet, and delegation does not create one. The sample then starts third-party-initiated login at that address
+(OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the agency
+returns the person with the same hint and `status=signed_in`, the sample repeats the delegation request exactly as first
+made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
+session started.
+
 `GET /api/records` is the agency API's side: it accepts a delegated token in the `Authorization` header, opens it with the
 service's private key, verifies Login.gov's signature, accepts only a token Login.gov (`iss`) issued for this service's
 `client_id` (`aud`) and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and a proof signed by that key for
