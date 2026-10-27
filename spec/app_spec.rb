@@ -600,6 +600,195 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
   end
 
+  context 'delegated access with DPoP key binding' do
+    let(:code) { 'abc-code' }
+    let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
+    let(:api_url) { 'https://api.agency-b.gov/records' }
+    let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
+    let(:proof_format) { /\A[\w-]+\.[\w-]+\.[\w-]+\z/ }
+
+    before do
+      ENV['PKCE'] = 'true'
+      ENV['DPOP'] = 'true'
+      ENV['token_exchange_targets'] = targets.to_json
+    end
+
+    after do
+      ENV['PKCE'] = 'false'
+      ENV['DPOP'] = 'false'
+      ENV.delete('token_exchange_targets')
+    end
+
+    def session_key
+      LoginGov::OidcSinatra::Dpop.key_from_pem(last_request.session['dpop_key'])
+    end
+
+    def delegated_token(claims)
+      jwt = JWT.encode(claims, idp_private_key, 'RS256', kid: JWT::JWK.new(idp_private_key).kid)
+      JWE.encrypt(jwt, sp_private_key.public_key, alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', typ: 'JWT')
+    end
+
+    def ath_of(request, token)
+      JWT.decode(request.headers['Dpop'], nil, false).first['ath'] == LoginGov::OidcSinatra::Dpop.token_hash(token)
+    end
+
+    def start_delegated_sign_in
+      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+    end
+
+    it 'names the key thumbprint as dpop_jkt on the authorization request' do
+      start_delegated_sign_in
+
+      expect(last_response).to be_redirect
+      jkt = parameter_value(last_response.location, 'dpop_jkt')
+      expect(jkt).to match(/\A[A-Za-z0-9_-]{43}\z/)
+      expect(jkt).to eq(LoginGov::OidcSinatra::Dpop.thumbprint(session_key))
+    end
+
+    it 'does not send dpop_jkt when DPOP is off' do
+      ENV['DPOP'] = 'false'
+      start_delegated_sign_in
+
+      expect(CGI.parse(URI(last_response.location).query)).not_to have_key('dpop_jkt')
+      expect(last_request.session).not_to have_key('dpop_key')
+    end
+
+    it 'sends a proof with the code exchange and the token exchange, then offers the bound token' do
+      start_delegated_sign_in
+      jkt = LoginGov::OidcSinatra::Dpop.thumbprint(session_key)
+      bound_token = delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, cnf: { jkt: })
+
+      code_exchange = stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'authorization_code', 'code' => code), headers: { 'DPoP' => proof_format }).
+        to_return(body: { access_token: 'subject-token', token_type: 'DPoP', expires_in: 600 }.to_json)
+      exchange = stub_request(:post, token_endpoint).
+        with(
+          body: hash_including(
+            'grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange',
+            'subject_token' => 'subject-token',
+            'subject_token_type' => 'urn:ietf:params:oauth:token-type:access_token',
+            'audience' => 'state',
+            'resource' => api_url,
+          ),
+          headers: { 'DPoP' => proof_format },
+        ) { |request| ath_of(request, 'subject-token') }.
+        to_return(body: { access_token: bound_token, token_type: 'DPoP', expires_in: 600 }.to_json)
+
+      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to end_with('/target')
+      expect(code_exchange).to have_been_requested
+      expect(exchange).to have_been_requested
+      expect(last_request.session['access_token']).to eq(bound_token)
+      expect(last_request.session['access_token_type']).to eq('DPoP')
+
+      get '/target', {}, 'rack.session' => last_request.session
+
+      expect(last_response).to be_ok
+      expect(last_response.body).to include('<code>DPoP</code>')
+      expect(last_response.body).to include('bound to this sign-in')
+    end
+
+    it 'renders the error Login.gov returns when the exchange is refused' do
+      start_delegated_sign_in
+      stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'authorization_code')).
+        to_return(body: { access_token: 'subject-token', token_type: 'DPoP' }.to_json)
+      stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
+        to_return(status: 400, body: { error: 'invalid_dpop_proof' }.to_json)
+
+      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_request.session['error_type']).to eq('Application')
+      expect(last_request.session['error']).to include('invalid_dpop_proof')
+    end
+
+    context 'POST /send-access-token' do
+      def send_access_token(session)
+        post '/send-access-token', { target: 'state', authenticity_token: session['csrf'] }, 'rack.session' => session
+      end
+
+      it 'calls the API itself with the DPoP scheme and a proof when the token is bound' do
+        start_delegated_sign_in
+        session = last_request.session.to_hash.merge('access_token' => 'bound-token', 'access_token_type' => 'DPoP')
+        api = stub_request(:get, api_url).
+          with(headers: { 'Authorization' => 'DPoP bound-token', 'DPoP' => proof_format }) { |request| ath_of(request, 'bound-token') }.
+          to_return(status: 200, body: { sub: 'person-at-agency' }.to_json)
+
+        send_access_token(session)
+
+        expect(api).to have_been_requested
+        expect(last_response).to be_ok
+        expect(JSON.parse(last_response.body)).to eq('sub' => 'person-at-agency')
+      end
+
+      it 'redirects the browser with a bearer token' do
+        start_delegated_sign_in
+        session = last_request.session.to_hash.merge('access_token' => 'bearer-token', 'access_token_type' => 'Bearer')
+
+        send_access_token(session)
+
+        expect(last_response).to be_redirect
+        expect(last_response.location).to eq("#{api_url}?access_token=bearer-token")
+      end
+    end
+
+    context 'GET /api/records, the agency API side' do
+      let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }
+      let(:jkt) { LoginGov::OidcSinatra::Dpop.thumbprint(actor_key) }
+      let(:bound_token) { delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, scope: 'token_exchange:passport', cnf: { jkt: }) }
+      let(:bearer_token) { delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, scope: 'token_exchange:passport') }
+
+      def proof_for(token, key: actor_key)
+        LoginGov::OidcSinatra::Dpop.proof(key:, method: 'GET', url: 'http://example.org/api/records', access_token: token)
+      end
+
+      it 'serves a bound token presented with the DPoP scheme and a proof from the bound key' do
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "DPoP #{bound_token}", 'HTTP_DPOP' => proof_for(bound_token)
+
+        expect(last_response).to be_ok
+        expect(JSON.parse(last_response.body)).to include('sub' => 'person-at-agency', 'bound' => true, 'act' => { 'sub' => client_id })
+      end
+
+      it 'refuses a bound token presented as a Bearer token' do
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "Bearer #{bound_token}"
+
+        expect(last_response.status).to eq(401)
+        expect(last_response.headers['WWW-Authenticate']).to eq('DPoP algs="ES256 RS256"')
+      end
+
+      it 'refuses a proof signed by another key' do
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "DPoP #{bound_token}", 'HTTP_DPOP' => proof_for(bound_token, key: LoginGov::OidcSinatra::Dpop.generate_key)
+
+        expect(last_response.status).to eq(401)
+        expect(JSON.parse(last_response.body)['error']).to eq('invalid_dpop_proof')
+      end
+
+      it 'refuses a proof for another token' do
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "DPoP #{bound_token}", 'HTTP_DPOP' => proof_for('some-other-token')
+
+        expect(last_response.status).to eq(401)
+        expect(JSON.parse(last_response.body)['error_description']).to include('ath')
+      end
+
+      it 'serves a token without cnf as a Bearer token' do
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "Bearer #{bearer_token}"
+
+        expect(last_response).to be_ok
+        expect(JSON.parse(last_response.body)['bound']).to eq(false)
+      end
+
+      it 'refuses a request without a token' do
+        get '/api/records'
+
+        expect(last_response.status).to eq(401)
+      end
+    end
+  end
+
   context 'POST /handle-logout' do
     let(:redirect_uri) { 'http://localhost:9292/logout' }
     let(:store) {LoginGov::OidcSinatra::DocumentTestSession }
