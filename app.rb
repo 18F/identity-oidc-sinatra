@@ -22,6 +22,7 @@ end
 require_relative './config'
 require_relative './openid_configuration'
 require_relative './attempts_configuration'
+require_relative './lib/dpop'
 require_relative './document_test_session'
 
 module LoginGov::OidcSinatra
@@ -327,6 +328,7 @@ module LoginGov::OidcSinatra
       session[:state] = random_value
       session[:nonce] = random_value
       session[:code_verifier] = random_value if use_pkce?
+      session[:dpop_key] = Dpop.generate_key.to_pem if use_dpop?
 
       ial = prepare_step_up_flow(session:)
       auth_url = authorization_url(
@@ -336,6 +338,7 @@ module LoginGov::OidcSinatra
         aal: params[:aal],
         scopes: params[:requested_scopes] || [],
         code_verifier: session[:code_verifier],
+        dpop_jkt: (Dpop.thumbprint(dpop_key) if use_dpop?),
         prompt:,
       )
 
@@ -364,10 +367,11 @@ module LoginGov::OidcSinatra
       access_token = token_response[:access_token]
 
       if session[:broker_request] == 'true'
-        token_output = token_exchange(access_token, code) 
+        token_output = token_exchange(access_token)
         session[:access_token] = token_output['access_token']
+        session[:access_token_type] = token_output['token_type']
         redirect to('/target')
-      end      
+      end
 
       id_token = token_response[:id_token]
       jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
@@ -456,13 +460,66 @@ module LoginGov::OidcSinatra
       erb :target, locals: {
         targets: config.targets,
         selected_target: session[:token_scope],
+        token_type: session[:access_token_type],
+        bound: session[:access_token_type] == 'DPoP',
       }
     end
 
+    # A key-bound delegated token (token_type DPoP) must reach the agency API with a proof signed by
+    # the key, which a browser redirect cannot carry; the sample calls the API itself and shows the
+    # answer. A bearer token keeps the redirect.
     post '/send-access-token' do
-      metadata = config.targets.find {|target| target['issuer'] == params['target'] }
-      
-      redirect to("#{metadata['api']}?#{{ access_token: session[:access_token] }.to_query}")
+      metadata = config.targets.find { |target| target['issuer'] == params['target'] }
+      token = session[:access_token]
+
+      if session[:access_token_type] == 'DPoP'
+        proof = Dpop.proof(key: dpop_key, method: 'GET', url: metadata['api'], access_token: token)
+        response = Faraday.get(
+          metadata['api'], nil, 'Authorization' => "DPoP #{token}", 'DPoP' => proof
+        )
+        content_type :json
+        halt response.status, response.body
+      end
+
+      redirect to("#{metadata['api']}?#{{ access_token: token }.to_query}")
+    end
+
+    # The agency API's side of a delegated token. The token is the JWE Login.gov sealed to this
+    # service's certificate; its claims are signed by Login.gov. A token that carries cnf.jkt is
+    # bound to the actor's key (RFC 9449 §6.1): it must arrive under the DPoP scheme with a proof
+    # signed by that key for this request, and is refused as a Bearer token (§7.1). A token without
+    # cnf is a bearer token and is accepted as such.
+    get '/api/records' do
+      content_type :json
+      scheme, token = request.env['HTTP_AUTHORIZATION'].to_s.split(' ', 2)
+      refuse_token('missing token') if token.nil?
+
+      claims = decrypt_and_verify_delegated_token(token)
+      jkt = claims.dig('cnf', 'jkt')
+
+      if jkt
+        unless scheme == 'DPoP'
+          refuse_token('this token is bound to a key: present it with the DPoP scheme and a proof')
+        end
+        Dpop.verify_proof(
+          proof: request.env['HTTP_DPOP'],
+          method: request.request_method,
+          url: request.url,
+          access_token: token,
+          expected_thumbprint: jkt,
+        )
+      elsif scheme != 'Bearer'
+        refuse_token(
+          'this token is not bound to a key: present it as a Bearer token', challenge: false
+        )
+      end
+
+      { sub: claims['sub'], act: claims['act'], scope: claims['scope'], bound: !jkt.nil? }.to_json
+    rescue Dpop::ProofError => e
+      body = { error: 'invalid_dpop_proof', error_description: e.message }.to_json
+      halt 401, dpop_challenge, body
+    rescue JWT::DecodeError, JWE::DecodeError, OpenSSL::OpenSSLError => e
+      halt 401, { error: 'invalid_token', error_description: e.message }.to_json
     end
 
     private
@@ -474,7 +531,9 @@ module LoginGov::OidcSinatra
       redirect to('/')
     end
 
-    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:)
+    def authorization_url(
+      state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:, dpop_jkt: nil
+    )
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -492,6 +551,10 @@ module LoginGov::OidcSinatra
         request_params[:code_challenge] = url_safe_code_challenge(code_verifier)
         request_params[:code_challenge_method] = 'S256'
       end
+
+      # RFC 9449 §10: naming the key's thumbprint binds the authorization code to it, so an
+      # intercepted code cannot be redeemed with another key.
+      request_params[:dpop_jkt] = dpop_jkt if dpop_jkt
 
       "#{endpoint}?#{request_params.compact.to_query}"
     end
@@ -563,6 +626,43 @@ module LoginGov::OidcSinatra
       ENV['PKCE'] == 'true'
     end
 
+    # Key binding applies to a public client only: it has no client secret, so the key it holds is
+    # what makes a stolen token useless. Login.gov lists the clients it expects to bind.
+    def use_dpop?
+      use_pkce? && ENV['DPOP'] == 'true'
+    end
+
+    def dpop_key
+      Dpop.key_from_pem(session[:dpop_key])
+    end
+
+    # The DPoP header for one request to Login.gov's token endpoint: a fresh proof for POST to that
+    # URL, with ath over the token when one is presented.
+    def dpop_headers(access_token: nil)
+      return {} unless use_dpop?
+
+      proof = Dpop.proof(
+        key: dpop_key, method: 'POST', url: openid_configuration[:token_endpoint], access_token:,
+      )
+      { 'DPoP' => proof }
+    end
+
+    def dpop_challenge
+      { 'WWW-Authenticate' => 'DPoP algs="ES256 RS256"' }
+    end
+
+    def refuse_token(description, challenge: true)
+      body = { error: 'invalid_token', error_description: description }.to_json
+      halt 401, (challenge ? dpop_challenge : {}), body
+    end
+
+    # The agency opens the JWE with its own private key and verifies Login.gov's signature against
+    # the published keys; the claims are trusted only after both.
+    def decrypt_and_verify_delegated_token(token)
+      jwt = JWE.decrypt(token, config.sp_private_key)
+      JWT.decode(jwt, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
+    end
+
     def openid_configuration
       if config.cache_oidc_config?
         OpenidConfiguration.cached
@@ -610,6 +710,7 @@ module LoginGov::OidcSinatra
       response = Faraday.post(
         openid_configuration[:token_endpoint],
         token_params,
+        dpop_headers,
       )
       if response.status != 200 && ENV['ENABLE_LOGGING'] == 'true'
         # rubocop:disable Layout/LineLength
@@ -639,15 +740,16 @@ module LoginGov::OidcSinatra
       JSON.parse(connection.get('').body).with_indifferent_access
     end
 
-    def token_exchange(access_token, code)
-      token_metadata = config.targets.find {|target| target['scope'] == session[:token_scope] }
+    # RFC 8693: the subject token is the token the code exchange returned; the audience names the
+    # agency application and the resource its API. For a key-bound client the proof carries ath over
+    # the subject token, so the delegated token Login.gov issues is bound to the same key.
+    def token_exchange(subject_token)
+      token_metadata = config.targets.find { |target| target['scope'] == session[:token_scope] }
 
       token_params = {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
-        code:,
-        code_verifier: session[:code_verifier],
         client_id:,
-        subject_token: access_token,
+        subject_token:,
         subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
         audience: token_metadata['issuer'],
         resource: token_metadata['api'],
@@ -657,7 +759,9 @@ module LoginGov::OidcSinatra
       response = Faraday.post(
         openid_configuration[:token_endpoint],
         token_params,
+        dpop_headers(access_token: subject_token),
       )
+      raise AppError.new(response.body) if response.status != 200
 
       json response.body
     end
