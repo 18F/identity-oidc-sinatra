@@ -128,6 +128,30 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
     end
 
+    context 'with a requested assurance level' do
+      before { ENV['THIRD_PARTY_SIGN_IN_IAL'] = '1' }
+      after { ENV.delete('THIRD_PARTY_SIGN_IN_IAL') }
+
+      it 'raises its sign-in to identity-verified when the service provider asks for it' do
+        get '/initiate_login', initiation.merge(acr_values: 'urn:acr.login.gov:verified')
+
+        expect(query(last_response.location)['acr_values']).to include('ial/2')
+      end
+
+      it 'signs in at its own level when nothing more is asked' do
+        get '/initiate_login', initiation.merge(acr_values: 'urn:acr.login.gov:auth-only')
+
+        expect(query(last_response.location)['acr_values']).to include('ial/1')
+      end
+
+      it 'never lowers its level below its own' do
+        ENV['THIRD_PARTY_SIGN_IN_IAL'] = '2'
+        get '/initiate_login', initiation.merge(acr_values: 'http://idmanagement.gov/ns/assurance/ial/1')
+
+        expect(query(last_response.location)['acr_values']).to include('ial/2')
+      end
+    end
+
     it 'accepts a request without a login_hint (it is optional in §4)' do
       get '/initiate_login', initiation.except(:login_hint)
       expect(last_response.status).to eq(302)

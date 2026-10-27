@@ -57,8 +57,13 @@ generates a P-256 key per sign-in, names its thumbprint as `dpop_jkt`, sends a D
 token exchange, and, because a key-bound token must travel with a proof, calls the target API itself with the `DPoP`
 scheme instead of redirecting the browser.
 
+An identity-verified sign-in (IAL2) asks Login.gov, on the exchange, for an identity-verified identity at the agency
+(`acr_values=urn:acr.login.gov:verified`); any other sign-in asks for nothing beyond an identity there, and the delegated
+token carries the level of the identity it names (`acr`).
+
 When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, the person holds no identity at the
-agency yet, and delegation does not create one. The sample then starts third-party-initiated login at that address
+agency yet, or holds one below the level asked, and delegation does not create or raise one. When the refusal names
+`acr_values`, the sample forwards it on the hand-off. The sample then starts third-party-initiated login at that address
 (OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the agency
 returns the person with the same hint and `status=signed_in`, the sample repeats the delegation request exactly as first
 made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
@@ -75,7 +80,8 @@ this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
 provider whose delegation request Login.gov refused because the person holds no identity at this agency sends the browser
 here with `iss` (Login.gov's URL), `login_hint` (an opaque value it will recognize) and `target_link_uri` (where to return
 the person). The agency refuses unless `iss` is the Login.gov it is configured for and the origin of `target_link_uri` is
-in `THIRD_PARTY_TARGET_LINK_ALLOWLIST`, then runs its ordinary Login.gov sign-in at `THIRD_PARTY_SIGN_IN_IAL`; the person
+in `THIRD_PARTY_TARGET_LINK_ALLOWLIST`, then runs its ordinary Login.gov sign-in at `THIRD_PARTY_SIGN_IN_IAL`, raised to
+identity-verified when the request's `acr_values` asks for it and never lowered; the person
 already holds a Login.gov session, so no credentials are asked again. When the sign-in completes, or fails, the person is
 sent to `target_link_uri` with `login_hint`, `iss` (this agency's client id) and `status` (`signed_in` or `failed`). The
 hint is never treated as identity, and the signed-in page says which site started the session.

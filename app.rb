@@ -50,18 +50,27 @@ module LoginGov::OidcSinatra
 
   class AppError < StandardError; end
 
-  # Login.gov refused the token exchange (RFC 8693 §2.2.2): the OAuth error, its description and,
-  # when the person holds no identity at the agency, the agency's login-initiation address.
   # How long a hand-off to an agency may take before its return is refused (TPL-2: ten minutes).
   HANDOFF_LIFETIME_SECONDS = 600
 
+  # The assurance levels that ask for an identity-verified identity, in both of Login.gov's
+  # vocabularies for acr_values.
+  VERIFIED_ACR_VALUES = %w[
+    urn:acr.login.gov:verified
+    http://idmanagement.gov/ns/assurance/ial/2
+  ].freeze
+
+  # Login.gov refused the token exchange (RFC 8693 §2.2.2): the OAuth error, its description and,
+  # when the person must first sign in at the agency, the agency's login-initiation address and the
+  # assurance level that sign-in needs.
   class ExchangeRefused < AppError
-    attr_reader :error, :initiate_login_uri
+    attr_reader :error, :initiate_login_uri, :acr_values
 
     def initialize(body)
       refusal = JSON.parse(body.to_s)
       @error = refusal['error']
       @initiate_login_uri = refusal['initiate_login_uri']
+      @acr_values = refusal['acr_values']
       super(refusal['error_description'] || refusal['error'] || body.to_s)
     rescue JSON::ParserError
       super(body.to_s)
@@ -349,6 +358,10 @@ module LoginGov::OidcSinatra
       # Kept only for a delegation request, so it can be repeated as-is after a hand-off to the
       # agency.
       session[:auth_request_query] = (request.query_string if session[:broker_request] == 'true')
+      # An identity-verified sign-in asks the agency for an identity-verified identity too.
+      if session[:broker_request] == 'true'
+        session[:exchange_acr_values] = exchange_acr_values(params[:ial])
+      end
 
       ial = prepare_step_up_flow(session:)
       auth_url = begin_login_gov_sign_in(
@@ -375,10 +388,13 @@ module LoginGov::OidcSinatra
 
       # The hint is not forwarded: Login.gov identifies the person from its own session, and the
       # hint means nothing to it.
+      # The agency owns the session it creates: a level the service provider asks for (acr_values)
+      # can raise the sign-in to identity-verified but never lower it below the agency's own.
+      ial = third_party_sign_in_ial(params['acr_values'])
       auth_url = begin_login_gov_sign_in(
-        ial: config.third_party_sign_in_ial,
+        ial:,
         aal: nil,
-        scopes: default_scopes_by_ial[config.third_party_sign_in_ial] - ['openid'],
+        scopes: default_scopes_by_ial[ial] - ['openid'],
         prompt: 'select_account',
       )
 
@@ -458,7 +474,9 @@ module LoginGov::OidcSinatra
     rescue ExchangeRefused => e
       # The person holds no identity at the agency, and delegation does not create one: Login.gov
       # names the agency's login-initiation address, so the person signs in there first.
-      return start_third_party_login(e.initiate_login_uri) if e.initiate_login_uri
+      if e.initiate_login_uri
+        return start_third_party_login(e.initiate_login_uri, acr_values: e.acr_values)
+      end
 
       sign_in_failed('Delegation', e.message)
     rescue AppError => e
@@ -599,7 +617,10 @@ module LoginGov::OidcSinatra
         )
       end
 
-      { sub: claims['sub'], act: claims['act'], scope: claims['scope'], bound: !jkt.nil? }.to_json
+      {
+        sub: claims['sub'], acr: claims['acr'], act: claims['act'], scope: claims['scope'],
+        bound: !jkt.nil?,
+      }.to_json
     rescue Dpop::ProofError => e
       body = { error: 'invalid_dpop_proof', error_description: e.message }.to_json
       halt 401, dpop_challenge, body
@@ -613,20 +634,37 @@ module LoginGov::OidcSinatra
     # login-initiation address naming Login.gov (`iss`), a fresh opaque hint this session will
     # recognize on the return, and this site's return address. The hint and the request to repeat
     # stay in the session for one hand-off.
-    def start_third_party_login(initiate_login_uri)
+    def start_third_party_login(initiate_login_uri, acr_values: nil)
       login_hint = SecureRandom.uuid
       session[:handoff_login_hint] = login_hint
       session[:handoff_started_at] = Time.now.to_i
+      params = [
+        ['iss', config.idp_url],
+        ['login_hint', login_hint],
+        ['target_link_uri', File.join(config.redirect_uri, 'third_party/return')],
+      ]
+      # The level Login.gov said the agency needs travels with the hand-off, so the agency can
+      # sign the person in at that level (it honors it upward only).
+      params << ['acr_values', acr_values] if acr_values
       uri = URI.parse(initiate_login_uri)
-      uri.query = URI.encode_www_form(
-        URI.decode_www_form(uri.query.to_s) + [
-          ['iss', config.idp_url],
-          ['login_hint', login_hint],
-          ['target_link_uri', File.join(config.redirect_uri, 'third_party/return')],
-        ],
-      )
-      settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
+      uri.query = URI.encode_www_form(URI.decode_www_form(uri.query.to_s) + params)
+      settings.logger.info("sign-in at the agency needed first; hand-off to #{uri}")
       redirect to(uri.to_s)
+    end
+
+    # The acr_values the exchange sends: an identity-verified sign-in asks the agency for an
+    # identity-verified identity; any other sign-in asks for nothing beyond an identity there.
+    def exchange_acr_values(ial)
+      return unless %w[2 facial-match-preferred facial-match-required].include?(ial.to_s)
+
+      'urn:acr.login.gov:verified'
+    end
+
+    # The level this agency signs a person in at for a hand-off: its configured level, raised to
+    # identity-verified when the service provider asks for that, never lowered.
+    def third_party_sign_in_ial(acr_values)
+      asked_verified = acr_values.to_s.split.intersect?(VERIFIED_ACR_VALUES)
+      asked_verified ? '2' : config.third_party_sign_in_ial
     end
 
     # Removes and returns the pending hand-off so it is honored at most once.
@@ -942,7 +980,8 @@ module LoginGov::OidcSinatra
         audience: token_metadata['issuer'],
         resource: token_metadata['api'],
         requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-      }
+        acr_values: session[:exchange_acr_values],
+      }.compact
 
       response = Faraday.post(
         openid_configuration[:token_endpoint],
