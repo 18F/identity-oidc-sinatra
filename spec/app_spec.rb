@@ -676,8 +676,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       JWT.decode(request.headers['Dpop'], nil, false).first['ath'] == LoginGov::OidcSinatra::Dpop.token_hash(token)
     end
 
-    def start_delegated_sign_in
-      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+    def start_delegated_sign_in(ial: '2')
+      get '/auth/request', ial:, requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
     end
 
     it 'names the key thumbprint as dpop_jkt on the authorization request' do
@@ -713,6 +713,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             'subject_token_type' => 'urn:ietf:params:oauth:token-type:access_token',
             'audience' => 'state',
             'resource' => api_url,
+            'acr_values' => 'urn:acr.login.gov:verified',
           ),
           headers: { 'DPoP' => proof_format },
         ) { |request| ath_of(request, 'subject-token') }.
@@ -782,6 +783,31 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(params['login_hint']).to match(/\A[0-9a-f-]{36}\z/)
         expect(last_request.session['auth_request_query']).to include('initiate_broker_token_exchange=true')
         expect(last_request.session['auth_request_query']).to include('token_exchange')
+      end
+
+      it 'forwards the level Login.gov says the agency needs' do
+        start_delegated_sign_in
+        refuse_exchange(error: 'invalid_target', initiate_login_uri:, acr_values: 'urn:acr.login.gov:verified')
+
+        finish_sign_in
+
+        params = CGI.parse(URI(last_response.location).query).transform_values(&:first)
+        expect(params['acr_values']).to eq('urn:acr.login.gov:verified')
+      end
+
+      it 'asks for nothing beyond an identity at the agency after an IAL1 sign-in' do
+        start_delegated_sign_in(ial: '1')
+        exchange = stub_request(:post, token_endpoint).
+          with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
+          to_return(body: { access_token: 'delegated', token_type: 'DPoP' }.to_json)
+        stub_request(:post, token_endpoint).
+          with(body: hash_including('grant_type' => 'authorization_code')).
+          to_return(body: { access_token: 'subject-token', token_type: 'DPoP' }.to_json)
+
+        finish_sign_in
+
+        expect(exchange).to have_been_requested
+        expect(WebMock::RequestRegistry.instance.requested_signatures.hash.keys.map(&:body).join).not_to include('acr_values')
       end
 
       it 'shows the refusal when Login.gov names no address' do
@@ -886,7 +912,12 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }
       let(:jkt) { LoginGov::OidcSinatra::Dpop.thumbprint(actor_key) }
-      let(:bound_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport', cnf: { jkt: }) }
+      let(:bound_token) do
+        delegated_token(
+          sub: 'person-at-agency', acr: 'http://idmanagement.gov/ns/assurance/ial/2', act: { sub: client_id },
+          scope: 'token_exchange:passport', cnf: { jkt: }
+        )
+      end
       let(:bearer_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport') }
 
       def proof_for(token, key: actor_key)
@@ -897,7 +928,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         get '/api/records', {}, 'HTTP_AUTHORIZATION' => "DPoP #{bound_token}", 'HTTP_DPOP' => proof_for(bound_token)
 
         expect(last_response).to be_ok
-        expect(JSON.parse(last_response.body)).to include('sub' => 'person-at-agency', 'bound' => true, 'act' => { 'sub' => client_id })
+        expect(JSON.parse(last_response.body)).to include(
+          'sub' => 'person-at-agency', 'bound' => true, 'act' => { 'sub' => client_id },
+          'acr' => 'http://idmanagement.gov/ns/assurance/ial/2'
+        )
       end
 
       it 'refuses a bound token presented as a Bearer token' do
