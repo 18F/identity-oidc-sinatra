@@ -66,6 +66,22 @@ module LoginGov
       end
 
       # @return [OpenSSL::PKey::RSA]
+      # The identity assurance level this agency signs people in at when a third party starts the
+      # sign-in (OpenID Connect Core 1.0 §4); the agency decides it, because the agency owns the
+      # session that results.
+      def third_party_sign_in_ial
+        @config.fetch('third_party_sign_in_ial')
+      end
+
+      # Origins a third party may name in `target_link_uri`: exact `scheme://host[:port]` values,
+      # space- or comma-separated in the environment, normalized the way a request's origin is.
+      # @return [Array<String>]
+      def third_party_target_link_allowlist
+        @config.fetch('third_party_target_link_allowlist').to_s.split(/[\s,]+/).
+          reject(&:empty?).
+          map { |origin| origin.chomp('/').downcase }
+      end
+
       def sp_private_key
         return @sp_private_key if @sp_private_key
 
@@ -99,6 +115,9 @@ module LoginGov
           'signed_events' => ENV['signed_events'],
           'token_exchange_targets' => ENV['token_exchange_targets'] || 
                                       '[{"issuer":"state", "scope":"passport", "api": "http://add-target-api"}]',
+          'third_party_target_link_allowlist' =>
+            ENV['THIRD_PARTY_TARGET_LINK_ALLOWLIST'] || 'http://localhost:9292',
+          'third_party_sign_in_ial' => ENV['THIRD_PARTY_SIGN_IN_IAL'] || '2',
         }
 
         # EC2 deployment defaults
