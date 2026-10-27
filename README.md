@@ -49,8 +49,9 @@ token exchange, and, because a key-bound token must travel with a proof, calls t
 scheme instead of redirecting the browser.
 
 `GET /api/records` is the agency API's side: it accepts a delegated token in the `Authorization` header, opens it with the
-service's private key, verifies Login.gov's signature and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and
-a proof signed by that key for this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
+service's private key, verifies Login.gov's signature, accepts only a token Login.gov (`iss`) issued for this service's
+`client_id` (`aud`) and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and a proof signed by that key for
+this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
 
 ## Contributing
 

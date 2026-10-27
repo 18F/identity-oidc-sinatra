@@ -657,10 +657,28 @@ module LoginGov::OidcSinatra
     end
 
     # The agency opens the JWE with its own private key and verifies Login.gov's signature against
-    # the published keys; the claims are trusted only after both.
+    # the published keys. The claims are trusted only after both, and only when the token was
+    # issued by this service's Login.gov (`iss`) for this service (`aud`, RFC 7519 §4.1.3): a
+    # delegated token meant for another agency opens with the same demo key but is not accepted.
     def decrypt_and_verify_delegated_token(token)
       jwt = JWE.decrypt(token, config.sp_private_key)
-      JWT.decode(jwt, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
+      JWT.decode(
+        jwt,
+        idp_public_key,
+        true,
+        algorithm: 'RS256',
+        leeway: 10,
+        verify_iss: true,
+        iss: idp_domain,
+        verify_aud: true,
+        aud: client_id,
+      ).first
+    end
+
+    # Login.gov names itself by host in `iss`; the sample knows it by URL.
+    def idp_domain
+      uri = URI.parse(config.idp_url)
+      uri.port == uri.default_port ? uri.host : "#{uri.host}:#{uri.port}"
     end
 
     def openid_configuration
