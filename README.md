@@ -39,6 +39,19 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | THIRD_PARTY_SIGN_IN_IAL     | The identity assurance level this agency signs people in at when a third party starts the sign-in | 2                                         |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
+## Delegated access
+
+Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
+as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
+Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
+
+When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, the person holds no identity at the
+agency yet, and delegation does not create one. The app then starts third-party-initiated login at that address
+(OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the agency
+returns the person with the same hint and `status=signed_in`, the app repeats the delegation request exactly as first
+made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
+session started. A refusal without an address is shown as the delegation's error.
+
 ## Third-party-initiated login (the agency side)
 
 `GET /initiate_login` is the login-initiation address this agency registers (OpenID Connect Core 1.0 §4). A service
