@@ -600,6 +600,132 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
   end
 
+  context 'delegated access' do
+    let(:code) { 'abc-code' }
+    let(:api_url) { 'https://api.agency-b.gov/records' }
+    let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
+
+    before { ENV['token_exchange_targets'] = targets.to_json }
+    after { ENV.delete('token_exchange_targets') }
+
+    def start_delegated_sign_in
+      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+    end
+
+    it 'renders the error Login.gov returns when the exchange is refused' do
+      start_delegated_sign_in
+      stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'authorization_code')).
+        to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
+      stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
+        to_return(status: 400, body: { error: 'invalid_client' }.to_json)
+
+      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_request.session['error_type']).to eq('Delegation')
+      expect(last_request.session['error']).to include('invalid_client')
+    end
+
+    context 'when Login.gov refuses because the person holds no identity at the agency' do
+      let(:initiate_login_uri) { 'https://records.example.gov/initiate_login' }
+
+      def refuse_exchange(body)
+        stub_request(:post, token_endpoint).
+          with(body: hash_including('grant_type' => 'authorization_code')).
+          to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
+        stub_request(:post, token_endpoint).
+          with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
+          to_return(status: 400, body: body.to_json)
+      end
+
+      def finish_sign_in
+        get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+      end
+
+      it 'starts third-party-initiated login at the address Login.gov names, remembering the request' do
+        start_delegated_sign_in
+        refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
+
+        finish_sign_in
+
+        expect(last_response).to be_redirect
+        location = URI(last_response.location)
+        expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+        params = CGI.parse(location.query).transform_values(&:first)
+        expect(params['iss']).to eq('http://localhost:3000')
+        expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+        expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
+        expect(params['login_hint']).to match(/\A[0-9a-f-]{36}\z/)
+        expect(last_request.session['auth_request_query']).to include('initiate_broker_token_exchange=true')
+        expect(last_request.session['auth_request_query']).to include('token_exchange')
+      end
+
+      it 'shows the refusal when Login.gov names no address' do
+        start_delegated_sign_in
+        refuse_exchange(error: 'invalid_target', error_description: 'the audience is not registered')
+
+        finish_sign_in
+
+        expect(last_response.location).to end_with('/')
+        expect(last_request.session['error_type']).to eq('Delegation')
+        expect(last_request.session['error']).to eq('the audience is not registered')
+      end
+
+      context 'GET /third_party/return' do
+        before do
+          start_delegated_sign_in
+          refuse_exchange(error: 'invalid_target', initiate_login_uri:)
+          finish_sign_in
+        end
+
+        let!(:hint) { last_request.session['handoff_login_hint'] }
+        let!(:query) { last_request.session['auth_request_query'] }
+
+        def return_from_agency(params)
+          get '/third_party/return', params, 'rack.session' => last_request.session
+        end
+
+        it 'repeats the delegation request when the agency reports the sign-in completed' do
+          return_from_agency(login_hint: hint, iss: 'urn:gov:gsa:openidconnect:sp:test', status: 'signed_in')
+
+          expect(last_response).to be_redirect
+          expect(last_response.location).to end_with("/auth/request?#{query}")
+          expect(last_request.session).not_to have_key('handoff_login_hint')
+          expect(last_request.session).not_to have_key('auth_request_query')
+        end
+
+        it 'refuses a return whose hint does not match' do
+          return_from_agency(login_hint: 'someone-else', status: 'signed_in')
+
+          expect(last_request.session['error_type']).to eq('Delegation')
+          expect(last_request.session['error']).to include('does not match')
+        end
+
+        it 'honors the return once' do
+          return_from_agency(login_hint: hint, status: 'signed_in')
+          return_from_agency(login_hint: hint, status: 'signed_in')
+
+          expect(last_request.session['error']).to include('does not match')
+        end
+
+        it 'reports a sign-in at the agency that did not complete' do
+          return_from_agency(login_hint: hint, iss: 'urn:gov:gsa:openidconnect:sp:test', status: 'failed')
+
+          expect(last_request.session['error']).to include('did not complete')
+        end
+
+        it 'refuses a return after the hand-off lifetime' do
+          travel = last_request.session.to_hash.merge('handoff_started_at' => Time.now.to_i - 601)
+          get '/third_party/return', { login_hint: hint, status: 'signed_in' }, 'rack.session' => travel
+
+          expect(last_request.session['error']).to include('took too long')
+        end
+      end
+    end
+  end
+
   context 'POST /handle-logout' do
     let(:redirect_uri) { 'http://localhost:9292/logout' }
     let(:store) {LoginGov::OidcSinatra::DocumentTestSession }
