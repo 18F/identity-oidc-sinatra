@@ -624,6 +624,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     def delegated_token(claims)
+      claims = { iss: 'localhost:3000', aud: client_id }.merge(claims)
       jwt = JWT.encode(claims, idp_private_key, 'RS256', kid: JWT::JWK.new(idp_private_key).kid)
       JWE.encrypt(jwt, sp_private_key.public_key, alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', typ: 'JWT')
     end
@@ -656,7 +657,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     it 'sends a proof with the code exchange and the token exchange, then offers the bound token' do
       start_delegated_sign_in
       jkt = LoginGov::OidcSinatra::Dpop.thumbprint(session_key)
-      bound_token = delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, cnf: { jkt: })
+      bound_token = delegated_token(sub: 'person-at-agency', act: { sub: client_id }, cnf: { jkt: })
 
       code_exchange = stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code', 'code' => code), headers: { 'DPoP' => proof_format }).
@@ -737,10 +738,16 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'GET /api/records, the agency API side' do
+      # The agency instance is a confidential client of its own: no PKCE, no DPoP of its own.
+      before do
+        ENV['PKCE'] = 'false'
+        ENV['DPOP'] = 'false'
+      end
+
       let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }
       let(:jkt) { LoginGov::OidcSinatra::Dpop.thumbprint(actor_key) }
-      let(:bound_token) { delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, scope: 'token_exchange:passport', cnf: { jkt: }) }
-      let(:bearer_token) { delegated_token(sub: 'person-at-agency', aud: 'state', act: { sub: client_id }, scope: 'token_exchange:passport') }
+      let(:bound_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport', cnf: { jkt: }) }
+      let(:bearer_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport') }
 
       def proof_for(token, key: actor_key)
         LoginGov::OidcSinatra::Dpop.proof(key:, method: 'GET', url: 'http://example.org/api/records', access_token: token)
@@ -779,6 +786,24 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
         expect(last_response).to be_ok
         expect(JSON.parse(last_response.body)['bound']).to eq(false)
+      end
+
+      it 'refuses a token issued for another agency' do
+        other = delegated_token(sub: 'person-at-agency', aud: 'urn:gov:gsa:openidconnect:sp:other-agency', act: { sub: client_id })
+
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "Bearer #{other}"
+
+        expect(last_response.status).to eq(401)
+        expect(JSON.parse(last_response.body)).to include('error' => 'invalid_token', 'error_description' => include('aud'))
+      end
+
+      it 'refuses a token from another issuer' do
+        other = delegated_token(sub: 'person-at-agency', iss: 'idp.example.gov', act: { sub: client_id })
+
+        get '/api/records', {}, 'HTTP_AUTHORIZATION' => "Bearer #{other}"
+
+        expect(last_response.status).to eq(401)
+        expect(JSON.parse(last_response.body)).to include('error' => 'invalid_token', 'error_description' => include('iss'))
       end
 
       it 'refuses a request without a token' do
