@@ -520,6 +520,31 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             expect(last_response.body).to include(email)
           end
 
+          it 'renders the document image URLs and document metadata from the decrypted claims' do
+            selfie_url = 'http://localhost:3000/api/openid_connect/document_images/selfie'
+            get '/auth/request'
+            stub_token_response(
+              code:,
+              bearer_token: bearer_token,
+              id_token: generate_id_token(nonce: last_request.session['nonce']),
+            )
+            stub_encrypted_userinfo_response(
+              bearer_token:, email:, public_key: sp_private_key.public_key,
+              claims: {
+                document_images: { selfie: selfie_url },
+                document_metadata: { document_number: 'D1234567' },
+              }
+            )
+
+            get '/auth/result', { code:, state: last_request.session['state'] },
+                'rack.session' => last_request.session
+
+            follow_redirect!
+            expect(last_response.body).to include(selfie_url)
+            expect(last_response.body).to include('document_number', 'D1234567')
+            expect(a_request(:get, selfie_url)).not_to have_been_made
+          end
+
           it 'renders an error when the response is encrypted to some other key' do
             get '/auth/request'
             stub_token_response(
@@ -757,9 +782,9 @@ end
 
   # The shape Login.gov uses for an encrypted userinfo response: one compact JWE of the claims
   # JSON, RSA-OAEP and A256GCM, served as application/jwt.
-  def stub_encrypted_userinfo_response(bearer_token:, email:, public_key:)
+  def stub_encrypted_userinfo_response(bearer_token:, email:, public_key:, claims: {})
     jwe = JWE.encrypt(
-      { email: email }.to_json,
+      { email: email }.merge(claims).to_json,
       public_key,
       alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', typ: 'JWT', kid: JWT::JWK.new(public_key).kid,
     )

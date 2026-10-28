@@ -104,6 +104,7 @@ module LoginGov::OidcSinatra
           birthdate
           social_security_number
           verified_at
+          document_images
           x509
           x509_issuer
           x509_subject
@@ -242,7 +243,8 @@ module LoginGov::OidcSinatra
         bytes: response.body.bytesize,
       }
       if kind == 'userinfo' && response.status == 200
-        data = JSON.parse(response.body)
+        report[:encrypted] = encrypted_userinfo_response?(response)
+        data = JSON.parse(userinfo_claims_json(response))
         halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
         report[:claims] = %w[document_images document_metadata].to_h do |claim|
           value = data[claim]
@@ -278,6 +280,8 @@ module LoginGov::OidcSinatra
       response = document_test_response(kind: kind, mode: mode, token_value: token_value)
       report = document_test_report(response: response, kind: kind)
       erb :document_test_result, locals: { report: report, kind: kind }
+    rescue AppError => e
+      halt 502, e.message
     rescue Faraday::Error, JSON::ParserError
       halt 502, 'IdP unavailable or returned invalid JSON. No successful result recorded.'
     end
@@ -632,24 +636,26 @@ module LoginGov::OidcSinatra
       JWT.encode(jwt_payload, config.sp_private_key, 'RS256')
     end
 
-    # Login.gov answers the userinfo request with plain JSON, or, for a client it has configured
-    # for encrypted responses, with the same claims as one compact JWE (OpenID Connect Core 1.0
-    # section 5.3.2) under the content type application/jwt. The JWE is encrypted to the public
-    # key of the certificate registered for this client, so the private key that signs the
-    # client assertion also decrypts the response.
     def userinfo(access_token)
       url = openid_configuration[:userinfo_endpoint]
 
       connection = Faraday.new(url: url, headers:{'Authorization' => "Bearer #{access_token}" })
       response = connection.get('')
 
-      body = if encrypted_userinfo_response?(response)
-               decrypt_userinfo(response.body)
-             else
-               response.body
-             end
+      JSON.parse(userinfo_claims_json(response)).with_indifferent_access
+    end
 
-      JSON.parse(body).with_indifferent_access
+    # Login.gov answers the userinfo request with plain JSON, or, for a client it has configured
+    # for encrypted responses, with the same claims as one compact JWE (OpenID Connect Core 1.0
+    # section 5.3.2) under the content type application/jwt. The JWE is encrypted to the public
+    # key of the certificate registered for this client, so the private key that signs the
+    # client assertion also decrypts the response. Either way the result is the claims JSON:
+    # when the document_images scope was granted, the image URLs and the document_metadata
+    # claim travel inside the encrypted object with every other claim.
+    def userinfo_claims_json(response)
+      return response.body unless encrypted_userinfo_response?(response)
+
+      decrypt_userinfo(response.body)
     end
 
     def encrypted_userinfo_response?(response)
