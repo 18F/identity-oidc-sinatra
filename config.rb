@@ -73,6 +73,11 @@ module LoginGov
         @sp_private_key = OpenSSL::PKey::RSA.new(key)
       end
 
+      def targets
+        return [] unless ENV['token_exchange_targets'].present?
+        JSON.parse(ENV['token_exchange_targets'])
+      end
+
       # Define the default configuration values.
       #
       # @return [Hash]
@@ -92,6 +97,8 @@ module LoginGov
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
           'signed_events' => ENV['signed_events'],
+          'token_exchange_targets' => ENV['token_exchange_targets'] || 
+                                      '[{"issuer":"state", "scope":"passport", "api": "http://add-target-api"}]',
         }
 
         # EC2 deployment defaults

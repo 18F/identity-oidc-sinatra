@@ -108,7 +108,13 @@ module LoginGov::OidcSinatra
           x509_issuer
           x509_subject
           x509_presented
-        ]
+        ] + target_options
+      end
+
+      def target_options
+        config.targets.map do |target|
+          "token_exchange:#{target['scope']}"
+        end
       end
 
       def default_scopes_by_ial
@@ -288,15 +294,14 @@ module LoginGov::OidcSinatra
       userinfo = session.delete(:userinfo)
       error = session.delete(:error)
       error_type = session.delete(:error_type)
+      session.delete(:broker_request)
+      session.delete(:selected_target)
 
-      ial = params[:ial]
-      aal = params[:aal]
-
-      ial = prepare_step_up_flow(session: session, ial: ial, aal: aal)
+      ial = prepare_step_up_flow(session:)
 
       erb :index, locals: {
         ial: ial,
-        aal: aal,
+        aal: params[:aal],
         login_msg: login_msg,
         logout_msg: logout_msg,
         user_email: user_email,
@@ -316,12 +321,14 @@ module LoginGov::OidcSinatra
       session[:document_test] = params[:document_test] == '1'
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
+      session[:broker_request] = params[:initiate_broker_token_exchange]
+      session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
 
       session[:state] = random_value
       session[:nonce] = random_value
       session[:code_verifier] = random_value if use_pkce?
 
-      ial = prepare_step_up_flow(session: session, ial: params[:ial], aal: params[:aal])
+      ial = prepare_step_up_flow(session:)
       auth_url = authorization_url(
         state: session[:state],
         nonce: session[:nonce],
@@ -355,6 +362,13 @@ module LoginGov::OidcSinatra
 
       token_response = token(code)
       access_token = token_response[:access_token]
+
+      if session[:broker_request] == 'true'
+        token_output = token_exchange(access_token, code) 
+        session[:access_token] = token_output['access_token']
+        redirect to('/target')
+      end      
+
       id_token = token_response[:id_token]
       jwt = JWT.decode(id_token, idp_public_key, true, algorithm: 'RS256', leeway: 10).first
 
@@ -387,6 +401,7 @@ module LoginGov::OidcSinatra
     rescue AppError => e
       render_error('Application', e.message)
     end
+
 
     get '/failure_to_proof' do
       render_error('Proofing', 'We were unable to verify your identity')
@@ -437,6 +452,19 @@ module LoginGov::OidcSinatra
       redirect to('attempts-api')
     end
 
+    get '/target' do
+      erb :target, locals: {
+        targets: config.targets,
+        selected_target: session[:token_scope],
+      }
+    end
+
+    post '/send-access-token' do
+      metadata = config.targets.find {|target| target['issuer'] == params['target'] }
+      
+      redirect to("#{metadata['api']}?#{{ access_token: session[:access_token] }.to_query}")
+    end
+
     private
 
     def render_error(error_type, error=nil)
@@ -476,7 +504,9 @@ module LoginGov::OidcSinatra
       end
     end
 
-    def prepare_step_up_flow(session:, ial:, aal: nil)
+    def prepare_step_up_flow(session:)
+      ial = params[:ial]
+      aal = params[:aal]
       if ial == 'step-up'
         ial = '1'
         session[:step_up_enabled] = 'true'
@@ -557,6 +587,13 @@ module LoginGov::OidcSinatra
       AttemptsConfiguration.cached_attempts_public_key(attempts_config)
     end
 
+    def get_token_scope(scopes)
+      scope = scopes.find { |scope| scope.match(/token_exchange:(.+)/) }
+      return unless scope 
+      
+      scope.delete_prefix('token_exchange:')
+    end
+
     def token(code)
       token_params = {
         grant_type: 'authorization_code',
@@ -602,9 +639,30 @@ module LoginGov::OidcSinatra
       JSON.parse(connection.get('').body).with_indifferent_access
     end
 
-    def client_id
-      return config.mock_irs_client_id if session[:irs]
+    def token_exchange(access_token, code)
+      token_metadata = config.targets.find {|target| target['scope'] == session[:token_scope] }
 
+      token_params = {
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        code:,
+        code_verifier: session[:code_verifier],
+        client_id:,
+        subject_token: access_token,
+        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        audience: token_metadata['issuer'],
+        resource: token_metadata['api'],
+        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+      }
+
+      response = Faraday.post(
+        openid_configuration[:token_endpoint],
+        token_params,
+      )
+
+      json response.body
+    end
+
+    def client_id
       use_pkce? ? config.client_id_pkce : config.client_id
     end
 
