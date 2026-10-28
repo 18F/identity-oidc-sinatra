@@ -41,7 +41,13 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    userinfo responses, it answers the userinfo request with one compact JWE (content type
    `application/jwt`) instead of plain JSON. The app detects the content type and decrypts the
    response with the private key at `sp_private_key_path`, the same key that signs its
-   `private_key_jwt` client assertion, so nothing needs to be configured here.
+   `private_key_jwt` client assertion, so nothing needs to be configured here. The decrypted
+   claims are shown on the home page exactly as plain claims are. With the `document_images`
+   scope (offered as a checkbox when the identity provider allow-lists this client for it) they
+   include `document_metadata` and `document_images`, whose values are URLs that name the image
+   type (`front`, `back`, `passport`, `selfie`); the app displays those URLs and does not fetch
+   the images. The "Test document artifacts" page decrypts the same way and reports `encrypted`
+   with each userinfo check.
 
 ## Contributing
 
