@@ -59,6 +59,51 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     expect(selfie).to have_been_requested.once
   end
 
+  context 'when the userinfo response is encrypted to the client certificate' do
+    let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
+    let(:selfie_url) { 'http://localhost:3000/api/openid_connect/document_images/selfie' }
+    let(:claims) do
+      { document_images: { selfie: selfie_url }, document_metadata: { document_number: 'TEST' } }
+    end
+
+    # The shape Login.gov uses: one compact JWE of the claims JSON, RSA-OAEP and A256GCM,
+    # served as application/jwt.
+    def stub_encrypted_userinfo(public_key)
+      jwe = JWE.encrypt(
+        claims.to_json, public_key,
+        alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', typ: 'JWT', kid: JWT::JWK.new(public_key).kid
+      )
+      stub_request(:get, 'http://localhost:3000/api/openid_connect/userinfo').
+        with(headers: { 'Authorization' => "Bearer #{token}" }).
+        to_return(body: jwe, headers: { 'Content-Type' => 'application/jwt' })
+    end
+
+    it 'decrypts the claims with the client private key and reports the response as encrypted' do
+      stub_encrypted_userinfo(sp_private_key.public_key)
+      check
+      expect(last_response).to be_ok
+      body = CGI.unescapeHTML(last_response.body)
+      expect(body).to include('"encrypted": true', 'present', selfie_url, 'TEST')
+      expect(body).not_to include(token)
+      expect(a_request(:get, selfie_url)).not_to have_been_made
+    end
+
+    it 'reports a response encrypted to some other key as an error' do
+      stub_encrypted_userinfo(OpenSSL::PKey::RSA.new(2048).public_key)
+      check
+      expect(last_response.status).to eq(502)
+      expect(last_response.body).to include('Could not decrypt the encrypted userinfo response')
+    end
+  end
+
+  it 'reports a plain userinfo response as not encrypted' do
+    stub_request(:get, 'http://localhost:3000/api/openid_connect/userinfo').
+      with(headers: { 'Authorization' => "Bearer #{token}" }).
+      to_return(body: '{"document_images":{}}')
+    check
+    expect(CGI.unescapeHTML(last_response.body)).to include('"encrypted": false')
+  end
+
   it 'reports image response headers and size without emitting image bytes' do
     stub_request(:get, 'http://localhost:3000/api/openid_connect/document_images/front').
       to_return(body: 'synthetic-image-bytes', headers: {
