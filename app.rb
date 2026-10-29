@@ -385,7 +385,7 @@ module LoginGov::OidcSinatra
         redirect '/document-artifacts'
       end
 
-      userinfo_response = userinfo(access_token)
+      userinfo_response = userinfo(access_token, token_type: token_response[:token_type])
       session.delete(:nonce)
       session.delete(:state)
 
@@ -751,11 +751,26 @@ module LoginGov::OidcSinatra
       JWT.encode(jwt_payload, config.sp_private_key, 'RS256')
     end
 
-    def userinfo(access_token)
+    def userinfo(access_token, token_type: 'Bearer')
       url = openid_configuration[:userinfo_endpoint]
 
-      connection = Faraday.new(url: url, headers:{'Authorization' => "Bearer #{access_token}" })
+      connection = Faraday.new(url:, 
+headers: userinfo_auth_headers(access_token:, token_type:, url:))
       JSON.parse(connection.get('').body).with_indifferent_access
+    end
+
+    # The access token is presented under the scheme Login.gov issued it with. A key-bound token
+    # (token_type DPoP, RFC 9449) must travel with a fresh proof for this GET, carrying ath over
+    # the token; an ordinary bearer token is sent as before.
+    def userinfo_auth_headers(access_token:, token_type:, url:)
+      if token_type == 'DPoP'
+        {
+          'Authorization' => "DPoP #{access_token}",
+          'DPoP' => Dpop.proof(key: dpop_key, method: 'GET', url:, access_token:),
+        }
+      else
+        { 'Authorization' => "Bearer #{access_token}" }
+      end
     end
 
     # RFC 8693: the subject token is the token the code exchange returned; the audience names the
