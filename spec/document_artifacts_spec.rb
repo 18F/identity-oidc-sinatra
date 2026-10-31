@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'cgi'
 
 RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:store) { LoginGov::OidcSinatra::DocumentTestSession }
@@ -12,10 +13,29 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   after { store.delete(id) }
 
+  let(:sp_public_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')).public_key }
+
   def check(kind: 'userinfo', mode: 'current')
     post '/document-artifacts/check', {
       kind: kind, token_mode: mode, authenticity_token: last_request.session[:csrf],
     }, 'rack.session' => last_request.session
+  end
+
+  # A client assertion for exactly this URL, signed with the client's key, in the POST body.
+  def with_client_assertion_for(url)
+    lambda do |request|
+      body = request.body.is_a?(Hash) ? request.body : CGI.parse(request.body)
+      payload, = JWT.decode(Array(body['client_assertion']).first.to_s, sp_public_key, true, algorithm: 'RS256')
+      Array(body['client_assertion_type']) == ['urn:ietf:params:oauth:client-assertion-type:jwt-bearer'] &&
+        payload['aud'] == url && payload['iss'] == 'urn:gov:gsa:openidconnect:sp:sinatra'
+    end
+  end
+
+  def encrypted_image(bytes, content_type:, public_key: sp_public_key)
+    JWE.encrypt(
+      bytes, public_key,
+      alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', cty: content_type, kid: JWT::JWK.new(public_key).kid
+    )
   end
 
   it 'renders the test page without discovery or a token in the HTML' do
@@ -48,13 +68,19 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           document_number: 'TEST',
         },
       }.to_json)
-    selfie = stub_request(:get, 'https://configured-idp.example/api/openid_connect/document_images/selfie').
-      with(headers: { 'Authorization' => "Bearer #{token}" }).
-      to_return(body: 'synthetic-selfie', headers: { 'Content-Type' => 'image/jpeg' })
+    selfie_url = 'https://configured-idp.example/api/openid_connect/document_images/selfie'
+    selfie = stub_request(:post, selfie_url).
+      with(headers: { 'Authorization' => "Bearer #{token}" }, &with_client_assertion_for(selfie_url)).
+      to_return(
+        body: encrypted_image('synthetic-selfie', content_type: 'image/jpeg'),
+        headers: { 'Content-Type' => 'application/jose' },
+      )
     check
     expect(last_response.body).to include('present', 'TEST')
     check(kind: 'selfie')
-    expect(last_response.body).to include('image/jpeg')
+    body = CGI.unescapeHTML(last_response.body)
+    expect(body).to include('"encrypted": true', '"content_type": "image/jpeg"', '"bytes": 16')
+    expect(body).not_to include('synthetic-selfie')
     expect(info).to have_been_requested.once
     expect(selfie).to have_been_requested.once
   end
@@ -92,7 +118,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       stub_encrypted_userinfo(OpenSSL::PKey::RSA.new(2048).public_key)
       check
       expect(last_response.status).to eq(502)
-      expect(last_response.body).to include('Could not decrypt the encrypted userinfo response')
+      expect(last_response.body).to include('Could not decrypt the encrypted response')
     end
   end
 
@@ -104,22 +130,43 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     expect(CGI.unescapeHTML(last_response.body)).to include('"encrypted": false')
   end
 
-  it 'reports image response headers and size without emitting image bytes' do
-    stub_request(:get, 'http://localhost:3000/api/openid_connect/document_images/front').
+  it 'reports an unencrypted image response as not encrypted, without emitting image bytes' do
+    stub_request(:post, 'http://localhost:3000/api/openid_connect/document_images/front').
       to_return(body: 'synthetic-image-bytes', headers: {
         'Content-Type' => 'image/jpeg', 'Cache-Control' => 'no-store',
       })
     check(kind: 'front')
-    expect(last_response.body).to include('image/jpeg', 'no-store')
-    expect(last_response.body).not_to include('synthetic-image-bytes')
+    body = CGI.unescapeHTML(last_response.body)
+    expect(body).to include('image/jpeg', 'no-store', '"encrypted": false')
+    expect(body).not_to include('synthetic-image-bytes')
   end
 
-  it 'sends no Authorization header for the missing-token case' do
-    request = stub_request(:get, 'http://localhost:3000/api/openid_connect/document_images/front').
-      with { |req| !req.headers.key?('Authorization') }.
-      to_return(status: 401)
+  it 'reports an image encrypted to some other key as an error' do
+    stub_request(:post, 'http://localhost:3000/api/openid_connect/document_images/front').
+      to_return(
+        body: encrypted_image('x', content_type: 'image/jpeg', public_key: OpenSSL::PKey::RSA.new(2048).public_key),
+        headers: { 'Content-Type' => 'application/jose' },
+      )
+    check(kind: 'front')
+    expect(last_response.status).to eq(502)
+    expect(last_response.body).to include('Could not decrypt the encrypted response')
+  end
+
+  it 'sends the client assertion but no Authorization header for the missing-token case' do
+    url = 'http://localhost:3000/api/openid_connect/document_images/front'
+    request = stub_request(:post, url).
+      with { |req| !req.headers.key?('Authorization') && with_client_assertion_for(url).call(req) }.
+      to_return(status: 401, body: { error: 'invalid_client' }.to_json)
     check(kind: 'front', mode: 'missing')
     expect(request).to have_been_requested.once
+    expect(last_response.body).to include('401')
+  end
+
+  it 'reports a refused assertion from the endpoint' do
+    stub_request(:post, 'http://localhost:3000/api/openid_connect/document_images/front').
+      to_return(status: 401, body: { error: 'invalid_client' }.to_json)
+    check(kind: 'front')
+    expect(last_response).to be_ok
     expect(last_response.body).to include('401')
   end
 
@@ -132,7 +179,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   end
 
   it 'does not follow redirects with the bearer token' do
-    stub_request(:get, 'http://localhost:3000/api/openid_connect/document_images/front').
+    stub_request(:post, 'http://localhost:3000/api/openid_connect/document_images/front').
       to_return(status: 302, headers: { 'Location' => 'https://other.example/image' })
     check(kind: 'front')
     expect(last_response.body).to include('302')
