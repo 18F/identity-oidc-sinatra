@@ -3,6 +3,7 @@
 require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
+require 'base64'
 require 'erubi'
 require 'faraday'
 require 'json'
@@ -216,21 +217,28 @@ module LoginGov::OidcSinatra
       @config ||= Config.new
     end
 
+    # The userinfo check is a GET with the bearer token. An image check is the request a client
+    # makes for a document image: a POST with the bearer token and a client assertion for that
+    # URL (see fetch_document_image). Fixed paths on the configured IdP only; never follow claim
+    # URLs or redirects.
     def document_test_response(kind:, mode:, token_value:)
-      path = kind == 'userinfo' ? '/api/openid_connect/userinfo' :
-        "/api/openid_connect/document_images/#{kind}"
       request_headers = {}
-      
+
       if mode == 'current'
-        request_headers['Authorization'] = "Bearer #{token_value}" 
+        request_headers['Authorization'] = "Bearer #{token_value}"
       elsif mode == 'invalid'
         request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token'
       end
-      # Fixed paths on the configured IdP only; never follow claim URLs or redirects.
-      Faraday.new(url: config.idp_url, headers: request_headers) do |connection|
-        connection.options.timeout = 15
-        connection.options.open_timeout = 5
-      end.get(path)
+      connection = Faraday.new(url: config.idp_url, headers: request_headers) do |c|
+        c.options.timeout = 15
+        c.options.open_timeout = 5
+        c.request :url_encoded
+        c.adapter Faraday.default_adapter
+      end
+      return connection.get('/api/openid_connect/userinfo') if kind == 'userinfo'
+
+      path = "/api/openid_connect/document_images/#{kind}"
+      connection.post(path, document_image_request_body(URI.join(config.idp_url, path).to_s))
     end
 
     def document_test_report(response:, kind:)
@@ -242,8 +250,15 @@ module LoginGov::OidcSinatra
         nosniff: response.headers['x-content-type-options'],
         bytes: response.body.bytesize,
       }
+      if response.status == 200
+        report[:encrypted] = encrypted_response?(response)
+      end
+      if kind != 'userinfo' && response.status == 200
+        # The image itself is never written into the report, only its media type and size.
+        image = decrypted_document_image(response)
+        report[:image] = { content_type: image[:content_type], bytes: image[:data].bytesize }
+      end
       if kind == 'userinfo' && response.status == 200
-        report[:encrypted] = encrypted_userinfo_response?(response)
         data = JSON.parse(userinfo_claims_json(response))
         halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
         report[:claims] = %w[document_images document_metadata].to_h do |claim|
@@ -296,10 +311,9 @@ module LoginGov::OidcSinatra
       logout_msg = session.delete(:logout_msg)
       user_email = session[:email]
       userinfo = session.delete(:userinfo)
+      document_images = take_document_images
       error = session.delete(:error)
       error_type = session.delete(:error_type)
-      session.delete(:broker_request)
-      session.delete(:selected_target)
 
       ial = prepare_step_up_flow(session:)
 
@@ -311,6 +325,7 @@ module LoginGov::OidcSinatra
         user_email: user_email,
         logout_uri: error.present? ? nil : logout_uri,
         userinfo: userinfo,
+        document_images: document_images,
         error:,
         error_type:,
       }
@@ -399,6 +414,7 @@ module LoginGov::OidcSinatra
         session[:login_msg] = 'ok'
         session[:userinfo] = userinfo_response
         session[:email] = session[:userinfo][:email]
+        stash_document_images(userinfo_response[:document_images], access_token)
 
         redirect to('/')
       end
@@ -624,11 +640,13 @@ module LoginGov::OidcSinatra
       json response.body
     end
 
-    def client_assertion_jwt
+    # A private_key_jwt client assertion (RFC 7523) for one audience: the token endpoint for the
+    # code exchange, or the document image URL for an image request.
+    def client_assertion_jwt(aud: openid_configuration[:token_endpoint])
       jwt_payload = {
         iss: client_id,
         sub: client_id,
-        aud: openid_configuration[:token_endpoint],
+        aud: aud,
         jti: random_value,
         exp: Time.now.to_i + 1000,
       }
@@ -647,25 +665,81 @@ module LoginGov::OidcSinatra
 
     # Login.gov answers the userinfo request with plain JSON, or, for a client it has configured
     # for encrypted responses, with the same claims as one compact JWE (OpenID Connect Core 1.0
-    # section 5.3.2) under the content type application/jwt. The JWE is encrypted to the public
-    # key of the certificate registered for this client, so the private key that signs the
-    # client assertion also decrypts the response. Either way the result is the claims JSON:
-    # when the document_images scope was granted, the image URLs and the document_metadata
-    # claim travel inside the encrypted object with every other claim.
+    # section 5.3.2) under the content type application/jwt. Either way the result is the claims
+    # JSON: when the document_images scope was granted, the document_metadata claim and the
+    # document_images claim, whose values are the URLs of the images, travel with every other claim.
     def userinfo_claims_json(response)
-      return response.body unless encrypted_userinfo_response?(response)
-
-      decrypt_userinfo(response.body)
+      decrypt_response(response).first
     end
 
-    def encrypted_userinfo_response?(response)
-      response.headers['Content-Type'].to_s.start_with?('application/jwt')
+    # Fetches one document image from the URL the userinfo claim names. The request is a POST
+    # with the bearer token and a fresh client assertion whose audience is that URL: the assertion
+    # is a signed JWT and belongs in the request body, not in a URL that proxies and access logs
+    # record. Login.gov answers with the image encrypted to this client's registered certificate
+    # (application/jose, see decrypt_response). Returns the image's media type and bytes, or the
+    # error the endpoint answered with, so one missing image does not hide the others.
+    def fetch_document_image(url, access_token:)
+      connection = Faraday.new(url: url, headers: { 'Authorization' => "Bearer #{access_token}" })
+      response = connection.post('', document_image_request_body(url))
+      return decrypted_document_image(response) if response.status == 200
+
+      { error: "#{response.status} #{response.body.to_s[0, 200]}" }
+    rescue AppError => e
+      { error: e.message }
     end
 
-    def decrypt_userinfo(jwe)
-      JWE.decrypt(jwe, config.sp_private_key)
-    rescue JWE::DecodeError, OpenSSL::OpenSSLError => e
-      raise AppError.new("Could not decrypt the encrypted userinfo response: #{e.message}")
+    def document_image_request_body(url)
+      {
+        client_assertion: client_assertion_jwt(aud: url),
+        client_assertion_type: JWT_CLIENT_ASSERTION_TYPE,
+      }
+    end
+
+    def decrypted_document_image(response)
+      data, content_type = decrypt_response(response)
+      { content_type: content_type.to_s.split(';').first, data: data }
+    end
+
+    # A Login.gov response is either plain or one compact JWE (RFC 7516) encrypted to the public
+    # key of the certificate registered for this client, so the private key that signs the client
+    # assertion also decrypts it: application/jwt carries a claims set, application/jose any other
+    # content, whose cty header names the media type of the plaintext. Returns the plaintext and
+    # its media type.
+    def decrypt_response(response)
+      content_type = response.headers['Content-Type'].to_s
+      return [response.body, content_type] unless encrypted_response?(response)
+
+      header = JSON.parse(Base64.urlsafe_decode64(response.body.to_s.split('.').first.to_s))
+      [JWE.decrypt(response.body, config.sp_private_key), header['cty'] || 'application/json']
+    rescue JWE::DecodeError, OpenSSL::OpenSSLError, ArgumentError, JSON::ParserError => e
+      raise AppError.new("Could not decrypt the encrypted response: #{e.message}")
+    end
+
+    def encrypted_response?(response)
+      type = response.headers['Content-Type'].to_s
+      type.start_with?('application/jwt') || type.start_with?('application/jose')
+    end
+
+    # The session is a cookie and cannot hold image bytes: the images named by the claim are
+    # fetched once, right after sign-in, and kept in the process-local store for one rendering.
+    def stash_document_images(image_urls, access_token)
+      return unless image_urls.is_a?(Hash) && image_urls.present?
+
+      images = image_urls.to_h { |type, url| [type.to_s, fetch_document_image(url, access_token:)] }
+      session[:document_images_id] = DocumentTestSession.put(images)
+    end
+
+    # Shown once and then forgotten, along with the delegation choices of the finished sign-in.
+    def take_document_images
+      session.delete(:broker_request)
+      session.delete(:selected_target)
+      DocumentTestSession.get(session.delete(:document_images_id)) || {}
+    end
+
+    # The browser renders an inline image from a data URL, which takes standard base64
+    # (RFC 4648 section 4).
+    def document_image_data_url(image)
+      "data:#{image[:content_type]};base64,#{Base64.strict_encode64(image[:data])}"
     end
 
     def token_exchange(access_token, code)
