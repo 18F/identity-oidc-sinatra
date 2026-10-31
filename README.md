@@ -44,10 +44,26 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    `private_key_jwt` client assertion, so nothing needs to be configured here. The decrypted
    claims are shown on the home page exactly as plain claims are. With the `document_images`
    scope (offered as a checkbox when the identity provider allow-lists this client for it) they
-   include `document_metadata` and `document_images`, whose values are URLs that name the image
-   type (`front`, `back`, `passport`, `selfie`); the app displays those URLs and does not fetch
-   the images. The "Test document artifacts" page decrypts the same way and reports `encrypted`
-   with each userinfo check.
+   include `document_metadata` and `document_images`, whose values are the URLs of the images
+   (`front`, `back`, `passport`, `selfie`). The "Test document artifacts" page decrypts the same
+   way and reports `encrypted` with each check.
+
+4. Document images. Right after sign-in the app fetches each URL in `document_images` and shows
+   the image inline with its media type and size. The request is a `POST` to that URL with the
+   bearer access token in `Authorization` and two form fields, `client_assertion` and
+   `client_assertion_type` (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`): the
+   assertion is a `private_key_jwt` signed with the client's key whose `iss` and `sub` are the
+   client id and whose `aud` is exactly the URL requested, with `jti`, `iat` and `exp`. It is a
+   `POST` because a client assertion is a signed JWT and belongs in the request body, not in a URL
+   that proxies and access logs record. The identity provider answers with the image encrypted to
+   this client's registered certificate: content type `application/jose`, a compact JWE whose `cty`
+   header names the image's media type and whose plaintext is the image bytes; the app decrypts it
+   with the same private key. Errors are JSON: 401 `invalid_client` (assertion missing or invalid),
+   403 (sharing not authorized for this sign-in), 404 (no such image yet), 500 `server_error`
+   (the client has no usable certificate to encrypt to). An image that fails is shown as its error
+   beside the others. The images live in the process's memory for one page view, never in the
+   session cookie. The test page's image checks make the same request and report the status, the
+   headers, whether the response was encrypted, and the image's type and size, never its bytes.
 
 ## Contributing
 

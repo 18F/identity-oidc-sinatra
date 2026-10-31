@@ -34,6 +34,24 @@
                 </li>
               <% end %>
             </ul>
+            <% if document_images.present? %>
+              <span>Document images (fetched from the claim URLs and decrypted):</span>
+              <ul class="document-images">
+                <% document_images.each_pair do |type, image| %>
+                  <li>
+                    <% if image[:error] %>
+                      <code><%= type %>: <%= image[:error] %></code>
+                    <% else %>
+                      <figure>
+                        <img class="document-image" alt="<%= type %> image"
+                          data-image-type="<%= type %>" src="<%= document_image_data_url(image) %>">
+                        <figcaption><%= type %>: <%= image[:content_type] %>, <%= image[:data].bytesize %> bytes</figcaption>
+                      </figure>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
           </div>
         <% end %>
       </div>

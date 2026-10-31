@@ -520,8 +520,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             expect(last_response.body).to include(email)
           end
 
-          it 'renders the document image URLs and document metadata from the decrypted claims' do
+          it 'fetches each document image with a client assertion, decrypts it and renders it inline' do
             selfie_url = 'http://localhost:3000/api/openid_connect/document_images/selfie'
+            image_bytes = "\xFF\xD8synthetic-selfie-bytes\x00\xFF\xD9".b
             get '/auth/request'
             stub_token_response(
               code:,
@@ -535,14 +536,47 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
                 document_metadata: { document_number: 'D1234567' },
               }
             )
+            image_request = stub_encrypted_image_response(
+              selfie_url, bearer_token:, public_key: sp_private_key.public_key,
+              content_type: 'image/jpeg', bytes: image_bytes
+            )
+
+            get '/auth/result', { code:, state: last_request.session['state'] },
+                'rack.session' => last_request.session
+
+            expect(image_request).to have_been_requested.once
+            follow_redirect!
+            expect(last_response.body).to include(selfie_url)
+            expect(last_response.body).to include('document_number', 'D1234567')
+            expect(last_response.body).to include(
+              'data-image-type="selfie"',
+              "data:image/jpeg;base64,#{Base64.strict_encode64(image_bytes)}",
+              "selfie: image/jpeg, #{image_bytes.bytesize} bytes",
+            )
+            expect(last_response.body).not_to include('synthetic-selfie-bytes')
+            expect(last_request.session.to_h.to_s).not_to include('synthetic-selfie-bytes')
+          end
+
+          it 'shows the error for an image the endpoint refuses and keeps the sign-in' do
+            selfie_url = 'http://localhost:3000/api/openid_connect/document_images/selfie'
+            get '/auth/request'
+            stub_token_response(
+              code:,
+              bearer_token: bearer_token,
+              id_token: generate_id_token(nonce: last_request.session['nonce']),
+            )
+            stub_encrypted_userinfo_response(
+              bearer_token:, email:, public_key: sp_private_key.public_key,
+              claims: { document_images: { selfie: selfie_url } }
+            )
+            stub_request(:post, selfie_url).
+              to_return(status: 403, body: { error: 'document_images sharing is not authorized' }.to_json)
 
             get '/auth/result', { code:, state: last_request.session['state'] },
                 'rack.session' => last_request.session
 
             follow_redirect!
-            expect(last_response.body).to include(selfie_url)
-            expect(last_response.body).to include('document_number', 'D1234567')
-            expect(a_request(:get, selfie_url)).not_to have_been_made
+            expect(last_response.body).to include(email, 'selfie: 403', 'not authorized')
           end
 
           it 'renders an error when the response is encrypted to some other key' do
@@ -560,7 +594,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
                 'rack.session' => last_request.session
 
             follow_redirect!
-            expect(last_response.body).to include('Could not decrypt the encrypted userinfo response')
+            expect(last_response.body).to include('Could not decrypt the encrypted response')
             expect(last_response.body).not_to include(email)
           end
         end
@@ -791,6 +825,27 @@ end
     stub_request(:get, userinfo_endpoint).
       with(headers: {'Authorization' => "Bearer #{bearer_token}" }).
       to_return(body: jwe, headers: { 'Content-Type' => 'application/jwt' })
+  end
+
+  # The request a client makes for one document image: POST to the claim URL with the bearer
+  # token and a private_key_jwt client assertion for exactly that URL; the answer is the image
+  # as one compact JWE (RSA-OAEP, A256GCM) whose cty header names the media type, served as
+  # application/jose.
+  def stub_encrypted_image_response(url, bearer_token:, public_key:, content_type:, bytes:)
+    jwe = JWE.encrypt(
+      bytes, public_key,
+      alg: 'RSA-OAEP', enc: 'A256GCM', zip: 'DEF', cty: content_type, kid: JWT::JWK.new(public_key).kid
+    )
+    stub_request(:post, url).
+      with(headers: { 'Authorization' => "Bearer #{bearer_token}" }) { |request|
+        body = request.body.is_a?(Hash) ? request.body : CGI.parse(request.body)
+        assertion = Array(body['client_assertion']).first.to_s
+        payload, = JWT.decode(assertion, OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')).public_key, true, algorithm: 'RS256')
+        Array(body['client_assertion_type']) == ['urn:ietf:params:oauth:client-assertion-type:jwt-bearer'] &&
+          payload['aud'] == url && payload['iss'] == client_id && payload['sub'] == client_id &&
+          payload['jti'].present? && payload['exp'].is_a?(Integer)
+      }.
+      to_return(body: jwe, headers: { 'Content-Type' => 'application/jose' })
   end
 
   def parameter_value(url, parameter_name)
