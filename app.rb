@@ -442,6 +442,9 @@ module LoginGov::OidcSinatra
         session[:userinfo] = userinfo_response
         session[:email] = session[:userinfo][:email]
 
+        # The notice names the site that started this sign-in, so an ordinary sign-in in the same
+        # browser clears whatever an earlier third-party-initiated one left behind.
+        session.delete(:third_party_initiated_from)
         handoff = take_third_party_handoff
         if handoff
           # OpenID Connect Core 1.0 §4: the sign-in a third party started has completed, so the
@@ -563,15 +566,23 @@ module LoginGov::OidcSinatra
       session[:handoff_login_hint] = login_hint
       session[:handoff_started_at] = Time.now.to_i
       uri = URI.parse(initiate_login_uri)
-      uri.query = URI.encode_www_form(
-        URI.decode_www_form(uri.query.to_s) + [
+      uri.query = third_party_initiation_query(uri.query, login_hint)
+      settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
+      redirect to(uri.to_s)
+    end
+
+    # The query string of a third-party-initiated login request (OpenID Connect Core 1.0 §4):
+    # the agency's own query parameters, if its login-initiation address carries any, followed by
+    # the OpenID Provider the agency is to use (`iss`), the hint that lets this site recognize the
+    # return, and where the agency sends the person afterwards (`target_link_uri`).
+    def third_party_initiation_query(existing_query, login_hint)
+      URI.encode_www_form(
+        URI.decode_www_form(existing_query.to_s) + [
           ['iss', config.idp_url],
           ['login_hint', login_hint],
           ['target_link_uri', File.join(config.redirect_uri, 'third_party/return')],
         ],
       )
-      settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
-      redirect to(uri.to_s)
     end
 
     # Removes and returns the pending hand-off so it is honored at most once.

@@ -97,6 +97,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.status).to eq(400)
     end
 
+    it 'refuses an oversized target_link_uri' do
+      long_uri = initiation[:target_link_uri] + '?page=' + 'x' * 2048
+      get '/initiate_login', initiation.merge(target_link_uri: long_uri)
+      expect(last_response.status).to eq(400)
+      expect(last_response.body).to include('target_link_uri is too long')
+    end
+
     context 'with a valid request' do
       before { get '/initiate_login', initiation }
 
@@ -203,6 +210,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_response.body).to include('third-party-initiated login')
         expect(last_response.body).to include('localhost')
         expect(last_response.body).to include(email)
+      end
+
+      it 'drops the notice once an ordinary sign-in follows in the same browser' do
+        get '/auth/request', {}, 'rack.session' => last_request.session
+        complete_sign_in
+
+        get '/', {}, 'rack.session' => last_request.session
+        expect(last_response.body).to include(email)
+        expect(last_response.body).not_to include('third-party-initiated login')
       end
     end
 

@@ -65,10 +65,10 @@ module LoginGov
         @config.fetch('eipp_allowed')
       end
 
-      # @return [OpenSSL::PKey::RSA]
       # The identity assurance level this agency signs people in at when a third party starts the
       # sign-in (OpenID Connect Core 1.0 §4); the agency decides it, because the agency owns the
       # session that results.
+      # @return [String] an `ial` value as the sign-in form takes it, `'2'` unless configured
       def third_party_sign_in_ial
         @config.fetch('third_party_sign_in_ial')
       end

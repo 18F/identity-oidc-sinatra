@@ -43,6 +43,10 @@ module LoginGov
       # keeps an attacker from stuffing arbitrary data through the flow.
       LOGIN_HINT_MAX_LENGTH = 128
 
+      # `target_link_uri` is remembered in the session cookie and redirected to, so it gets the
+      # same kind of upper bound; 2048 is the length every browser accepts for a URL.
+      TARGET_LINK_URI_MAX_LENGTH = 2048
+
       # Raised for a request §4 says must be refused. The message is safe to show.
       class InvalidInitiation < StandardError; end
 
@@ -89,6 +93,9 @@ module LoginGov
       def verify_target_link_uri!(target_link_uri)
         if target_link_uri.to_s.strip.empty?
           raise InvalidInitiation.new('target_link_uri is required')
+        end
+        if target_link_uri.length > TARGET_LINK_URI_MAX_LENGTH
+          raise InvalidInitiation.new('target_link_uri is too long')
         end
 
         uri = parse_http_uri(target_link_uri)
