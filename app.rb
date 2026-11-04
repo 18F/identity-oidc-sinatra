@@ -756,8 +756,8 @@ module LoginGov::OidcSinatra
     def userinfo(access_token, token_type: 'Bearer')
       url = openid_configuration[:userinfo_endpoint]
 
-      connection = Faraday.new(url:, 
-headers: userinfo_auth_headers(access_token:, token_type:, url:))
+      headers = userinfo_auth_headers(access_token:, token_type:, url:)
+      connection = Faraday.new(url:, headers:)
       JSON.parse(connection.get('').body).with_indifferent_access
     end
 
