@@ -647,8 +647,10 @@ module LoginGov::OidcSinatra
       { 'DPoP' => proof }
     end
 
+    # RFC 9449 §7.1: the challenge names the proof algorithms this API accepts, the same list the
+    # verifier enforces.
     def dpop_challenge
-      { 'WWW-Authenticate' => 'DPoP algs="ES256 RS256"' }
+      { 'WWW-Authenticate' => %(DPoP algs="#{Dpop::ALLOWED_ALGORITHMS.join(' ')}") }
     end
 
     def refuse_token(description, challenge: true)
