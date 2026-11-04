@@ -75,7 +75,7 @@ module LoginGov
         header = unverified_header(proof)
         raise ProofError.new('DPoP proof typ must be dpop+jwt') unless header['typ'] == PROOF_TYPE
         unless ALLOWED_ALGORITHMS.include?(header['alg'])
-          raise ProofError.new('DPoP proof alg must be ES256 or RS256')
+          raise ProofError.new("DPoP proof alg must be one of #{ALLOWED_ALGORITHMS.join(', ')}")
         end
 
         jwk = import_public_key(header['jwk'])
