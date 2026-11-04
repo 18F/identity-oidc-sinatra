@@ -881,6 +881,26 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_request.session).not_to have_key('dpop_key')
     end
 
+    it 'presents a key-bound sign-in token under the DPoP scheme at userinfo, with a proof over it' do
+      get '/auth/request'
+      stub_request(:post, token_endpoint).
+        with(body: hash_including('grant_type' => 'authorization_code', 'code' => code), headers: { 'DPoP' => proof_format }).
+        to_return(body: {
+          access_token: 'bound-sign-in-token',
+          token_type: 'DPoP',
+          id_token: generate_id_token(nonce: last_request.session['nonce']),
+        }.to_json)
+      userinfo = stub_request(:get, userinfo_endpoint).
+        with(headers: { 'Authorization' => 'DPoP bound-sign-in-token', 'DPoP' => proof_format }) { |request| ath_of(request, 'bound-sign-in-token') }.
+        to_return(body: { email: 'person@example.gov' }.to_json)
+
+      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+
+      expect(userinfo).to have_been_requested
+      expect(last_response).to be_redirect
+      expect(last_request.session['email']).to eq('person@example.gov')
+    end
+
     it 'sends a proof with the code exchange and the token exchange, then offers the bound token' do
       start_delegated_sign_in
       jkt = LoginGov::OidcSinatra::Dpop.thumbprint(session_key)
