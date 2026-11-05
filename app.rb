@@ -252,26 +252,25 @@ module LoginGov::OidcSinatra
       }
       if response.status == 200
         report[:encrypted] = encrypted_response?(response)
-      end
-      if kind != 'userinfo' && response.status == 200
-        # The image itself is never written into the report, only its media type and size.
-        image = decrypted_document_image(response)
-        report[:image] = { content_type: image[:content_type], bytes: image[:data].bytesize }
-      end
-      if kind == 'userinfo' && response.status == 200
-        data = JSON.parse(userinfo_claims_json(response))
-        halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
-        report[:claims] = %w[document_images document_metadata].to_h do |claim|
-          value = data[claim]
-          state = 
-            if !data.key?(claim)  
-              'absent' 
-            elsif value == {} 
-              'empty object'
-            else
-              'present'
-            end
-          [claim, { state: state, value: value }]
+        if kind == 'userinfo'
+          data = JSON.parse(userinfo_claims_json(response))
+          halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
+          report[:claims] = %w[document_images document_metadata].to_h do |claim|
+            value = data[claim]
+            state =
+              if !data.key?(claim)
+                'absent'
+              elsif value == {}
+                'empty object'
+              else
+                'present'
+              end
+            [claim, { state: state, value: value }]
+          end
+        else
+          # The image itself is never written into the report, only its media type and size.
+          image = decrypted_document_image(response)
+          report[:image] = { content_type: image[:content_type], bytes: image[:data].bytesize }
         end
       end
       report
@@ -717,7 +716,7 @@ module LoginGov::OidcSinatra
 
     def encrypted_response?(response)
       type = response.headers['Content-Type'].to_s
-      type.start_with?('application/jwt') || type.start_with?('application/jose')
+      type.start_with?('application/jwt', 'application/jose')
     end
 
     # The session is a cookie and cannot hold image bytes: the images named by the claim are
