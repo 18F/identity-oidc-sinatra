@@ -4,39 +4,13 @@ require 'uri'
 
 module LoginGov
   module OidcSinatra
-    # Relying-party side of OpenID Connect Third-Party-Initiated Login
-    # (OpenID Connect Core 1.0 §4,
-    # https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin).
-    #
-    # A third party that is not this agency (MyBenefits Assistant in the reference
-    # setup) sends the user's browser to this app's login initiation endpoint
-    # with three query parameters:
-    #
-    #   iss              which OpenID Provider to sign the user in with
-    #   login_hint       an opaque string the third party will recognize later
-    #   target_link_uri  where to send the user once sign-in has completed
-    #
-    # This app then runs its ordinary Login.gov authorization code flow. The
-    # user already has a Login.gov session from signing in to the third party,
-    # so Login.gov signs them in without asking for credentials again; that
-    # single sign-on is the whole point of the pattern. Nothing is delegated and
-    # no token is exchanged: this is the agency's own sign-in, with its own
-    # tokens, consent screen, fraud signals and billing. The agency learns who
-    # the user is from Login.gov alone; the hint is never treated as identity.
-    #
-    # §4 names two checks the relying party MUST perform before acting on the
-    # request, and both are implemented here:
-    #
-    #   * `iss` MUST be an issuer this app trusts. Otherwise a link crafted by
-    #     an attacker could send the user to an attacker-controlled OpenID
-    #     Provider and harvest whatever they type there.
-    #   * `target_link_uri` MUST be verified, or the endpoint becomes an open
-    #     redirector: anyone could craft a link that signs the user in here and
-    #     then bounces them to an arbitrary site that looks like a continuation
-    #     of the flow.
-    #
-    # Mixed into the Sinatra app with `helpers ThirdPartyLogin`; relies on
-    # `config`, `session` and `params`.
+    # Relying-party side of OpenID Connect Third-Party-Initiated Login (OpenID Connect Core 1.0
+    # §4): a third party sends the browser to this agency's login-initiation endpoint with `iss`,
+    # `login_hint` and `target_link_uri`, and the agency runs its ordinary Login.gov sign-in. The
+    # two checks §4 requires, the trusted issuer and the verified return address, are here; the
+    # README's "Third-party-initiated login (the agency side)" section explains the pattern and
+    # what each check guards against. Mixed into the Sinatra app with `helpers ThirdPartyLogin`;
+    # relies on `config`, `session` and `params`.
     module ThirdPartyLogin
       # §4 places no limit on `login_hint`, but it is remembered in the session
       # cookie and echoed back in a URL, so an upper bound keeps both small and

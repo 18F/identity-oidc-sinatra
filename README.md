@@ -63,6 +63,15 @@ already holds a Login.gov session, so no credentials are asked again. When the s
 sent to `target_link_uri` with `login_hint`, `iss` (this agency's client id) and `status` (`signed_in` or `failed`). The
 hint is never treated as identity, and the signed-in page says which site started the session.
 
+Nothing is delegated and no token is exchanged on this path: it is the agency's own sign-in, with its own tokens, consent
+screen, fraud signals and billing, and the single sign-on comes from the person's existing Login.gov session. The two checks
+are the ones §4 says a relying party MUST perform before acting on the request. Without the `iss` check, a crafted link
+could send the person to an attacker's OpenID Provider and harvest whatever they type there. Without the `target_link_uri`
+check, the endpoint would be an open redirector: anyone could craft a link that signs the person in here and then bounces
+them to an arbitrary site that looks like a continuation of the flow. The origin of `target_link_uri` is compared against
+the allow-list exactly, so the third party may vary the path and query but never the site; `login_hint` and
+`target_link_uri` are both bounded in length because they are remembered in the session cookie.
+
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md) for additional information.
