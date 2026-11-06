@@ -116,8 +116,8 @@ module LoginGov
           'token_exchange_targets' => ENV['token_exchange_targets'] || 
                                       '[{"issuer":"state", "scope":"passport", "api": "http://add-target-api"}]',
           'third_party_target_link_allowlist' =>
-            ENV['THIRD_PARTY_TARGET_LINK_ALLOWLIST'] || 'http://localhost:9292',
-          'third_party_sign_in_ial' => ENV['THIRD_PARTY_SIGN_IN_IAL'] || '2',
+            ENV['third_party_target_link_allowlist'] || 'http://localhost:9292',
+          'third_party_sign_in_ial' => ENV['third_party_sign_in_ial'] || '2',
         }
 
         # EC2 deployment defaults

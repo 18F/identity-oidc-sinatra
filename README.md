@@ -35,8 +35,8 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | eipp_allowed                | Enhanced In Person Proofing allowed                                                          | false                                     |
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
-   | THIRD_PARTY_TARGET_LINK_ALLOWLIST | Exact origins a service provider may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
-   | THIRD_PARTY_SIGN_IN_IAL     | The identity assurance level this agency signs people in at when a third party starts the sign-in | 2                                         |
+   | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
+   | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
 ## Delegated access
@@ -45,20 +45,20 @@ Checking "Initiate Broker token exchange" and requesting a `token_exchange:<valu
 as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
 Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
 
-When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, the person holds no identity at the
-agency yet, and delegation does not create one. The app then starts third-party-initiated login at that address
-(OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the agency
+When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
+target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address
+(OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the target application
 returns the person with the same hint and `status=signed_in`, the app repeats the delegation request exactly as first
 made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
 session started. A refusal without an address is shown as the delegation's error.
 
-## Third-party-initiated login (the agency side)
+## Third-party-initiated login (the target application side)
 
-`GET /initiate_login` is the login-initiation address this agency registers (OpenID Connect Core 1.0 §4). A service
-provider whose delegation request Login.gov refused because the person holds no identity at this agency sends the browser
+`GET /initiate_login` is the login-initiation address this sample application registers (OpenID Connect Core 1.0 §4). An
+actor application whose delegation request was refused because the person has not connected their account to the target application sends a request
 here with `iss` (Login.gov's URL), `login_hint` (an opaque value it will recognize) and `target_link_uri` (where to return
-the person). The agency refuses unless `iss` is the Login.gov it is configured for and the origin of `target_link_uri` is
-in `THIRD_PARTY_TARGET_LINK_ALLOWLIST`, then runs its ordinary Login.gov sign-in at `THIRD_PARTY_SIGN_IN_IAL`; the person
+the person). This request is rejected unless `iss` is Login.gov, and the origin of `target_link_uri` is
+in `third_party_target_link_allowlist`. Once the request has been validated, the target app then runs the ordinary Login.gov sign-in at `third_party_sign_in_ial`; the user
 already holds a Login.gov session, so no credentials are asked again. When the sign-in completes, or fails, the person is
 sent to `target_link_uri` with `login_hint`, `iss` (this agency's client id) and `status` (`signed_in` or `failed`). The
 hint is never treated as identity, and the signed-in page says which site started the session.

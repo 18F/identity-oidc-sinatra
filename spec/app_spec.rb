@@ -612,40 +612,37 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
     end
 
-    it 'renders the error Login.gov returns when the exchange is refused' do
-      start_delegated_sign_in
+    def refuse_exchange(body)
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code')).
         to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
-        to_return(status: 400, body: { error: 'invalid_client' }.to_json)
-
-      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
-
-      expect(last_response).to be_redirect
-      expect(last_request.session['error_type']).to eq('Delegation')
-      expect(last_request.session['error']).to include('invalid_client')
+        to_return(status: 400, body: body.to_json)
     end
 
-    context 'when Login.gov refuses because the person holds no identity at the agency' do
+    def finish_sign_in
+      get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
+    end
+
+    before { start_delegated_sign_in }
+
+    context 'when the exchange is refused' do
+      before { refuse_exchange(error: 'invalid_client') }
+
+      it 'renders the error Login.gov returns' do
+        finish_sign_in
+
+        expect(last_response).to be_redirect
+        expect(last_request.session['error_type']).to eq('Delegation')
+        expect(last_request.session['error']).to include('invalid_client')
+      end
+    end
+
+    context 'when Login.gov refuses because the person has not connected their account to the target application' do
       let(:initiate_login_uri) { 'https://records.example.gov/initiate_login' }
 
-      def refuse_exchange(body)
-        stub_request(:post, token_endpoint).
-          with(body: hash_including('grant_type' => 'authorization_code')).
-          to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
-        stub_request(:post, token_endpoint).
-          with(body: hash_including('grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange')).
-          to_return(status: 400, body: body.to_json)
-      end
-
-      def finish_sign_in
-        get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
-      end
-
       it 'starts third-party-initiated login at the address Login.gov names, remembering the request' do
-        start_delegated_sign_in
         refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
 
         finish_sign_in
@@ -662,20 +659,20 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_request.session['auth_request_query']).to include('token_exchange')
       end
 
-      it 'shows the refusal when Login.gov names no address' do
-        start_delegated_sign_in
-        refuse_exchange(error: 'invalid_target', error_description: 'the audience is not registered')
+      context 'when Login.gov names no address' do
+        it 'shows the refusal' do
+          refuse_exchange(error: 'invalid_target', error_description: 'the audience is not registered')
 
-        finish_sign_in
+          finish_sign_in
 
-        expect(last_response.location).to end_with('/')
-        expect(last_request.session['error_type']).to eq('Delegation')
-        expect(last_request.session['error']).to eq('the audience is not registered')
+          expect(last_response.location).to end_with('/')
+          expect(last_request.session['error_type']).to eq('Delegation')
+          expect(last_request.session['error']).to eq('the audience is not registered')
+        end
       end
 
       context 'GET /third_party/return' do
         before do
-          start_delegated_sign_in
           refuse_exchange(error: 'invalid_target', initiate_login_uri:)
           finish_sign_in
         end
@@ -687,13 +684,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           get '/third_party/return', params, 'rack.session' => last_request.session
         end
 
-        it 'repeats the delegation request when the agency reports the sign-in completed' do
-          return_from_agency(login_hint: hint, iss: 'urn:gov:gsa:openidconnect:sp:test', status: 'signed_in')
+        context 'when the target application reports the sign-in completed' do
+          it 'repeats the delegation request and forgets the hand-off' do
+            return_from_agency(login_hint: hint, iss: 'urn:gov:gsa:openidconnect:sp:test', status: 'signed_in')
 
-          expect(last_response).to be_redirect
-          expect(last_response.location).to end_with("/auth/request?#{query}")
-          expect(last_request.session).not_to have_key('handoff_login_hint')
-          expect(last_request.session).not_to have_key('auth_request_query')
+            expect(last_response).to be_redirect
+            expect(last_response.location).to end_with("/auth/request?#{query}")
+            expect(last_request.session).not_to have_key('handoff_login_hint')
+            expect(last_request.session).not_to have_key('auth_request_query')
+          end
         end
 
         it 'refuses a return whose hint does not match' do

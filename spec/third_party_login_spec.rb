@@ -20,7 +20,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:initiation) { { iss: host, login_hint:, target_link_uri: } }
 
   before do
-    ENV['semantic_ial_values_enabled'] = 'false'
     ENV['PKCE'] = 'false'
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).
       and_return(false)
