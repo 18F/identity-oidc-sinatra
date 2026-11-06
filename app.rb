@@ -49,9 +49,6 @@ module LoginGov::OidcSinatra
 
   class AppError < StandardError; end
 
-  # Login.gov refused the token exchange (RFC 8693 §2.2.2): the OAuth error, its description and,
-  # when the person holds no identity at the agency, the agency's login-initiation address.
-  # How long a hand-off to an agency may take before its return is refused (TPL-2: ten minutes).
   HANDOFF_LIFETIME_SECONDS = 600
 
   class ExchangeRefused < AppError
@@ -361,19 +358,11 @@ module LoginGov::OidcSinatra
       render_error('Connection', e)
     end
 
-    # The login-initiation address this agency registers (OpenID Connect Core 1.0 §4, Initiating
-    # Login from a Third Party). A service provider that needs the person to hold an identity here
-    # before delegation sends the browser with `iss`, `login_hint` and `target_link_uri`; after the
-    # §4 checks pass, the agency runs its ordinary Login.gov sign-in and, once it completes, returns
-    # the person to `target_link_uri`. Nothing is delegated here and no token is exchanged: this is
-    # the agency's own sign-in, with its own consent, events and billing, and the person already
-    # holds a Login.gov session, so Login.gov signs them in without asking for credentials again.
+    # Third-party initiated login from a delegating application
     get '/initiate_login' do
       handoff = validate_third_party_initiation!(params)
       remember_third_party_handoff(**handoff)
 
-      # The hint is not forwarded: Login.gov identifies the person from its own session, and the
-      # hint means nothing to it.
       auth_url = begin_login_gov_sign_in(
         ial: config.third_party_sign_in_ial,
         aal: nil,

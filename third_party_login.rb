@@ -4,31 +4,14 @@ require 'uri'
 
 module LoginGov
   module OidcSinatra
-    # Relying-party side of OpenID Connect Third-Party-Initiated Login (OpenID Connect Core 1.0
-    # §4): a third party sends the browser to this agency's login-initiation endpoint with `iss`,
-    # `login_hint` and `target_link_uri`, and the agency runs its ordinary Login.gov sign-in. The
-    # two checks §4 requires, the trusted issuer and the verified return address, are here; the
-    # README's "Third-party-initiated login (the agency side)" section explains the pattern and
-    # what each check guards against. Mixed into the Sinatra app with `helpers ThirdPartyLogin`;
-    # relies on `config`, `session` and `params`.
+    # Relying-party side of OpenID Connect Third-Party-Initiated Login (OIDC Core 1.0 §4)
     module ThirdPartyLogin
-      # §4 places no limit on `login_hint`, but it is remembered in the session
-      # cookie and echoed back in a URL, so an upper bound keeps both small and
-      # keeps an attacker from stuffing arbitrary data through the flow.
       LOGIN_HINT_MAX_LENGTH = 128
-
-      # `target_link_uri` is remembered in the session cookie and redirected to, so it gets the
-      # same kind of upper bound; 2048 is the length every browser accepts for a URL.
       TARGET_LINK_URI_MAX_LENGTH = 2048
 
       # Raised for a request §4 says must be refused. The message is safe to show.
       class InvalidInitiation < StandardError; end
 
-      # Runs the §4 relying-party checks on the initiation request and returns
-      # the validated values. Order matters: the issuer is checked first because
-      # a request for an untrusted OpenID Provider must not be acted on at all,
-      # not even to the extent of inspecting its other parameters.
-      #
       # @return [Hash] `login_hint` and `target_link_uri`, both validated
       # @raise [InvalidInitiation]
       def validate_third_party_initiation!(params)
@@ -39,10 +22,6 @@ module LoginGov
         }
       end
 
-      # §4: "The RP MUST verify that the `iss` is one it trusts." This app is
-      # configured for exactly one OpenID Provider, Login.gov, so the only
-      # acceptable value is that issuer. A different issuer would mean sending
-      # the user to sign in somewhere else, which is the attack this check stops.
       def verify_third_party_issuer!(iss)
         raise InvalidInitiation.new('iss is required') if iss.to_s.strip.empty?
         return iss if same_issuer?(iss, config.idp_url)
@@ -57,12 +36,6 @@ module LoginGov
         candidate.to_s.strip.chomp('/') == trusted.to_s.strip.chomp('/')
       end
 
-      # §4: "RPs MUST verify the value of the target_link_uri to prevent being
-      # used as an open redirector to external sites." Only the URL's origin is
-      # compared, against an allow-list of exact origins from configuration, so
-      # the third party may vary the path and query (the page the user was on)
-      # but never the site the user is returned to. No wildcard matching.
-      #
       # @return [String] the URI exactly as supplied, once its origin is allowed
       def verify_target_link_uri!(target_link_uri)
         if target_link_uri.to_s.strip.empty?
@@ -84,8 +57,7 @@ module LoginGov
       end
 
       # The hint is opaque: this app stores it and gives it back, nothing more.
-      # It is still bounded in size (see LOGIN_HINT_MAX_LENGTH) and reduced to a
-      # plain string so it cannot carry structure into the session.
+      # It is still bounded in size (see LOGIN_HINT_MAX_LENGTH)
       def normalize_login_hint(login_hint)
         hint = login_hint.to_s.strip
         return nil if hint.empty?
@@ -94,14 +66,12 @@ module LoginGov
         hint
       end
 
-      # Keeps the hand-off in the session for exactly one sign-in. Flat keys
-      # rather than a nested hash so the values survive any session coder.
+      # Keeps the hand-off in the session for exactly one sign-in.
       def remember_third_party_handoff(login_hint:, target_link_uri:)
         session[:third_party_login_hint] = login_hint
         session[:third_party_target_link_uri] = target_link_uri
       end
 
-      # True while a hand-off is waiting for the sign-in it started to finish.
       def third_party_handoff_pending?
         !session[:third_party_target_link_uri].to_s.empty?
       end
@@ -118,12 +88,6 @@ module LoginGov
       end
 
       # Where to send the user after the sign-in the hand-off started has ended.
-      # §4 only says to return the user to `target_link_uri`; the three query
-      # parameters are this reference setup's convention so the third party can
-      # match the return to the request it made (`login_hint`), see which agency
-      # is returning the user (`iss`, this app's client identifier) and whether
-      # the sign-in succeeded (`status`). The hint is echoed exactly as received.
-      #
       # @param status [String] `signed_in` or `failed`
       def third_party_return_url(handoff, status:)
         uri = URI.parse(handoff[:target_link_uri])
