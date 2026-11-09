@@ -3,8 +3,7 @@
 require 'securerandom'
 
 module LoginGov::OidcSinatra
-  # Process-local values that must not travel in the browser's session cookie: bearer tokens
-  # for the test page, and the document images shown once on the home page.
+  # Process-local tokens and document images: never put them in the browser's session cookie.
   class DocumentTestSession
     TTL = 900
     LIMIT = 100

@@ -39,34 +39,6 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
-3. Encrypted userinfo responses. When the identity provider is configured to encrypt this client's
-   userinfo responses, it answers the userinfo request with one compact JWE (content type
-   `application/jwt`) instead of plain JSON. The app detects the content type and decrypts the
-   response with the private key at `sp_private_key_path`, the same key that signs its
-   `private_key_jwt` client assertion, so nothing needs to be configured here. The decrypted
-   claims are shown on the home page exactly as plain claims are. With the `document_images`
-   scope (offered as a checkbox when the identity provider allow-lists this client for it) they
-   include `document_metadata` and `document_images`, whose values are the URLs of the images
-   (`front`, `back`, `passport`, `selfie`). The "Test document artifacts" page decrypts the same
-   way and reports `encrypted` with each check.
-
-4. Document images. Right after sign-in the app fetches each URL in `document_images` and shows
-   the image inline with its media type and size. The request is a `POST` to that URL with the
-   bearer access token in `Authorization` and two form fields, `client_assertion` and
-   `client_assertion_type` (`urn:ietf:params:oauth:client-assertion-type:jwt-bearer`): the
-   assertion is a `private_key_jwt` signed with the client's key whose `iss` and `sub` are the
-   client id and whose `aud` is exactly the URL requested, with `jti`, `iat` and `exp`. It is a
-   `POST` because a client assertion is a signed JWT and belongs in the request body, not in a URL
-   that proxies and access logs record. The identity provider answers with the image encrypted to
-   this client's registered certificate: content type `application/jose`, a compact JWE whose `cty`
-   header names the image's media type and whose plaintext is the image bytes; the app decrypts it
-   with the same private key. Errors are JSON: 401 `invalid_client` (assertion missing or invalid),
-   403 (sharing not authorized for this sign-in), 404 (no such image yet), 500 `server_error`
-   (the client has no usable certificate to encrypt to). An image that fails is shown as its error
-   beside the others. The images live in the process's memory for one page view, never in the
-   session cookie. The test page's image checks make the same request and report the status, the
-   headers, whether the response was encrypted, and the image's type and size, never its bytes.
-
 ## Delegated access
 
 Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
@@ -79,6 +51,36 @@ target application yet. A delegation request does not create one. Instead, the a
 returns the person with the same hint and `status=signed_in`, the app repeats the delegation request exactly as first
 made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
 session started. A refusal without an address is shown as the delegation's error.
+
+## Encrypted userinfo responses and document images
+
+The identity provider can return data from the userinfo request as a JWE (content type `application/jwt`) instead of
+plain JSON. The app detects the content type and decrypts the response with the private key at `sp_private_key_path`,
+the same key that signs its `private_key_jwt` client assertion.
+
+The decrypted claims are shown on the home page exactly as plain claims are. With the `document_images` scope (offered
+as a checkbox when the identity provider allow-lists this client for it), they include `document_metadata` and
+`document_images`, whose values are the URLs of the images (`front`, `back`, `passport`, `selfie`). The "Test document
+artifacts" page decrypts the same way and reports `encrypted` with each check.
+
+### Document images
+
+After sign-in the app fetches each URL in `document_images` and shows the image inline with its media type and size.
+Each fetch is a `POST` to the URL with the bearer access token in `Authorization` and a `private_key_jwt` client
+assertion (`client_assertion` and `client_assertion_type`) whose `aud` is exactly the URL requested. The identity
+provider answers with a JWE with content type `application/jose`; its `cty` header names the image's media type. The
+app decrypts the JWE with its private key.
+
+Errors are:
+
+- 401 `invalid_client` (assertion missing or invalid),
+- 403 (sharing not authorized for this sign-in),
+- 404 (no such image yet),
+- 500 `server_error` (the client has no usable certificate to encrypt to).
+
+An image that fails is shown as its error beside the others. The images live in the process's memory for one page
+view. The test page's image checks make the same request and report the status, the headers, whether the response was
+encrypted, and the image's type and size.
 
 ## Third-party-initiated login (the target application side)
 
