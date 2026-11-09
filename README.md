@@ -52,6 +52,36 @@ returns the person with the same hint and `status=signed_in`, the app repeats th
 made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
 session started. A refusal without an address is shown as the delegation's error.
 
+## Encrypted userinfo responses and document images
+
+The identity provider can return data from the userinfo request as a JWE (content type `application/jwt`) instead of
+plain JSON. The app detects the content type and decrypts the response with the private key at `sp_private_key_path`,
+the same key that signs its `private_key_jwt` client assertion.
+
+The decrypted claims are shown on the home page exactly as plain claims are. With the `document_images` scope (offered
+as a checkbox when the identity provider allow-lists this client for it), they include `document_metadata` and
+`document_images`, whose values are the URLs of the images (`front`, `back`, `passport`, `selfie`). The "Test document
+artifacts" page decrypts the same way and reports `encrypted` with each check.
+
+### Document images
+
+After sign-in the app fetches each URL in `document_images` and shows the image inline with its media type and size.
+Each fetch is a `POST` to the URL with the bearer access token in `Authorization` and a `private_key_jwt` client
+assertion (`client_assertion` and `client_assertion_type`) whose `aud` is exactly the URL requested. The identity
+provider answers with a JWE with content type `application/jose`; its `cty` header names the image's media type. The
+app decrypts the JWE with its private key.
+
+Errors are:
+
+- 401 `invalid_client` (assertion missing or invalid),
+- 403 (sharing not authorized for this sign-in),
+- 404 (no such image yet),
+- 500 `server_error` (the client has no usable certificate to encrypt to).
+
+An image that fails is shown as its error beside the others. The images live in the process's memory for one page
+view. The test page's image checks make the same request and report the status, the headers, whether the response was
+encrypted, and the image's type and size.
+
 ## Third-party-initiated login (the target application side)
 
 `GET /initiate_login` is the login-initiation address this sample application registers (OpenID Connect Core 1.0 §4). An

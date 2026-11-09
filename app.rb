@@ -3,6 +3,7 @@
 require 'dotenv/load'
 require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/object/to_query'
+require 'base64'
 require 'erubi'
 require 'faraday'
 require 'json'
@@ -122,6 +123,7 @@ module LoginGov::OidcSinatra
           birthdate
           social_security_number
           verified_at
+          document_images
           x509
           x509_issuer
           x509_subject
@@ -234,20 +236,24 @@ module LoginGov::OidcSinatra
     end
 
     def document_test_response(kind:, mode:, token_value:)
-      path = kind == 'userinfo' ? '/api/openid_connect/userinfo' :
-        "/api/openid_connect/document_images/#{kind}"
       request_headers = {}
-      
+
       if mode == 'current'
-        request_headers['Authorization'] = "Bearer #{token_value}" 
+        request_headers['Authorization'] = "Bearer #{token_value}"
       elsif mode == 'invalid'
         request_headers['Authorization'] = 'Bearer intentionally-invalid-test-token'
       end
       # Fixed paths on the configured IdP only; never follow claim URLs or redirects.
-      Faraday.new(url: config.idp_url, headers: request_headers) do |connection|
-        connection.options.timeout = 15
-        connection.options.open_timeout = 5
-      end.get(path)
+      connection = Faraday.new(url: config.idp_url, headers: request_headers) do |c|
+        c.options.timeout = 15
+        c.options.open_timeout = 5
+        c.request :url_encoded
+        c.adapter Faraday.default_adapter
+      end
+      return connection.get('/api/openid_connect/userinfo') if kind == 'userinfo'
+
+      path = "/api/openid_connect/document_images/#{kind}"
+      connection.post(path, document_image_request_body(URI.join(config.idp_url, path).to_s))
     end
 
     def document_test_report(response:, kind:)
@@ -259,20 +265,27 @@ module LoginGov::OidcSinatra
         nosniff: response.headers['x-content-type-options'],
         bytes: response.body.bytesize,
       }
-      if kind == 'userinfo' && response.status == 200
-        data = JSON.parse(response.body)
-        halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
-        report[:claims] = %w[document_images document_metadata].to_h do |claim|
-          value = data[claim]
-          state = 
-            if !data.key?(claim)  
-              'absent' 
-            elsif value == {} 
-              'empty object'
-            else
-              'present'
-            end
-          [claim, { state: state, value: value }]
+      if response.status == 200
+        report[:encrypted] = encrypted_response?(response)
+        if kind == 'userinfo'
+          data = JSON.parse(userinfo_claims_json(response))
+          halt 502, 'IdP returned a non-object userinfo response.' unless data.is_a?(Hash)
+          report[:claims] = %w[document_images document_metadata].to_h do |claim|
+            value = data[claim]
+            state =
+              if !data.key?(claim)
+                'absent'
+              elsif value == {}
+                'empty object'
+              else
+                'present'
+              end
+            [claim, { state: state, value: value }]
+          end
+        else
+          # Only the image's media type and size go in the report.
+          image = decrypted_document_image(response)
+          report[:image] = { content_type: image[:content_type], bytes: image[:data].bytesize }
         end
       end
       report
@@ -296,6 +309,8 @@ module LoginGov::OidcSinatra
       response = document_test_response(kind: kind, mode: mode, token_value: token_value)
       report = document_test_report(response: response, kind: kind)
       erb :document_test_result, locals: { report: report, kind: kind }
+    rescue AppError => e
+      halt 502, e.message
     rescue Faraday::Error, JSON::ParserError
       halt 502, 'IdP unavailable or returned invalid JSON. No successful result recorded.'
     end
@@ -310,10 +325,9 @@ module LoginGov::OidcSinatra
       logout_msg = session.delete(:logout_msg)
       user_email = session[:email]
       userinfo = session.delete(:userinfo)
+      document_images = take_document_images
       error = session.delete(:error)
       error_type = session.delete(:error_type)
-      session.delete(:broker_request)
-      session.delete(:selected_target)
 
       ial = prepare_step_up_flow(session:)
 
@@ -325,6 +339,7 @@ module LoginGov::OidcSinatra
         user_email: user_email,
         logout_uri: error.present? ? nil : logout_uri,
         userinfo: userinfo,
+        document_images: document_images,
         error:,
         error_type:,
         third_party_initiated_from: user_email ? session[:third_party_initiated_from] : nil,
@@ -430,6 +445,7 @@ module LoginGov::OidcSinatra
         session[:login_msg] = 'ok'
         session[:userinfo] = userinfo_response
         session[:email] = session[:userinfo][:email]
+        stash_document_images(userinfo_response[:document_images], access_token)
 
         # The notice names the site that started this sign-in, so an ordinary sign-in in the same
         # browser clears whatever an earlier third-party-initiated one left behind.
@@ -767,11 +783,12 @@ module LoginGov::OidcSinatra
       json response.body
     end
 
-    def client_assertion_jwt
+    # private_key_jwt client assertion (RFC 7523) for the given audience
+    def client_assertion_jwt(aud: openid_configuration[:token_endpoint])
       jwt_payload = {
         iss: client_id,
         sub: client_id,
-        aud: openid_configuration[:token_endpoint],
+        aud: aud,
         jti: random_value,
         exp: Time.now.to_i + 1000,
       }
@@ -783,7 +800,69 @@ module LoginGov::OidcSinatra
       url = openid_configuration[:userinfo_endpoint]
 
       connection = Faraday.new(url: url, headers:{'Authorization' => "Bearer #{access_token}" })
-      JSON.parse(connection.get('').body).with_indifferent_access
+      response = connection.get('')
+
+      JSON.parse(userinfo_claims_json(response)).with_indifferent_access
+    end
+
+    def userinfo_claims_json(response)
+      decrypt_response(response).first
+    end
+
+    def fetch_document_image(url, access_token:)
+      connection = Faraday.new(url: url, headers: { 'Authorization' => "Bearer #{access_token}" })
+      response = connection.post('', document_image_request_body(url))
+      return decrypted_document_image(response) if response.status == 200
+
+      { error: "#{response.status} #{response.body.to_s[0, 200]}" }
+    rescue AppError => e
+      { error: e.message }
+    end
+
+    def document_image_request_body(url)
+      {
+        client_assertion: client_assertion_jwt(aud: url),
+        client_assertion_type: JWT_CLIENT_ASSERTION_TYPE,
+      }
+    end
+
+    def decrypted_document_image(response)
+      data, content_type = decrypt_response(response)
+      { content_type: content_type.to_s.split(';').first, data: data }
+    end
+
+    # Plain body, or a compact JWE (RFC 7516) decrypted with the client's private key
+    def decrypt_response(response)
+      content_type = response.headers['Content-Type'].to_s
+      return [response.body, content_type] unless encrypted_response?(response)
+
+      header = JSON.parse(Base64.urlsafe_decode64(response.body.to_s.split('.').first.to_s))
+      [JWE.decrypt(response.body, config.sp_private_key), header['cty'] || 'application/json']
+    rescue JWE::DecodeError, OpenSSL::OpenSSLError, ArgumentError, JSON::ParserError => e
+      raise AppError.new("Could not decrypt the encrypted response: #{e.message}")
+    end
+
+    def encrypted_response?(response)
+      type = response.headers['Content-Type'].to_s
+      type.start_with?('application/jwt', 'application/jose')
+    end
+
+    # Images are kept in the process-local store, never in the session cookie.
+    def stash_document_images(image_urls, access_token)
+      return unless image_urls.is_a?(Hash) && image_urls.present?
+
+      images = image_urls.to_h { |type, url| [type.to_s, fetch_document_image(url, access_token:)] }
+      session[:document_images_id] = DocumentTestSession.put(images)
+    end
+
+    def take_document_images
+      session.delete(:broker_request)
+      session.delete(:selected_target)
+      DocumentTestSession.get(session.delete(:document_images_id)) || {}
+    end
+
+    def document_image_data_url(image)
+      "data:#{image[:content_type]};base64,#{Base64.strict_encode64(image[:data])}"
     end
 
     def token_exchange(access_token, code)
