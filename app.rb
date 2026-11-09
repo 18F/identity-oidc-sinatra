@@ -558,9 +558,6 @@ module LoginGov::OidcSinatra
       }
     end
 
-    # A key-bound delegated token (token_type DPoP) must reach the agency API with a proof signed by
-    # the key, which a browser redirect cannot carry; the sample calls the API itself and shows the
-    # answer. A bearer token keeps the redirect.
     post '/send-access-token' do
       metadata = config.targets.find { |target| target['issuer'] == params['target'] }
       token = session[:access_token]
@@ -577,11 +574,6 @@ module LoginGov::OidcSinatra
       redirect to("#{metadata['api']}?#{{ access_token: token }.to_query}")
     end
 
-    # The agency API's side of a delegated token. The token is the JWE Login.gov sealed to this
-    # service's certificate; its claims are signed by Login.gov. A token that carries cnf.jkt is
-    # bound to the actor's key (RFC 9449 §6.1): it must arrive under the DPoP scheme with a proof
-    # signed by that key for this request, and is refused as a Bearer token (§7.1). A token without
-    # cnf is a bearer token and is accepted as such.
     get '/api/records' do
       content_type :json
       scheme, token = request.env['HTTP_AUTHORIZATION'].to_s.split(' ', 2)
@@ -715,8 +707,7 @@ module LoginGov::OidcSinatra
         request_params[:code_challenge_method] = 'S256'
       end
 
-      # RFC 9449 §10: naming the key's thumbprint binds the authorization code to it, so an
-      # intercepted code cannot be redeemed with another key.
+      # RFC 9449 §10: binds the authorization code to the key.
       request_params[:dpop_jkt] = dpop_jkt if dpop_jkt
 
       "#{endpoint}?#{request_params.compact.to_query}"
@@ -789,8 +780,6 @@ module LoginGov::OidcSinatra
       ENV['PKCE'] == 'true'
     end
 
-    # Key binding applies to a public client only: it has no client secret, so the key it holds is
-    # what makes a stolen token useless. Login.gov lists the clients it expects to bind.
     def use_dpop?
       use_pkce? && ENV['DPOP'] == 'true'
     end
@@ -799,8 +788,6 @@ module LoginGov::OidcSinatra
       Dpop.key_from_pem(session[:dpop_key])
     end
 
-    # The DPoP header for one request to Login.gov's token endpoint: a fresh proof for POST to that
-    # URL, with ath over the token when one is presented.
     def dpop_headers(access_token: nil)
       return {} unless use_dpop?
 
@@ -810,8 +797,6 @@ module LoginGov::OidcSinatra
       { 'DPoP' => proof }
     end
 
-    # RFC 9449 §7.1: the challenge names the proof algorithms this API accepts, the same list the
-    # verifier enforces.
     def dpop_challenge
       { 'WWW-Authenticate' => %(DPoP algs="#{Dpop::ALLOWED_ALGORITHMS.join(' ')}") }
     end
@@ -821,10 +806,6 @@ module LoginGov::OidcSinatra
       halt 401, (challenge ? dpop_challenge : {}), body
     end
 
-    # The agency opens the JWE with its own private key and verifies Login.gov's signature against
-    # the published keys. The claims are trusted only after both, and only when the token was
-    # issued by this service's Login.gov (`iss`) for this service (`aud`, RFC 7519 §4.1.3): a
-    # delegated token meant for another agency opens with the same demo key but is not accepted.
     def decrypt_and_verify_delegated_token(token)
       jwt = JWE.decrypt(token, config.sp_private_key)
       JWT.decode(
@@ -986,9 +967,6 @@ module LoginGov::OidcSinatra
       "data:#{image[:content_type]};base64,#{Base64.strict_encode64(image[:data])}"
     end
 
-    # The access token is presented under the scheme Login.gov issued it with. A key-bound token
-    # (token_type DPoP, RFC 9449) must travel with a fresh proof for this GET, carrying ath over
-    # the token; an ordinary bearer token is sent as before.
     def userinfo_auth_headers(access_token:, token_type:, url:)
       if token_type == 'DPoP'
         {
@@ -1000,9 +978,6 @@ module LoginGov::OidcSinatra
       end
     end
 
-    # RFC 8693: the subject token is the token the code exchange returned; the audience names the
-    # agency application and the resource its API. For a key-bound client the proof carries ath over
-    # the subject token, so the delegated token Login.gov issues is bound to the same key.
     def token_exchange(subject_token)
       token_metadata = config.targets.find { |target| target['scope'] == session[:token_scope] }
 

@@ -47,14 +47,13 @@ Checking "Initiate Broker token exchange" and requesting a `token_exchange:<valu
 as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
 Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
 
-With `DPOP=true` (and `PKCE=true`) the sample generates a P-256 key per sign-in, names its thumbprint as `dpop_jkt`,
-sends a DPoP proof with the code exchange and the token exchange, and, because a key-bound token must travel with a
-proof, calls the target API itself with the `DPoP` scheme instead of redirecting the browser.
-
-`GET /api/records` is the agency API's side: it accepts a delegated token in the `Authorization` header, opens it with
-the service's private key, verifies Login.gov's signature, accepts only a token Login.gov (`iss`) issued for this
-service's `client_id` (`aud`) and, when the token carries `cnf.jkt`, requires the `DPoP` scheme and a proof signed by
-that key for this request (RFC 9449 §7.1), refusing the token presented as `Bearer`.
+With `DPOP=true` (and `PKCE=true`) the app also binds the sign-in and the delegated token to a key it holds (RFC 9449).
+It generates a P-256 key for each sign-in, names the key's thumbprint as `dpop_jkt` on the authorization request, and
+sends a fresh DPoP proof with every request to Login.gov's token endpoint: the code exchange, and the token exchange,
+where the proof also carries `ath`, a hash of the token being traded in. The delegated token Login.gov returns is bound
+to the same key (`cnf.jkt`), so a browser redirect cannot carry it to the target API; instead the app calls the API
+itself with the `DPoP` scheme and a proof for that request, and shows the answer. The sign-in token is presented to
+`userinfo` the same way.
 
 When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
 target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address
@@ -62,6 +61,14 @@ target application yet. A delegation request does not create one. Instead, the a
 returns the person with the same hint and `status=signed_in`, the app repeats the delegation request exactly as first
 made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
 session started. A refusal without an address is shown as the delegation's error.
+
+`GET /api/records` is the agency API's side. It takes a delegated token from the `Authorization` header, opens it with
+the service's private key, verifies Login.gov's signature, and accepts only a token Login.gov (`iss`) issued for this
+service's `client_id` (`aud`). When the token carries `cnf.jkt`, it must arrive under the `DPoP` scheme with a proof
+signed by that key for this request: the proof's method and URL, its age, its `ath` over the token and the thumbprint of
+its key are all checked (RFC 9449 §4.3), and the same token presented as `Bearer` is refused (§7.1). A token without
+`cnf` is an ordinary bearer token. The sample keeps no record of the proof identifiers it has seen; a deployed agency API
+must, so that a captured proof cannot be replayed within the acceptance window.
 
 ## Encrypted userinfo responses and document images
 

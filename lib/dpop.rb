@@ -9,17 +9,6 @@ require 'uri'
 
 module LoginGov
   module OidcSinatra
-    # RFC 9449 (DPoP) for both roles this sample plays.
-    #
-    # As the actor, the sample holds a P-256 key for the sign-in, names its thumbprint as dpop_jkt
-    # on the authorization request, and signs one proof per request to Login.gov's token endpoint:
-    # for the code exchange, and for the token exchange with `ath` over the subject token it
-    # presents. Login.gov binds the delegated access token to that key and reports it as `cnf.jkt`.
-    #
-    # As the agency API, the sample verifies the proof that accompanies a delegated token: the proof
-    # is for this request's method and URL, is recent, carries `ath` over the token exactly as
-    # presented, and is signed by the key whose thumbprint the token's `cnf.jkt` names. A token with
-    # `cnf` presented without a proof, or as a Bearer token, is refused.
     module Dpop
       PROOF_TYPE = 'dpop+jwt'
       ALLOWED_ALGORITHMS = %w[ES256 RS256].freeze
@@ -35,25 +24,19 @@ module LoginGov
         OpenSSL::PKey::EC.new(pem)
       end
 
-      # The public half of the key as a JWK, the form the proof header carries.
       def self.public_jwk(key)
         JWT::JWK.new(key).export
       end
 
-      # RFC 7638 thumbprint: what the authorization request names as dpop_jkt and what Login.gov
-      # puts in the delegated token's cnf.jkt.
       def self.thumbprint(key)
         JWT::JWK::Thumbprint.new(JWT::JWK.new(key)).generate
       end
 
-      # RFC 9449 §4.2 `ath`: base64url, unpadded, SHA-256 of the token as presented.
+      # RFC 9449 §4.2: `ath` is the unpadded base64url SHA-256 of the token as presented.
       def self.token_hash(access_token)
         Base64.urlsafe_encode64(Digest::SHA256.digest(access_token.to_s), padding: false)
       end
 
-      # A proof for one request: method, URL, a fresh jti and the current time, plus `ath` when a
-      # token accompanies the request. Signed ES256 by the key, whose public half rides in the
-      # header so the verifier can check the signature before trusting anything else.
       def self.proof(key:, method:, url:, access_token: nil)
         payload = {
           jti: SecureRandom.urlsafe_base64(16),
@@ -65,10 +48,7 @@ module LoginGov
         JWT.encode(payload, key, 'ES256', typ: PROOF_TYPE, jwk: public_jwk(key))
       end
 
-      # The agency-side check, in the order RFC 9449 §4.3 lists it. Returns the thumbprint of the
-      # proof key; raises ProofError with the reason otherwise. This sample keeps no record of seen
-      # jti values; a deployed agency API must, so a captured proof cannot be replayed within the
-      # acceptance window.
+      # The checks of RFC 9449 §4.3 in its order; the sample keeps no record of seen jti values.
       def self.verify_proof(proof:, method:, url:, access_token:, expected_thumbprint:)
         raise ProofError.new('DPoP proof missing') if proof.to_s.empty?
 
@@ -119,8 +99,7 @@ module LoginGov
         raise ProofError.new("DPoP proof jwk is invalid: #{e.message}")
       end
 
-      # htu is compared without query or fragment, with scheme and host lowercased, default ports
-      # dropped and a trailing slash ignored (RFC 9449 §4.3).
+      # RFC 9449 §4.3: htu is compared without query, fragment, default port or trailing slash.
       def self.normalize_url(url)
         uri = URI.parse(url.to_s)
         return nil unless uri.is_a?(URI::HTTP) && uri.host
