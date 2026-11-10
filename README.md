@@ -34,23 +34,144 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | client_id_pkce              | Identifier for this app as configured with the identity provider. Used if `PKCE` is true     | urn:gov:gsa:openidconnect:sp:sinatra_pkce |
    | eipp_allowed                | Enhanced In Person Proofing allowed                                                          | false                                     |
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
+   | DPOP                        | With `PKCE`, binds the sign-in and the delegated token to a key held for the sign-in (RFC 9449): `dpop_jkt` on the authorization request and a `DPoP` proof on every token request | false                                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
+   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
 ## Delegated access
 
-Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
-as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
-Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
+This demo app plays two roles: the **actor**, the service a person signs in to (say, MyBenefits Assistant), which asks
+Login.gov for a token it can use to call an agency's API on that person's behalf, and the **agency API** itself (the
+target application, say Housing Assistance Records), which receives that token and decides whether to answer. The actor
+role is turned on by checking "Initiate Broker token exchange" on the home page and requesting a `token_exchange:<value>`
+scope, with `DPOP=true` (together with `PKCE=true`) adding key binding; the agency role is just this app running as the
+target service, where `third_party_target_link_allowlist` and `third_party_sign_in_ial` govern the sign-ins it accepts
+from another site (see [the target application side](#third-party-initiated-login-the-target-application-side)).
 
-When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
-target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address
-(OpenID Connect Core 1.0 §4) with `iss`, a fresh `login_hint` and `target_link_uri=/third_party/return`; when the target application
-returns the person with the same hint and `status=signed_in`, the app repeats the delegation request exactly as first
-made, and the exchange now succeeds. The return is honored once, within ten minutes, and only for the hand-off this browser
-session started. A refusal without an address is shown as the delegation's error.
+### Getting a token for an agency API (token exchange)
+
+The person signs in to this app with Login.gov in the ordinary way, described in
+[Login.gov's OpenID Connect developer documentation](https://developers.login.gov/oidc/). The app trades the
+authorization code for an access token. It then goes back to Login.gov's token endpoint and trades that access token for
+a different one: a delegated token for the agency API named by the `token_exchange:<value>` scope. This second trade is
+an OAuth 2.0 token exchange ([RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)). The sign-in token is the
+`subject_token`; the agency application's issuer is the `audience` and its API URL is the `resource`, both read from the
+matching entry in `token_exchange_targets`. The delegated token names the person (`sub`) and the actor acting for them
+(`act`). The "Target" page then offers to send it to the agency API, and shows what the API answers.
+
+```mermaid
+sequenceDiagram
+    participant B as Person's browser
+    participant A as This app (actor)
+    participant L as Login.gov
+    participant T as Agency API
+    B->>A: Choose a target, check "Initiate Broker token exchange"
+    A->>L: Authorization request (OIDC)
+    L->>B: Sign-in and consent
+    B->>A: Redirect with authorization code
+    A->>L: Code exchange at the token endpoint
+    L-->>A: Access token for this app
+    A->>L: Token exchange (RFC 8693): subject_token, audience, resource
+    L-->>A: Delegated token for the agency API
+    A->>T: GET /api/records with the delegated token
+    T-->>A: The person's records
+    A-->>B: Shows the answer
+```
+
+### Binding the tokens to a key (DPoP)
+
+A plain bearer token works for whoever holds it: if it leaks from the browser, a log or a proxy, the thief can use it.
+With `DPOP=true` (and `PKCE=true`) the app binds its tokens to a private key it keeps for the sign-in, following
+[RFC 9449](https://www.rfc-editor.org/rfc/rfc9449). Every use of the token must then come with a fresh signature from
+that key, so a copied token is useless on its own. The steps are:
+
+1. **Make a key and announce it.** The app generates a P-256 key for each sign-in and puts the key's thumbprint on the
+   authorization request as `dpop_jkt`, so Login.gov knows from the start which key the tokens belong to
+   ([RFC 9449 §10](https://www.rfc-editor.org/rfc/rfc9449#section-10)).
+2. **Prove the key on every token request.** Each request to Login.gov's token endpoint carries a `DPoP` header: a short
+   signed JWT naming the request's method and URL, the time, a one-time `jti`, and the public key
+   ([§4.1](https://www.rfc-editor.org/rfc/rfc9449#section-4.1), [§4.2](https://www.rfc-editor.org/rfc/rfc9449#section-4.2)).
+   The proof on the token exchange also carries `ath`, a hash of the access token being traded in
+   ([§4.2](https://www.rfc-editor.org/rfc/rfc9449#section-4.2)).
+3. **Receive a bound token.** The delegated token Login.gov returns carries `cnf.jkt`, the thumbprint of the same key
+   ([§6.1](https://www.rfc-editor.org/rfc/rfc9449#section-6.1)). Because a browser redirect cannot sign anything, the
+   app no longer hands the token to the agency API through the browser; it calls the API itself.
+4. **Present it with a proof.** The call to the agency API sends the token as `Authorization: DPoP <token>` with a `DPoP`
+   proof made for that exact request ([§7.1](https://www.rfc-editor.org/rfc/rfc9449#section-7.1)). The sign-in token is
+   presented to `userinfo` the same way.
+
+```mermaid
+sequenceDiagram
+    participant A as This app (actor)
+    participant L as Login.gov
+    participant T as Agency API
+    A->>A: Generate a P-256 key for this sign-in
+    A->>L: Authorization request with dpop_jkt (thumbprint)
+    A->>L: Code exchange + DPoP proof (htm, htu, iat, jti, jwk)
+    L-->>A: Access token
+    A->>L: Token exchange + DPoP proof with ath (hash of the access token)
+    L-->>A: Delegated token with cnf.jkt
+    A->>T: Authorization: DPoP <token> + DPoP proof for GET /api/records
+    T-->>A: Records, after checking the proof against cnf.jkt
+```
+
+### When the person has no account at the agency (third-party-initiated login)
+
+Login.gov can only delegate to an agency the person has already connected their account with. If they have not,
+Login.gov refuses the exchange with `invalid_target` and, when the agency has registered one, an `initiate_login_uri`.
+A delegation request never creates the account; the person has to sign in at the agency first. So the actor hands the
+browser to the agency's login-initiation address (`GET /initiate_login` in this sample) using third-party-initiated
+login ([OpenID Connect Core 1.0 §4](https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin))
+with three parameters: `iss` (Login.gov's URL), a fresh `login_hint` (an opaque value this app will recognize on the
+way back) and `target_link_uri=/third_party/return` (where to send the person afterwards). The agency runs its own
+Login.gov sign-in; the person already has a Login.gov session, so they are not asked for credentials again. The agency
+then returns the person to `/third_party/return` with the same `login_hint` and `status=signed_in`, and this app repeats
+the delegation request exactly as it was first made. The exchange now succeeds.
+
+The return is honored once, within ten minutes, and only for the hand-off this browser session started; a return with
+an unknown hint, an expired hand-off or any other `status` is shown as an error. A refusal that carries no
+`initiate_login_uri` is shown as the delegation's error.
+
+```mermaid
+sequenceDiagram
+    participant B as Person's browser
+    participant A as This app (actor)
+    participant L as Login.gov
+    participant T as Agency (target application)
+    A->>L: Token exchange for the agency
+    L-->>A: invalid_target + initiate_login_uri
+    A->>B: Redirect to the agency's GET /initiate_login?iss=...&login_hint=...&target_link_uri=.../third_party/return
+    B->>T: GET /initiate_login
+    T->>L: The agency's own Login.gov sign-in (existing session, no new credentials)
+    L-->>T: Signed in; the account is now connected to the agency
+    T->>B: Redirect to target_link_uri?login_hint=...&iss=<agency>&status=signed_in
+    B->>A: GET /third_party/return
+    A->>L: The same token exchange again
+    L-->>A: Delegated token
+```
+
+### What the agency API checks (GET /api/records)
+
+`GET /api/records` is the agency side of the sample. It reads the token from the `Authorization` header and, in this
+order:
+
+1. **Decrypts it** with the service's private key (`sp_private_key_path`); the delegated token is a JWE encrypted to
+   this agency, so no one else can read it.
+2. **Verifies Login.gov's signature** on the token inside, against the keys Login.gov publishes at its JWKS address.
+3. **Checks who issued it and who it is for**: `iss` must be Login.gov and `aud` must be this service's `client_id`
+   ([RFC 7519 §4.1](https://www.rfc-editor.org/rfc/rfc7519#section-4.1)).
+4. **Checks the DPoP proof when the token carries `cnf.jkt`**: the `DPoP` header must be a proof signed by the key with
+   that thumbprint, for this method and URL, recent (within five minutes), with an `ath` matching the token presented
+   ([RFC 9449 §4.3](https://www.rfc-editor.org/rfc/rfc9449#section-4.3)).
+5. **Refuses a bound token presented as `Bearer`** ([RFC 9449 §7.1](https://www.rfc-editor.org/rfc/rfc9449#section-7.1)),
+   answering `401` with a `WWW-Authenticate: DPoP` challenge. A token without `cnf` is an ordinary bearer token and is
+   accepted under the `Bearer` scheme only.
+
+The sample keeps no record of the proof identifiers (`jti`) it has seen. A deployed agency API must, so that a captured
+proof cannot be replayed within the acceptance window.
 
 ## Encrypted userinfo responses and document images
 
