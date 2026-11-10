@@ -45,6 +45,19 @@ module LoginGov
         @config.fetch('client_id_pkce')
       end
 
+      # Whether this instance runs as a public client with PKCE (RFC 7636), using
+      # `client_id_pkce` and no client assertion.
+      def pkce?
+        @config.fetch('PKCE') == 'true'
+      end
+
+      # Whether the public client binds its tokens to a key it holds (DPoP, RFC 9449).
+      # Only a PKCE client can be bound; a confidential client proves itself with its
+      # client assertion instead.
+      def dpop?
+        pkce? && @config.fetch('DPOP') == 'true'
+      end
+
       def mock_irs_client_id
         @config.fetch('mock_irs_client_id')
       end
@@ -102,6 +115,8 @@ module LoginGov
           'acr_values' => ENV['acr_values'] || 'http://idmanagement.gov/ns/assurance/ial/1',
           'client_id' => ENV['client_id'] || 'urn:gov:gsa:openidconnect:sp:sinatra',
           'client_id_pkce' => ENV['client_id_pkce'] || 'urn:gov:gsa:openidconnect:sp:sinatra_pkce',
+          'PKCE' => ENV['PKCE'] || 'false',
+          'DPOP' => ENV['DPOP'] || 'false',
           'mock_irs_client_id' => ENV['mock_irs_client_id'] ||
                                   'urn:gov:gsa:openidconnect:sp:mock_irs',
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',

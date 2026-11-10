@@ -707,8 +707,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:api_url) { 'https://api.agency-b.gov/records' }
     let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
 
-    before { ENV['token_exchange_targets'] = targets.to_json }
-    after { ENV.delete('token_exchange_targets') }
+    before do
+      allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:targets).
+        and_return(JSON.parse(targets.to_json))
+    end
 
     def start_delegated_sign_in
       get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
@@ -835,15 +837,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:proof_format) { /\A[\w-]+\.[\w-]+\.[\w-]+\z/ }
 
     before do
-      ENV['PKCE'] = 'true'
-      ENV['DPOP'] = 'true'
-      ENV['token_exchange_targets'] = targets.to_json
-    end
-
-    after do
-      ENV['PKCE'] = 'false'
-      ENV['DPOP'] = 'false'
-      ENV.delete('token_exchange_targets')
+      allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:pkce?).and_return(true)
+      allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:dpop?).and_return(true)
+      allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:targets).
+        and_return(JSON.parse(targets.to_json))
     end
 
     def session_key
@@ -874,7 +871,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'does not send dpop_jkt when DPOP is off' do
-      ENV['DPOP'] = 'false'
+      allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:dpop?).and_return(false)
       start_delegated_sign_in
 
       expect(CGI.parse(URI(last_response.location).query)).not_to have_key('dpop_jkt')
@@ -987,8 +984,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     context 'GET /api/records, the agency API side' do
       # The agency instance is a confidential client of its own: no PKCE, no DPoP of its own.
       before do
-        ENV['PKCE'] = 'false'
-        ENV['DPOP'] = 'false'
+        allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:pkce?).and_return(false)
+        allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:dpop?).and_return(false)
       end
 
       let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }

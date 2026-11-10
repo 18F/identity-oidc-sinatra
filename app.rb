@@ -777,11 +777,11 @@ module LoginGov::OidcSinatra
     end
 
     def use_pkce?
-      ENV['PKCE'] == 'true'
+      config.pkce?
     end
 
     def use_dpop?
-      use_pkce? && ENV['DPOP'] == 'true'
+      config.dpop?
     end
 
     def dpop_key
