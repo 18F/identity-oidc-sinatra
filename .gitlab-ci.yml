@@ -24,7 +24,11 @@ default:
   - *npm_install
   - bundle exec rake login:deploy_json
   - make copy_vendor
-  - cf8 login -a https://api.fr.cloud.gov -u "CF-${SPACE}-USER" -p "CF-${SPACE}-PASS" -o "gsa-login-prototyping" -s "$SPACE"
+  - UPPER_SPACE=$(echo $SPACE| tr '[:lower:]' '[:upper:]')
+  - CF_USER="CF_${UPPER_SPACE}_USER"
+  - CF_PASS="CF_${UPPER_SPACE}_PASS"
+  # ${!FOO} syntax is used below for "bash indirect expansion"
+  - cf8 login -a https://api.fr.cloud.gov -u ${!CF_USER} -p ${!CF_PASS} -o "gsa-login-prototyping" -s "$SPACE"
   - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
 
 .build_cache:
@@ -127,4 +131,3 @@ deploy_to_cloudgov:
   parallel:
     matrix:
       - SPACE: [prod, staging, int, dev, dm]
-
