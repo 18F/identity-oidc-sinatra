@@ -24,7 +24,7 @@ default:
   - *npm_install
   - bundle exec rake login:deploy_json
   - make copy_vendor
-  - cf8 login -a https://api.fr.cloud.gov -u "CF-${SPACE}-USER" -p "CF-${SPACE}-PASS" -o "gsa-login-prototyping" -s "$SPACE"
+  - cf8 login -a https://api.fr.cloud.gov -u $CF_USER -p $CF_PASS -o "gsa-login-prototyping" -s "$SPACE"
   - cf8 push $SPACE-identity-oidc-sinatra -b ruby_buildpack -s cflinuxfs4
 
 .build_cache:
@@ -123,7 +123,22 @@ deploy_to_cloudgov:
   stage: deploy
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - export CF_USER="CF-${SPACE}-USER"
+    - export CF_PASS="CF-${SPACE}-PASS"
   script: *deploy_script
+  parallel:
+    matrix:
+      - SPACE: [prod, staging, int, dev, dm]
+
+.echo_vars_script: &echo_vars_script
+  - UPPER_SPACE=$(echo $SPACE| tr '[:lower:]' '[:upper:]')
+  - CF_SPACE_USER="CF_${UPPER_SPACE}_USER"
+  - echo "User is ${!CF_SPACE_USER}"
+
+echo_vars:
+  stage: test
+  script: *echo_vars_script
   parallel:
     matrix:
       - SPACE: [prod, staging, int, dev, dm]
