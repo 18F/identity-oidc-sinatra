@@ -112,8 +112,11 @@ module LoginGov
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
           'signed_events' => ENV['signed_events'],
-          'token_exchange_targets' => ENV['token_exchange_targets'] || 
-                                      '[{"issuer":"state", "scope":"passport", "api": "http://add-target-api"}]',
+          # Agency applications this app can ask to delegate to: `issuer` is the agency's client
+          # identifier (the token exchange's `audience`), `api` the URL of its API (the `resource`).
+          # A `scope` field left over in an older .env file is accepted and ignored.
+          'token_exchange_targets' => ENV['token_exchange_targets'] ||
+                                      '[{"issuer":"state", "api": "http://add-target-api"}]',
           'third_party_target_link_allowlist' =>
             ENV['third_party_target_link_allowlist'] || 'http://localhost:9292',
           'third_party_sign_in_ial' => ENV['third_party_sign_in_ial'] || '2',

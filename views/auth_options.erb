@@ -85,6 +85,24 @@
             Initiate Broker token exchange
           </label>
         </div>
+        <fieldset class="usa-fieldset margin-left-4">
+          <legend class="usa-legend">
+            Agency APIs to delegate to (all of them when none is checked)
+          </legend>
+          <% config.targets.each_with_index do |target, index| %>
+            <div class="usa-checkbox">
+              <input class="usa-checkbox__input"
+                      id="check-resource-<%= index %>"
+                      type="checkbox"
+                      name="requested_resources[]"
+                      value="<%= target['api'] %>"
+              >
+              <label class="usa-checkbox__label" for="check-resource-<%= index %>">
+                <%= target['issuer'] %>: <code><%= target['api'] %></code>
+              </label>
+            </div>
+          <% end %>
+        </fieldset>
       </details>
     </div>
   </form>

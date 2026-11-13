@@ -129,13 +129,7 @@ module LoginGov::OidcSinatra
           x509_issuer
           x509_subject
           x509_presented
-        ] + target_options
-      end
-
-      def target_options
-        config.targets.map do |target|
-          "token_exchange:#{target['scope']}"
-        end
+        ]
       end
 
       def default_scopes_by_ial
@@ -357,14 +351,21 @@ module LoginGov::OidcSinatra
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
       session[:broker_request] = params[:initiate_broker_token_exchange]
-      session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
+      # The agency APIs this sign-in asks to delegate to, kept so the token exchange and the
+      # "Target" page can find their entries by URL once the sign-in returns.
+      session[:resources] =
+        (requested_resources(params[:requested_resources]) if session[:broker_request] == 'true')
       # Kept only for a delegation request, so it can be repeated as-is after a hand-off to the
       # agency.
       session[:auth_request_query] = (request.query_string if session[:broker_request] == 'true')
 
       ial = prepare_step_up_flow(session:)
       auth_url = begin_login_gov_sign_in(
-        ial:, aal: params[:aal], scopes: params[:requested_scopes] || [], prompt:,
+        ial:,
+        aal: params[:aal],
+        scopes: params[:requested_scopes] || [],
+        prompt:,
+        resources: session[:resources],
       )
 
       settings.logger.info("Redirecting to #{auth_url}")
@@ -552,7 +553,7 @@ module LoginGov::OidcSinatra
     get '/target' do
       erb :target, locals: {
         targets: config.targets,
-        selected_target: session[:token_scope],
+        selected_resources: session[:resources] || [],
         token_type: session[:access_token_type],
         bound: session[:access_token_type] == 'DPoP',
       }
@@ -660,8 +661,9 @@ module LoginGov::OidcSinatra
 
     # Starts the Login.gov authorization code flow: fresh `state` and `nonce`, the PKCE verifier and
     # then the authorize URL. Shared by the sign-in button and by
-    # third-party-initiated login so both produce the same request to Login.gov.
-    def begin_login_gov_sign_in(ial:, aal:, scopes:, prompt:)
+    # third-party-initiated login so both produce the same request to Login.gov. `resources` is the
+    # list of agency API URLs a delegation request names; nil for an ordinary sign-in.
+    def begin_login_gov_sign_in(ial:, aal:, scopes:, prompt:, resources: nil)
       session[:state] = random_value
       session[:nonce] = random_value
       session[:code_verifier] = random_value if use_pkce?
@@ -676,6 +678,7 @@ module LoginGov::OidcSinatra
         code_verifier: session[:code_verifier],
         dpop_jkt: (Dpop.thumbprint(dpop_key) if use_dpop?),
         prompt:,
+        resources:,
       )
     end
 
@@ -687,14 +690,19 @@ module LoginGov::OidcSinatra
     end
 
     def authorization_url(
-      state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:, dpop_jkt: nil
+      state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:, dpop_jkt: nil, resources: nil
     )
       endpoint = openid_configuration[:authorization_endpoint]
+      # A delegation request adds the single `token_exchange` scope and names the agency APIs it
+      # is for in `resource` (RFC 8707); Login.gov takes several URLs in one parameter, separated
+      # by `;`, where RFC 8707 would repeat the parameter.
+      scopes += ['token_exchange'] if resources
       request_params = {
         client_id: client_id,
         response_type: 'code',
         acr_values: acr_values(ial: ial, aal: aal),
         scope: scopes.join(' ') + ' openid',
+        resource: resources&.join(';'),
         redirect_uri: File.join(config.redirect_uri, '/auth/result'),
         state: state,
         nonce: nonce,
@@ -851,11 +859,16 @@ module LoginGov::OidcSinatra
       AttemptsConfiguration.cached_attempts_public_key(attempts_config)
     end
 
-    def get_token_scope(scopes)
-      scope = scopes.find { |scope| scope.match(/token_exchange:(.+)/) }
-      return unless scope 
-      
-      scope.delete_prefix('token_exchange:')
+    # The agency API URLs to put in `resource`: the configured ones the person picked, or every
+    # configured one when none was picked.
+    def requested_resources(selected)
+      configured = config.targets.map { |target| target['api'] }
+      chosen = configured & Array(selected)
+      chosen.empty? ? configured : chosen
+    end
+
+    def target_for(resource)
+      config.targets.find { |target| target['api'] == resource }
     end
 
     def token(code)
@@ -978,8 +991,10 @@ module LoginGov::OidcSinatra
       end
     end
 
+    # Trades the sign-in token for a delegated token (RFC 8693) for the first agency API this
+    # sign-in asked for; its entry gives the `audience` (the agency's issuer) and the `resource`.
     def token_exchange(subject_token)
-      token_metadata = config.targets.find { |target| target['scope'] == session[:token_scope] }
+      token_metadata = target_for(session[:resources].first)
 
       token_params = {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',

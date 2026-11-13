@@ -19,21 +19,17 @@
         </p>
         
         <form action="/send-access-token" method="POST">
-          <label class="usa-label" for="aal">
-          Target Scopes
+          <label class="usa-label" for="target">
+          Agency API
           </label>
           <select name="target" id="target" class="usa-select">
             <% targets.each do |target| %>
-              <% [
-                    [target['issuer'], target['scope']],
-                  ].each do |value, label| %>
-                <option value="<%= value %>"
-                  " <%= 'selected' if selected_target == label %>" 
-                  <%= 'disabled' if selected_target != label %>
-                >
-                  <%= label %>
-                </option>
-              <% end %>
+              <option value="<%= target['issuer'] %>"
+                <%= 'selected' if selected_resources.first == target['api'] %>
+                <%= 'disabled' unless selected_resources.include?(target['api']) %>
+              >
+                <%= target['api'] %>
+              </option>
             <% end %>
           </select>
 

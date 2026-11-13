@@ -38,7 +38,7 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
-   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
+   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the token exchange's `audience`) and `api` (the agency API URL sent as `resource`); a leftover `scope` field is ignored | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
 ## Delegated access
@@ -46,21 +46,37 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 This demo app plays two roles: the **actor**, the service a person signs in to (say, MyBenefits Assistant), which asks
 Login.gov for a token it can use to call an agency's API on that person's behalf, and the **agency API** itself (the
 target application, say Housing Assistance Records), which receives that token and decides whether to answer. The actor
-role is turned on by checking "Initiate Broker token exchange" on the home page and requesting a `token_exchange:<value>`
-scope, with `DPOP=true` (together with `PKCE=true`) adding key binding; the agency role is just this app running as the
+role is turned on by checking "Initiate Broker token exchange" on the home page and picking the agency APIs to delegate
+to, with `DPOP=true` (together with `PKCE=true`) adding key binding; the agency role is just this app running as the
 target service, where `third_party_target_link_allowlist` and `third_party_sign_in_ial` govern the sign-ins it accepts
 from another site (see [the target application side](#third-party-initiated-login-the-target-application-side)).
 
 ### Getting a token for an agency API (token exchange)
 
 The person signs in to this app with Login.gov in the ordinary way, described in
-[Login.gov's OpenID Connect developer documentation](https://developers.login.gov/oidc/). The app trades the
-authorization code for an access token. It then goes back to Login.gov's token endpoint and trades that access token for
-a different one: a delegated token for the agency API named by the `token_exchange:<value>` scope. This second trade is
-an OAuth 2.0 token exchange ([RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)). The sign-in token is the
-`subject_token`; the agency application's issuer is the `audience` and its API URL is the `resource`, both read from the
-matching entry in `token_exchange_targets`. The delegated token names the person (`sub`) and the actor acting for them
-(`act`). The "Target" page then offers to send it to the agency API, and shows what the API answers.
+[Login.gov's OpenID Connect developer documentation](https://developers.login.gov/oidc/), with two additions to the
+authorization request that say this sign-in is for delegation: the scope list carries the single value `token_exchange`,
+and a `resource` parameter names the agency APIs by URL, for example
+
+```
+scope=openid email token_exchange
+resource=https://records.housing.example.gov/api;https://portal.retirement.example.gov/api
+```
+
+`resource` is the resource indicator of [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707): each value is the absolute
+HTTPS URL of an agency API, and Login.gov looks the agency application up by that URL. Where RFC 8707 would repeat the
+parameter once per API, Login.gov takes several URLs in one `resource` parameter separated by `;`. The URLs are the `api`
+fields of the `token_exchange_targets` entries the person checked on the home page (all of them when none is checked).
+Login.gov refuses the older per-application scope values (`token_exchange:<value>`) with `invalid_scope`, and a delegation
+request whose `resource` is missing or is not a list of absolute HTTPS URLs with `invalid_request` (`resource_required`
+or `resource_invalid`).
+
+The app trades the authorization code for an access token. It then goes back to Login.gov's token endpoint and trades
+that access token for a different one: a delegated token for the first agency API in the list. This second trade is an
+OAuth 2.0 token exchange ([RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)). The sign-in token is the `subject_token`;
+the agency application's issuer is the `audience` and its API URL is the `resource`, both read from the
+`token_exchange_targets` entry whose `api` is that URL. The delegated token names the person (`sub`) and the actor acting
+for them (`act`). The "Target" page then offers to send it to the agency API, and shows what the API answers.
 
 ```mermaid
 sequenceDiagram
@@ -68,8 +84,8 @@ sequenceDiagram
     participant A as This app (actor)
     participant L as Login.gov
     participant T as Agency API
-    B->>A: Choose a target, check "Initiate Broker token exchange"
-    A->>L: Authorization request (OIDC)
+    B->>A: Pick the agency APIs, check "Initiate Broker token exchange"
+    A->>L: Authorization request: scope=openid email token_exchange, resource=<url>;<url>
     L->>B: Sign-in and consent
     B->>A: Redirect with authorization code
     A->>L: Code exchange at the token endpoint

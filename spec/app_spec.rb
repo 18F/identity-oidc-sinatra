@@ -704,14 +704,20 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
   context 'delegated access' do
     let(:code) { 'abc-code' }
-    let(:api_url) { 'https://api.agency-b.gov/records' }
-    let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
+    let(:api_url) { 'https://records.housing.example.gov/api' }
+    let(:other_api_url) { 'https://portal.retirement.example.gov/api' }
+    let(:targets) do
+      [
+        { issuer: 'urn:gov:gsa:openidconnect:sp:housing', api: api_url },
+        { issuer: 'urn:gov:gsa:openidconnect:sp:retirement', api: other_api_url },
+      ]
+    end
 
     before { ENV['token_exchange_targets'] = targets.to_json }
     after { ENV.delete('token_exchange_targets') }
 
-    def start_delegated_sign_in
-      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+    def start_delegated_sign_in(resources: [api_url])
+      get '/auth/request', requested_scopes: %w[email], requested_resources: resources, initiate_broker_token_exchange: 'true'
     end
 
     def refuse_exchange(body)
@@ -728,6 +734,69 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     before { start_delegated_sign_in }
+
+    context 'the authorization request' do
+      it 'carries the token_exchange scope and the agency API as resource' do
+        expect(last_response).to be_redirect
+        expect(parameter_value(last_response.location, 'scope').split(' ')).to contain_exactly('openid', 'email', 'token_exchange')
+        expect(parameter_value(last_response.location, 'resource')).to eq(api_url)
+        expect(last_request.session['resources']).to eq([api_url])
+      end
+
+      it 'joins several agency APIs with ; in one resource parameter, in the configured order' do
+        start_delegated_sign_in(resources: [other_api_url, api_url])
+
+        expect(parameter_value(last_response.location, 'resource')).to eq("#{api_url};#{other_api_url}")
+        expect(last_request.session['resources']).to eq([api_url, other_api_url])
+      end
+
+      it 'names every configured agency API when none is picked, and drops URLs that are not configured' do
+        start_delegated_sign_in(resources: ['https://somewhere.else.example.gov/api'])
+
+        expect(parameter_value(last_response.location, 'resource')).to eq("#{api_url};#{other_api_url}")
+      end
+
+      it 'sends neither token_exchange nor resource on an ordinary sign-in' do
+        get '/auth/request', requested_scopes: %w[email], requested_resources: [api_url]
+
+        params = CGI.parse(URI(last_response.location).query)
+        expect(params['scope'].first.split(' ')).to contain_exactly('openid', 'email')
+        expect(params).not_to have_key('resource')
+        expect(last_request.session['resources']).to be_nil
+      end
+    end
+
+    context 'when the exchange succeeds' do
+      let(:exchange) do
+        stub_request(:post, token_endpoint).
+          with(body: hash_including('grant_type' => 'authorization_code')).
+          to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
+        stub_request(:post, token_endpoint).
+          with(
+            body: hash_including(
+              'grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange',
+              'subject_token' => 'subject-token',
+              'audience' => 'urn:gov:gsa:openidconnect:sp:housing',
+              'resource' => api_url,
+            ),
+          ).
+          to_return(body: { access_token: 'delegated-token', token_type: 'Bearer' }.to_json)
+      end
+
+      it 'exchanges for the agency API found by its URL, then offers that API on the Target page' do
+        exchange
+        finish_sign_in
+
+        expect(exchange).to have_been_requested
+        expect(last_response.location).to end_with('/target')
+
+        get '/target', {}, 'rack.session' => last_request.session
+
+        expect(last_response).to be_ok
+        expect(last_response.body).to match(/value="urn:gov:gsa:openidconnect:sp:housing"\s+selected/)
+        expect(last_response.body).to match(/value="urn:gov:gsa:openidconnect:sp:retirement"\s+disabled/)
+      end
+    end
 
     context 'when the exchange is refused' do
       before { refuse_exchange(error: 'invalid_client') }
@@ -758,7 +827,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
         expect(params['login_hint']).to match(/\A[0-9a-f-]{36}\z/)
         expect(last_request.session['auth_request_query']).to include('initiate_broker_token_exchange=true')
-        expect(last_request.session['auth_request_query']).to include('token_exchange')
+        expect(last_request.session['auth_request_query']).to include(CGI.escape(api_url))
       end
 
       context 'when Login.gov names no address' do
@@ -830,7 +899,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   context 'delegated access with DPoP key binding' do
     let(:code) { 'abc-code' }
     let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
-    let(:api_url) { 'https://api.agency-b.gov/records' }
+    let(:api_url) { 'https://records.housing.example.gov/api' }
+    # A `scope` field left in an older .env is accepted and ignored.
     let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
     let(:proof_format) { /\A[\w-]+\.[\w-]+\.[\w-]+\z/ }
 
@@ -861,7 +931,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     def start_delegated_sign_in
-      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+      get '/auth/request', requested_scopes: %w[email], requested_resources: [api_url], initiate_broker_token_exchange: 'true'
     end
 
     it 'names the key thumbprint as dpop_jkt on the authorization request' do
@@ -993,8 +1063,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }
       let(:jkt) { LoginGov::OidcSinatra::Dpop.thumbprint(actor_key) }
-      let(:bound_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport', cnf: { jkt: }) }
-      let(:bearer_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange:passport') }
+      let(:bound_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange', cnf: { jkt: }) }
+      let(:bearer_token) { delegated_token(sub: 'person-at-agency', act: { sub: client_id }, scope: 'token_exchange') }
 
       def proof_for(token, key: actor_key)
         LoginGov::OidcSinatra::Dpop.proof(key:, method: 'GET', url: 'http://example.org/api/records', access_token: token)
