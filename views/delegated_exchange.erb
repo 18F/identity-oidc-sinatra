@@ -27,12 +27,25 @@
                 </option>
               <% end %>
             </select>
+            <div class="usa-checkbox margin-top-2">
+              <input class="usa-checkbox__input" id="use-dpop" type="checkbox" name="use_dpop" value="true">
+              <label class="usa-checkbox__label" for="use-dpop">Use DPoP key binding</label>
+            </div>
             <button class="usa-button margin-top-2" type="submit">Start delegated exchange</button>
           </form>
         <% else %>
           <p>
             Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
           </p>
+          <% if bound %>
+            <div class="usa-alert usa-alert--success usa-alert--slim margin-bottom-2" data-dpop-bound-token>
+              <div class="usa-alert__body">
+                <p class="usa-alert__text">
+                  DPoP is live: this delegated access token is bound to this session's DPoP key.
+                </p>
+              </div>
+            </div>
+          <% end %>
           <p>
             Delegated access token:
             <code class="display-block text-wrap"><%= access_token %></code>
