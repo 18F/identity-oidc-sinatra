@@ -1,0 +1,79 @@
+<a class="usa-skipnav" href="#main-content">Skip to main content</a>
+ <div class="padding-2 bg-accent-warm text-base-lightest font-mono-xs text-center">
+  <p>TEST Do not use real personal information (demo purposes only) TEST</p>
+</div>
+<div class="padding-2 bg-primary-darker text-base-lightest font-mono-xs text-center">
+  <img class="width-2" aria-hidden="true" src="vendor/identity-design-system/assets/img/us_flag_small.png" alt="U.S. flag">
+  A DEMO website of the United States government
+</div>
+<%== erb :header, locals: { user_email: nil } %>
+<main id="main-content">
+  <div class="grid-container">
+    <div class="grid-row grid-gap">
+      <div class="usa-overlay"></div>
+      <div class="grid-container padding-0">
+        <h1>Delegated Exchange Test</h1>
+
+        <% unless access_token %>
+          <p>Start a sign-in that requests a delegated access token for the configured target.</p>
+          <form action="/delegated_exchange/request" method="GET">
+            <label class="usa-label" for="target">
+              Target issuer
+            </label>
+            <select name="target" id="target" class="usa-select">
+              <% targets.each do |target| %>
+                <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
+                  <%= target.issuer %>
+                </option>
+              <% end %>
+            </select>
+            <button class="usa-button margin-top-2" type="submit">Start delegated exchange</button>
+          </form>
+        <% else %>
+          <p>
+            Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
+          </p>
+          <p>
+            Delegated access token:
+            <code class="display-block text-wrap"><%= access_token %></code>
+          </p>
+
+          <form action="/send-access-token" method="POST">
+            <%== csrf_tag %>
+            <label class="usa-label" for="target">
+              Target issuer
+            </label>
+            <select name="target" id="target" class="usa-select">
+              <% targets.each do |target| %>
+                <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
+                  <%= target.issuer %>
+                </option>
+              <% end %>
+            </select>
+
+            <button type="submit" class="usa-button usa-button--secondary margin-top-2">
+              <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
+                <use xlink:href="/vendor/identity-design-system/img/sprite.svg#submit"></use>
+              </svg>
+              Send brokered request
+            </button>
+          </form>
+        <% end %>
+
+        <% if result %>
+          <h2>Target response</h2>
+          <dl>
+            <dt>URL</dt>
+            <dd><code><%= result[:url] || result['url'] %></code></dd>
+            <dt>Status</dt>
+            <dd><code><%= result[:status] || result['status'] %></code></dd>
+            <dt>Headers</dt>
+            <dd><pre><%= JSON.pretty_generate(result[:headers] || result['headers']) %></pre></dd>
+            <dt>Body</dt>
+            <dd><pre><%= result[:body] || result['body'] %></pre></dd>
+          </dl>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</main>

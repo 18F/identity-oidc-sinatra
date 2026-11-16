@@ -51,6 +51,10 @@ scope, with `DPOP=true` (together with `PKCE=true`) adding key binding; the agen
 target service, where `third_party_target_link_allowlist` and `third_party_sign_in_ial` govern the sign-ins it accepts
 from another site (see [the target application side](#third-party-initiated-login-the-target-application-side)).
 
+The "Test delegated exchange" page makes the sinatra demo app act as a delegated-access actor: it requests the
+`token_exchange` scope with `resource` set to the target API, trades the token it received for a delegated access token at
+Login.gov's token endpoint (RFC 8693), shows the result, and offers to send it to the chosen target API.
+
 ### Getting a token for an agency API (token exchange)
 
 The person signs in to this app with Login.gov in the ordinary way, described in
