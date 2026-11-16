@@ -14,26 +14,7 @@
       <div class="grid-container padding-0">
         <h1>Delegated Exchange Test</h1>
 
-        <% unless access_token %>
-          <p>Start a sign-in that requests a delegated access token for the configured target.</p>
-          <form action="/delegated_exchange/request" method="GET">
-            <label class="usa-label" for="target">
-              Target issuer
-            </label>
-            <select name="target" id="target" class="usa-select">
-              <% targets.each do |target| %>
-                <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
-                  <%= target.issuer %>
-                </option>
-              <% end %>
-            </select>
-            <div class="usa-checkbox margin-top-2">
-              <input class="usa-checkbox__input" id="use-dpop" type="checkbox" name="use_dpop" value="true">
-              <label class="usa-checkbox__label" for="use-dpop">Use DPoP key binding</label>
-            </div>
-            <button class="usa-button margin-top-2" type="submit">Start delegated exchange</button>
-          </form>
-        <% else %>
+        <% if access_token %>
           <p>
             Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
           </p>
@@ -64,10 +45,7 @@
               <% end %>
             </select>
 
-            <button type="submit" class="usa-button usa-button--secondary margin-top-2">
-              <svg class="usa-icon" aria-hidden="true" focusable="false" role="img">
-                <use xlink:href="/vendor/identity-design-system/img/sprite.svg#submit"></use>
-              </svg>
+            <button type="submit" class="usa-button margin-top-2">
               Send brokered request
             </button>
           </form>
@@ -85,6 +63,28 @@
             <dt>Body</dt>
             <dd><pre><%= result[:body] || result['body'] %></pre></dd>
           </dl>
+        <% else %>
+          <hr>
+          <div class="margin-top-2">
+            <p>Start a sign-in that requests a delegated access token for the configured target.</p>
+            <form action="/delegated_exchange/request" method="GET">
+              <label class="usa-label" for="target">
+                Target issuer
+              </label>
+              <select name="target" id="target" class="usa-select">
+                <% targets.each do |target| %>
+                  <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
+                    <%= target.issuer %>
+                  </option>
+                <% end %>
+              </select>
+              <div class="usa-checkbox margin-top-2">
+                <input class="usa-checkbox__input" id="use-dpop" type="checkbox" name="use_dpop" value="true">
+                <label class="usa-checkbox__label" for="use-dpop">Use DPoP key binding</label>
+              </div>
+              <button class="usa-button margin-top-2 margin-bottom-2" type="submit">Request secure access token</button>
+            </form>
+          </div>
         <% end %>
       </div>
     </div>
