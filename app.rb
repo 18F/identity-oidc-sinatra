@@ -417,8 +417,8 @@ module LoginGov::OidcSinatra
         token_output = token_exchange(access_token, code)
         session.delete(:auth_request_query)
         session[:access_token] = token_output['access_token']
-        session[:token_type] = token_output['token_type']
-        redirect to('/delegated_exchange')
+        session[:access_token_type] = token_output['token_type']
+        return redirect to('/delegated_exchange')
       end      
 
       id_token = token_response[:id_token]
@@ -496,7 +496,11 @@ module LoginGov::OidcSinatra
       end
 
       query = handoff[:auth_request_query]
-      redirect to(query.to_s.empty? ? '/delegated_exchange/request' : "/delegated_exchange/request?#{query}")
+      query = query.to_s.empty? ? 
+        '/delegated_exchange/request' :
+        "/delegated_exchange/request?#{query}"
+      
+        redirect to(query)
     end
 
 
@@ -559,6 +563,11 @@ module LoginGov::OidcSinatra
       }
     end
 
+    get '/delegated_exchange/new' do
+      clear_delegated_exchange
+      redirect to('/delegated_exchange')
+    end
+
     get '/delegated_exchange' do
       erb :delegated_exchange, locals: delegated_exchange_locals
     end
@@ -589,7 +598,7 @@ module LoginGov::OidcSinatra
         halt response.status, response.body
       end
 
-      redirect to('/delegated_exchange')
+      redirect to("#{target.api}?#{{ access_token: token }.to_query}")
     end
 
     get '/api/records' do
@@ -732,7 +741,8 @@ module LoginGov::OidcSinatra
         result: session.delete(:delegated_exchange_result),
         selected_target: selected_target&.issuer,
         targets: targets,
-        token_type: session[:token_type] || 'Bearer',
+        token_type: session[:access_token_type] || 'Bearer',
+        bound: session[:access_token_type] == 'DPoP',
       }
     end
 
@@ -741,7 +751,7 @@ module LoginGov::OidcSinatra
       session.delete(:broker_request)
       session.delete(:delegated_exchange_result)
       session.delete(:token_resource)
-      session.delete(:token_type)
+      session.delete(:access_token_type)
     end
 
     def selected_target

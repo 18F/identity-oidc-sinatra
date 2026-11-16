@@ -733,8 +733,18 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     it 'shows a target selector before starting' do
       get '/delegated_exchange', {}, 'rack.session' => last_request.session
 
-      expect(last_response.body).to include(api_url)
-      expect(last_response.body).to include(other_api_url)
+      expect(last_response.body).to include('state')
+      expect(last_response.body).to include('county')
+    end
+
+    it 'clears the delegated token when starting a new delegated exchange' do
+      session = last_request.session.to_hash.merge('access_token' => 'delegated-token')
+
+      get '/delegated_exchange/new', {}, 'rack.session' => session
+      follow_redirect!
+
+      expect(last_response.body).not_to include('delegated-token')
+      expect(last_request.session).not_to have_key('access_token')
     end
 
     it 'requests the selected target API as the resource' do
@@ -746,7 +756,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'when the exchange succeeds' do
-      it 'shows the delegated token and target response' do
+      it 'redirects the browser with the delegated token' do
         stub_request(:post, token_endpoint).
           with(body: hash_including('grant_type' => 'authorization_code')).
           to_return(body: { access_token: 'subject-token', token_type: 'Bearer' }.to_json)
@@ -756,9 +766,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
             'resource' => api_url,
           )).
           to_return(body: { access_token: 'delegated-token', token_type: 'Bearer' }.to_json)
-        target_request = stub_request(:get, "#{api_url}?access_token=delegated-token").
-                         to_return(status: 202, body: 'accepted')
-
         finish_sign_in
         follow_redirect!
 
@@ -766,11 +773,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
         post '/send-access-token', { target: 'state', authenticity_token: last_request.session[:csrf] },
              'rack.session' => last_request.session
-        follow_redirect!
 
-        expect(target_request).to have_been_requested.once
-        expect(last_response.body).to include('202')
-        expect(last_response.body).to include('accepted')
+        expect(last_response).to be_redirect
+        expect(last_response.location).to eq("#{api_url}?access_token=delegated-token")
       end
     end
 
@@ -875,7 +880,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:code) { 'abc-code' }
     let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
     let(:api_url) { 'https://api.agency-b.gov/records' }
-    let(:targets) { [{ issuer: 'state', scope: 'passport', api: api_url }] }
+    let(:targets) { [{ issuer: 'state', api: api_url }] }
     let(:proof_format) { /\A[\w-]+\.[\w-]+\.[\w-]+\z/ }
 
     before do
@@ -905,7 +910,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     def start_delegated_sign_in
-      get '/auth/request', requested_scopes: %w[email token_exchange:passport], initiate_broker_token_exchange: 'true'
+      get '/delegated_exchange/request', target: 'state'
     end
 
     it 'names the key thumbprint as dpop_jkt on the authorization request' do
@@ -969,13 +974,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
       expect(last_response).to be_redirect
-      expect(last_response.location).to end_with('/target')
+      expect(last_response.location).to end_with('/delegated_exchange')
       expect(code_exchange).to have_been_requested
       expect(exchange).to have_been_requested
       expect(last_request.session['access_token']).to eq(bound_token)
       expect(last_request.session['access_token_type']).to eq('DPoP')
 
-      get '/target', {}, 'rack.session' => last_request.session
+      get '/delegated_exchange', {}, 'rack.session' => last_request.session
 
       expect(last_response).to be_ok
       expect(last_response.body).to include('<code>DPoP</code>')
@@ -1006,7 +1011,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       it 'calls the API itself with the DPoP scheme and a proof when the token is bound' do
         start_delegated_sign_in
         session = last_request.session.to_hash.merge('access_token' => 'bound-token', 'access_token_type' => 'DPoP')
-        api = stub_request(:get, api_url).
+        api = stub_request(:get, "#{api_url}?access_token=bound-token").
           with(headers: { 'Authorization' => 'DPoP bound-token', 'DPoP' => proof_format }) { |request| ath_of(request, 'bound-token') }.
           to_return(status: 200, body: { sub: 'person-at-agency' }.to_json)
 

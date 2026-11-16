@@ -18,12 +18,12 @@
           <p>Start a sign-in that requests a delegated access token for the configured target.</p>
           <form action="/delegated_exchange/request" method="GET">
             <label class="usa-label" for="target">
-              Target resource
+              Target issuer
             </label>
             <select name="target" id="target" class="usa-select">
               <% targets.each do |target| %>
                 <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
-                  <%= target.resource %>
+                  <%= target.issuer %>
                 </option>
               <% end %>
             </select>
@@ -31,7 +31,7 @@
           </form>
         <% else %>
           <p>
-            Delegated access token type: <code><%= token_type %></code>
+            Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
           </p>
           <p>
             Delegated access token:
@@ -41,12 +41,12 @@
           <form action="/send-access-token" method="POST">
             <%== csrf_tag %>
             <label class="usa-label" for="target">
-              Target resource
+              Target issuer
             </label>
             <select name="target" id="target" class="usa-select">
               <% targets.each do |target| %>
                 <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
-                  <%= target.resource %>
+                  <%= target.issuer %>
                 </option>
               <% end %>
             </select>
