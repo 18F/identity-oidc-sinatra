@@ -4,6 +4,8 @@ require 'json'
 require 'aws-sdk-secretsmanager'
 require 'yaml'
 
+require_relative './target'
+
 module LoginGov
   module OidcSinatra
     # Class holding configuration for this sample app. Defaults come from
@@ -91,6 +93,7 @@ module LoginGov
 
       def targets
         return [] unless ENV['token_exchange_targets'].present?
+
         JSON.parse(ENV['token_exchange_targets'])
       end
 
@@ -113,8 +116,8 @@ module LoginGov
           'attempts_shared_secret' => ENV['attempts_shared_secret'],
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
           'signed_events' => ENV['signed_events'],
-          'token_exchange_targets' => ENV['token_exchange_targets'] || 
-                                      '[{"issuer":"state", "scope":"passport", "api": "http://add-target-api"}]',
+          'token_exchange_targets' => ENV['token_exchange_targets'] ||
+                                      '[{"issuer":"state", "api": "http://add-target-api"}]',
           'third_party_target_link_allowlist' =>
             ENV['third_party_target_link_allowlist'] || 'http://localhost:9292',
           'third_party_sign_in_ial' => ENV['third_party_sign_in_ial'] || '2',

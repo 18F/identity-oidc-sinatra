@@ -41,9 +41,9 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 
 ## Delegated access
 
-Checking "Initiate Broker token exchange" and requesting a `token_exchange:<value>` scope makes the sinatra demo app act
-as a delegated-access actor: after the code exchange it trades the token it received for a delegated access token at
-Login.gov's token endpoint (RFC 8693) and offers to send it to the chosen target API.
+The "Test delegated exchange" page makes the sinatra demo app act as a delegated-access actor: it requests the
+`token_exchange` scope with `resource` set to the target API, trades the token it received for a delegated access token at
+Login.gov's token endpoint (RFC 8693), shows the result, and offers to send it to the chosen target API.
 
 When Login.gov refuses the exchange with `invalid_target` and an `initiate_login_uri`, it means that the user has not connected their Login.gov account with that
 target application yet. A delegation request does not create one. Instead, the actor application requests third-party-initiated login at that address

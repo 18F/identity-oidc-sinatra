@@ -17,16 +17,16 @@
         
         <form action="/send-access-token" method="POST">
           <label class="usa-label" for="aal">
-          Target Scopes
+          Target resource
           </label>
           <select name="target" id="target" class="usa-select">
             <% targets.each do |target| %>
               <% [
-                    [target['issuer'], target['scope']],
+                    [target.issuer, target.resource],
                   ].each do |value, label| %>
                 <option value="<%= value %>"
-                  " <%= 'selected' if selected_target == label %>" 
-                  <%= 'disabled' if selected_target != label %>
+                  " <%= 'selected' if selected_target == value %>"
+                  <%= 'disabled' if selected_target != value %>
                 >
                   <%= label %>
                 </option>

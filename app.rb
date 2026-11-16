@@ -128,13 +128,7 @@ module LoginGov::OidcSinatra
           x509_issuer
           x509_subject
           x509_presented
-        ] + target_options
-      end
-
-      def target_options
-        config.targets.map do |target|
-          "token_exchange:#{target['scope']}"
-        end
+        ]
       end
 
       def default_scopes_by_ial
@@ -233,6 +227,10 @@ module LoginGov::OidcSinatra
 
     def config
       @config ||= Config.new
+    end
+
+    def targets
+      @targets ||= config.targets.map { |target| Target.from_config(target) }
     end
 
     def document_test_response(kind:, mode:, token_value:)
@@ -353,13 +351,9 @@ module LoginGov::OidcSinatra
     get '/auth/request' do
       DocumentTestSession.delete(session.delete(:document_test_id))
       session[:document_test] = params[:document_test] == '1'
+      clear_delegated_exchange
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
-      session[:broker_request] = params[:initiate_broker_token_exchange]
-      session[:token_scope] = get_token_scope(params[:requested_scopes] || [])
-      # Kept only for a delegation request, so it can be repeated as-is after a hand-off to the
-      # agency.
-      session[:auth_request_query] = (request.query_string if session[:broker_request] == 'true')
 
       ial = prepare_step_up_flow(session:)
       auth_url = begin_login_gov_sign_in(
@@ -369,6 +363,12 @@ module LoginGov::OidcSinatra
       settings.logger.info("Redirecting to #{auth_url}")
 
       redirect to(auth_url)
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
+    end
+
+    get '/delegated_exchange/request' do
+      begin_delegated_exchange
     rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
       render_error('Connection', e)
     end
@@ -412,11 +412,12 @@ module LoginGov::OidcSinatra
       token_response = token(code)
       access_token = token_response[:access_token]
 
-      if session[:broker_request] == 'true'
+      if actor_request?
         token_output = token_exchange(access_token, code)
         session.delete(:auth_request_query)
         session[:access_token] = token_output['access_token']
-        redirect to('/target')
+        session[:token_type] = token_output['token_type']
+        redirect to('/delegated_exchange')
       end      
 
       id_token = token_response[:id_token]
@@ -493,7 +494,8 @@ module LoginGov::OidcSinatra
         )
       end
 
-      redirect to("/auth/request?#{handoff[:auth_request_query]}")
+      query = handoff[:auth_request_query]
+      redirect to(query.to_s.empty? ? '/delegated_exchange/request' : "/delegated_exchange/request?#{query}")
     end
 
 
@@ -549,15 +551,28 @@ module LoginGov::OidcSinatra
 
     get '/target' do
       erb :target, locals: {
-        targets: config.targets,
-        selected_target: session[:token_scope],
+        targets: targets,
+        selected_target: selected_target&.issuer,
       }
     end
 
+    get '/delegated_exchange' do
+      erb :delegated_exchange, locals: delegated_exchange_locals
+    end
+
     post '/send-access-token' do
-      metadata = config.targets.find {|target| target['issuer'] == params['target'] }
-      
-      redirect to("#{metadata['api']}?#{{ access_token: session[:access_token] }.to_query}")
+      target = targets.find { |target| target.issuer == params['target'] }
+      return redirect to('/delegated_exchange') unless target && session[:access_token]
+
+      response = Faraday.get("#{target.api}?#{{ access_token: session[:access_token] }.to_query}")
+      session[:delegated_exchange_result] = {
+        status: response.status,
+        headers: response.headers.to_h,
+        body: response.body,
+        url: target.api,
+      }
+
+      redirect to('/delegated_exchange')
     end
 
     private
@@ -614,7 +629,7 @@ module LoginGov::OidcSinatra
     # Starts the Login.gov authorization code flow: fresh `state` and `nonce`, the PKCE verifier and
     # then the authorize URL. Shared by the sign-in button and by
     # third-party-initiated login so both produce the same request to Login.gov.
-    def begin_login_gov_sign_in(ial:, aal:, scopes:, prompt:)
+    def begin_login_gov_sign_in(ial:, aal:, scopes:, prompt:, resource: nil)
       session[:state] = random_value
       session[:nonce] = random_value
       session[:code_verifier] = random_value if use_pkce?
@@ -627,6 +642,7 @@ module LoginGov::OidcSinatra
         scopes:,
         code_verifier: session[:code_verifier],
         prompt:,
+        resource:,
       )
     end
 
@@ -637,7 +653,55 @@ module LoginGov::OidcSinatra
       redirect to('/')
     end
 
-    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:)
+    def begin_delegated_exchange
+      target = requested_target
+      halt 400, 'No token exchange target selected' unless target
+
+      clear_delegated_exchange
+      session[:broker_request] = 'true'
+      session[:token_resource] = target.resource
+      session[:auth_request_query] = request.query_string
+      auth_url = begin_login_gov_sign_in(
+        ial: params[:ial],
+        aal: params[:aal],
+        scopes: ['email', 'token_exchange'],
+        prompt: 'select_account',
+        resource: target.resource,
+      )
+
+      settings.logger.info("Redirecting to #{auth_url}")
+
+      redirect to(auth_url)
+    end
+
+    def delegated_exchange_locals
+      {
+        access_token: session[:access_token],
+        result: session.delete(:delegated_exchange_result),
+        selected_target: selected_target&.issuer,
+        targets: targets,
+        token_type: session[:token_type] || 'Bearer',
+      }
+    end
+
+    def clear_delegated_exchange
+      session.delete(:access_token)
+      session.delete(:broker_request)
+      session.delete(:delegated_exchange_result)
+      session.delete(:token_resource)
+      session.delete(:token_type)
+    end
+
+    def selected_target
+      targets.find { |target| target.resource == session[:token_resource] }
+    end
+
+    def requested_target
+      targets.find { |target| target.issuer == params[:target] }
+    end
+
+    def authorization_url(state:, nonce:, ial:, scopes:, aal:, code_verifier:, prompt:, 
+                          resource: nil)
       endpoint = openid_configuration[:authorization_endpoint]
       request_params = {
         client_id: client_id,
@@ -649,6 +713,7 @@ module LoginGov::OidcSinatra
         nonce: nonce,
         attempts_api_session_id: SecureRandom.uuid,
         prompt:,
+        resource:,
       }
 
       if code_verifier
@@ -748,13 +813,6 @@ module LoginGov::OidcSinatra
 
     def attempts_public_key
       AttemptsConfiguration.cached_attempts_public_key(attempts_config)
-    end
-
-    def get_token_scope(scopes)
-      scope = scopes.find { |scope| scope.match(/token_exchange:(.+)/) }
-      return unless scope 
-      
-      scope.delete_prefix('token_exchange:')
     end
 
     def token(code)
@@ -866,7 +924,8 @@ module LoginGov::OidcSinatra
     end
 
     def token_exchange(access_token, code)
-      token_metadata = config.targets.find {|target| target['scope'] == session[:token_scope] }
+      target = selected_target
+      raise AppError.new('No token exchange target configured for this request') unless target
 
       token_params = {
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -875,8 +934,8 @@ module LoginGov::OidcSinatra
         client_id:,
         subject_token: access_token,
         subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-        audience: token_metadata['issuer'],
-        resource: token_metadata['api'],
+        audience: target.issuer,
+        resource: target.resource,
         requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
       }
 
@@ -887,6 +946,10 @@ module LoginGov::OidcSinatra
       raise ExchangeRefused.new(response.body) if response.status != 200
 
       json response.body
+    end
+
+    def actor_request?
+      session[:broker_request] == 'true'
     end
 
     def client_id
