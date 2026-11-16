@@ -353,6 +353,7 @@ module LoginGov::OidcSinatra
       DocumentTestSession.delete(session.delete(:document_test_id))
       session[:document_test] = params[:document_test] == '1'
       clear_delegated_exchange
+      session[:use_dpop] = params[:use_dpop] == 'true'
       simulate_csp_issue_if_selected(session: session, simulate_csp: params[:simulate_csp])
       prompt = params[:initiate_registration] ? 'create' : 'select_account'
 

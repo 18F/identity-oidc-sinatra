@@ -47,6 +47,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(ial2_option[:selected]).to eq 'selected'
     end
 
+    it 'offers DPoP key binding' do
+      get '/'
+
+      expect(last_response).to be_ok
+      expect(last_response.body).to include('Use DPoP key binding')
+    end
+
     it 'pre-fills HSPD12 if the URL has ?aal=2-hspd12' do
       get '/?aal=2-hspd12'
 
@@ -939,7 +946,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     it 'presents a key-bound sign-in token under the DPoP scheme at userinfo, with a proof over it' do
-      get '/auth/request'
+      get '/auth/request', use_dpop: 'true'
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code', 'code' => code), headers: { 'DPoP' => proof_format }).
         to_return(body: {
