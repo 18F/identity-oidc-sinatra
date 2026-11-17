@@ -14,6 +14,16 @@
       <div class="grid-container padding-0">
         <h1>Delegated Exchange Test</h1>
 
+        <% if third_party_delegated_login_occurred %>
+          <div class="usa-alert usa-alert--success usa-alert--slim margin-bottom-2" data-third-party-delegated-login>
+            <div class="usa-alert__body">
+              <p class="usa-alert__text">
+                Third-party delegated login completed.
+              </p>
+            </div>
+          </div>
+        <% end %>
+
         <% if access_token %>
           <p>
             Delegated access token type: <code><%= token_type %></code><%= bound ? ', bound to this sign-in\'s DPoP key; the API call carries a proof' : '' %>
@@ -100,6 +110,10 @@
                     </option>
                   <% end %>
                 </select>
+                <div class="usa-checkbox margin-top-2">
+                  <input class="usa-checkbox__input" id="immediately-begin-delegation-request" type="checkbox" name="immediately_begin_delegation_request" value="true">
+                  <label class="usa-checkbox__label" for="immediately-begin-delegation-request">Immediately begin delegation request after return</label>
+                </div>
                 <button class="usa-button usa-button--secondary margin-top-2 margin-bottom-2" type="submit">
                   Start third-party initiated login
                 </button>

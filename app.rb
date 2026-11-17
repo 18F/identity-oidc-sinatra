@@ -76,7 +76,7 @@ module LoginGov::OidcSinatra
         settings.logger.info('enabling logging')
     end
 
-    enable :sessions
+    set :sessions, key: Config.new.session_cookie_key
     use Rack::Protection
     use Rack::Protection::AuthenticityToken
 
@@ -502,12 +502,15 @@ module LoginGov::OidcSinatra
         )
       end
 
+      session[:third_party_delegated_login_occurred] = true
+      return redirect to('/delegated_exchange') unless handoff[:immediately_begin_delegation_request]
+
       query = handoff[:auth_request_query]
-      query = query.to_s.empty? ? 
+      query = query.to_s.empty? ?
         '/delegated_exchange/request' :
         "/delegated_exchange/request?#{query}"
-      
-        redirect to(query)
+
+      redirect to(query)
     end
 
 
@@ -645,12 +648,13 @@ module LoginGov::OidcSinatra
 
     # OpenID Connect Core 1.0 §4 from the service provider's side: send the browser to the agency's
     # login-initiation address naming Login.gov (`iss`), a fresh opaque hint this session will
-    # recognize on the return, and this site's return address. The hint and the request to repeat
-    # stay in the session for one hand-off.
-    def start_third_party_login(initiate_login_uri)
+    # recognize on the return, and this site's return address. The hint and return behavior stay in
+    # the session for one hand-off.
+    def start_third_party_login(initiate_login_uri, immediately_begin_delegation_request: true)
       login_hint = SecureRandom.uuid
       session[:handoff_login_hint] = login_hint
       session[:handoff_started_at] = Time.now.to_i
+      session[:handoff_immediately_begin_delegation_request] = immediately_begin_delegation_request
       uri = URI.parse(initiate_login_uri)
       uri.query = third_party_initiation_query(uri.query, login_hint)
       settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
@@ -676,9 +680,10 @@ module LoginGov::OidcSinatra
       login_hint = session.delete(:handoff_login_hint)
       started_at = session.delete(:handoff_started_at)
       auth_request_query = session.delete(:auth_request_query)
+      immediately_begin_delegation_request = session.delete(:handoff_immediately_begin_delegation_request)
       return nil if login_hint.nil?
 
-      { login_hint:, started_at: started_at.to_i, auth_request_query: }
+      { login_hint:, started_at: started_at.to_i, auth_request_query:, immediately_begin_delegation_request: }
     end
 
     # A sign-in that did not complete: the usual error page, or, when a third party started the
@@ -749,7 +754,10 @@ module LoginGov::OidcSinatra
       halt 400, 'Target has no third-party login URI configured' unless target.initiate_login_uri
 
       session[:auth_request_query] = URI.encode_www_form(target: target.issuer)
-      start_third_party_login(target.initiate_login_uri)
+      start_third_party_login(
+        target.initiate_login_uri,
+        immediately_begin_delegation_request: params[:immediately_begin_delegation_request] == 'true',
+      )
     end
 
     def delegated_exchange_locals
@@ -760,6 +768,7 @@ module LoginGov::OidcSinatra
         targets: targets,
         token_type: session[:access_token_type] || 'Bearer',
         bound: session[:access_token_type] == 'DPoP',
+        third_party_delegated_login_occurred: session.delete(:third_party_delegated_login_occurred),
       }
     end
 

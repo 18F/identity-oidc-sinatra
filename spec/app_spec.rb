@@ -749,6 +749,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('state')
       expect(last_response.body).to include('county')
       expect(last_response.body).to include('Use DPoP key binding')
+      expect(last_response.body).to include('Immediately begin delegation request after return')
       expect(last_response.body).to include('Start third-party initiated login')
     end
 
@@ -763,6 +764,33 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(params['iss']).to eq(host)
       expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
       expect(last_request.session['auth_request_query']).to eq('target=state')
+      expect(last_request.session['handoff_immediately_begin_delegation_request']).to be(false)
+    end
+
+    it 'can immediately begin the delegation request after third-party initiated login' do
+      get '/delegated_exchange/third_party_login',
+          { target: 'state', immediately_begin_delegation_request: 'true' },
+          'rack.session' => last_request.session
+
+      expect(last_request.session['handoff_immediately_begin_delegation_request']).to be(true)
+    end
+
+    it 'can test third-party initiated login without immediately beginning delegation' do
+      get '/delegated_exchange/third_party_login', { target: 'state' },
+          'rack.session' => last_request.session
+
+      get '/third_party/return',
+          { login_hint: last_request.session['handoff_login_hint'], status: 'signed_in' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to end_with('/delegated_exchange')
+      expect(last_request.session).not_to have_key('handoff_login_hint')
+      expect(last_request.session).not_to have_key('auth_request_query')
+
+      follow_redirect!
+
+      expect(last_response.body).to include('Third-party delegated login completed.')
     end
 
     it 'sets up DPoP for the selected delegated exchange' do

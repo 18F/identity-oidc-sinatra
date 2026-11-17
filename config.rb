@@ -2,6 +2,7 @@
 
 require 'json'
 require 'aws-sdk-secretsmanager'
+require 'uri'
 require 'yaml'
 
 require_relative './target'
@@ -37,6 +38,10 @@ module LoginGov
 
       def redirect_uri
         @config.fetch('redirect_uri')
+      end
+
+      def session_cookie_key
+        @config.fetch('session_cookie_key')
       end
 
       def client_id
@@ -109,6 +114,8 @@ module LoginGov
           'mock_irs_client_id' => ENV['mock_irs_client_id'] ||
                                   'urn:gov:gsa:openidconnect:sp:mock_irs',
           'redirect_uri' => ENV['redirect_uri'] || 'http://localhost:9292/',
+          'session_cookie_key' => ENV['session_cookie_key'] ||
+                                  session_cookie_key_for(ENV['redirect_uri'] || 'http://localhost:9292/'),
           'sp_private_key_path' => ENV['sp_private_key_path'] || './config/demo_sp.key',
           'redact_ssn' => true,
           'cache_oidc_config' => true,
@@ -117,7 +124,8 @@ module LoginGov
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
           'signed_events' => ENV['signed_events'],
           'token_exchange_targets' => ENV['token_exchange_targets'] ||
-                                      '[{"issuer":"state", "api": "http://add-target-api", "initiate_login_uri": "http://localhost:9292/initiate_login"}]',
+                                      '[{"issuer":"state","api": "http://add-target-api",
+                                      "initiate_login_uri": "http://localhost:9292/initiate_login"}]',
           'third_party_target_link_allowlist' =>
             ENV['third_party_target_link_allowlist'] || 'http://localhost:9292',
           'third_party_sign_in_ial' => ENV['third_party_sign_in_ial'] || '2',
@@ -142,6 +150,15 @@ module LoginGov
       end
 
       private
+
+      def session_cookie_key_for(redirect_uri)
+        uri = URI.parse(redirect_uri)
+        return 'rack.session' unless uri.host.to_s.downcase == 'localhost'
+
+        "rack.session.#{uri.port}"
+      rescue URI::InvalidURIError
+        'rack.session'
+      end
 
       def get_sp_private_key_raw(path)
         if path.start_with?('aws-secretsmanager:')
