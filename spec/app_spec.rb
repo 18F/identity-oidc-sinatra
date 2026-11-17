@@ -713,7 +713,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:code) { 'abc-code' }
     let(:api_url) { 'https://api.agency-b.gov/records' }
     let(:other_api_url) { 'https://api.agency-c.gov/records' }
-    let(:targets) { [{ issuer: 'state', api: api_url }, { issuer: 'county', api: other_api_url }] }
+    let(:initiate_login_uri) { 'https://records.example.gov/initiate_login' }
+    let(:targets) do
+      [
+        { issuer: 'state', api: api_url, initiate_login_uri: },
+        { issuer: 'county', api: other_api_url },
+      ]
+    end
 
     before { ENV['token_exchange_targets'] = targets.to_json }
     after { ENV.delete('token_exchange_targets') }
@@ -743,6 +749,20 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('state')
       expect(last_response.body).to include('county')
       expect(last_response.body).to include('Use DPoP key binding')
+      expect(last_response.body).to include('Start third-party initiated login')
+    end
+
+    it 'starts third-party initiated login for the selected target' do
+      get '/delegated_exchange/third_party_login', { target: 'state' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      location = URI(last_response.location)
+      expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+      params = CGI.parse(location.query).transform_values(&:first)
+      expect(params['iss']).to eq(host)
+      expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+      expect(last_request.session['auth_request_query']).to eq('target=state')
     end
 
     it 'sets up DPoP for the selected delegated exchange' do

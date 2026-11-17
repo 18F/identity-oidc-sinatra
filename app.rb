@@ -375,6 +375,12 @@ module LoginGov::OidcSinatra
       render_error('Connection', e)
     end
 
+    get '/delegated_exchange/third_party_login' do
+      begin_target_third_party_login
+    rescue Errno::ECONNREFUSED, Faraday::ConnectionFailed => e
+      render_error('Connection', e)
+    end
+
     # Third-party initiated login from a delegating application
     get '/initiate_login' do
       handoff = validate_third_party_initiation!(params)
@@ -735,6 +741,15 @@ module LoginGov::OidcSinatra
       settings.logger.info("Redirecting to #{auth_url}")
 
       redirect to(auth_url)
+    end
+
+    def begin_target_third_party_login
+      target = requested_target
+      halt 400, 'No token exchange target selected' unless target
+      halt 400, 'Target has no third-party login URI configured' unless target.initiate_login_uri
+
+      session[:auth_request_query] = URI.encode_www_form(target: target.issuer)
+      start_third_party_login(target.initiate_login_uri)
     end
 
     def delegated_exchange_locals

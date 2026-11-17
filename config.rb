@@ -117,7 +117,7 @@ module LoginGov
           'allow_all_events_plaintext' => ENV['allow_all_events_plaintext'],
           'signed_events' => ENV['signed_events'],
           'token_exchange_targets' => ENV['token_exchange_targets'] ||
-                                      '[{"issuer":"state", "api": "http://add-target-api"}]',
+                                      '[{"issuer":"state", "api": "http://add-target-api", "initiate_login_uri": "http://localhost:9292/initiate_login"}]',
           'third_party_target_link_allowlist' =>
             ENV['third_party_target_link_allowlist'] || 'http://localhost:9292',
           'third_party_sign_in_ial' => ENV['third_party_sign_in_ial'] || '2',

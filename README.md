@@ -37,7 +37,7 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
-   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `scope` (the `token_exchange:` value) and `api` (the `resource`) | one fictitious target                     |
+   | token_exchange_targets      | JSON list of agency applications to delegate to: `issuer` (the `audience`), `api` (the `resource`), and optional `initiate_login_uri` for third-party-initiated login testing | one fictitious target                     |
    | semantic_ial_values_enabled | Determines if semantic IAL values can be used in `acr_values`                                | fals                                      |
 
 ## Delegated access
