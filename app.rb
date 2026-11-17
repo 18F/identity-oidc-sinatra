@@ -473,7 +473,9 @@ module LoginGov::OidcSinatra
     rescue ExchangeRefused => e
       # actor token exchange is refused bc the user has no identity
       # initiate third-party login
-      return start_actor_third_party_login(e.initiate_login_uri) if e.initiate_login_uri
+      resource = uri = URI(session['token_resource'])
+      target = targets.find { |target| URI(target.initiate_login_uri).origin == resource.origin }
+      return start_actor_third_party_login(target.initiate_login_uri) if target.initiate_login_uri
 
       sign_in_failed('Delegation', e.message)
     rescue AppError => e
