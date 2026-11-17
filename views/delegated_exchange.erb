@@ -95,8 +95,7 @@
               <button class="usa-button margin-top-2 margin-bottom-2" type="submit">Request secure access token</button>
             </form>
 
-            <% third_party_targets = targets.select(&:initiate_login_uri) %>
-            <% if third_party_targets.any? %>
+            <% if targets.any? %>
               <hr>
               <p>Test third-party initiated login for a target application.</p>
               <form action="/delegated_exchange/third_party_login" method="GET">
@@ -104,7 +103,7 @@
                   Target issuer
                 </label>
                 <select name="target" id="third-party-target" class="usa-select">
-                  <% third_party_targets.each do |target| %>
+                  <% targets.each do |target| %>
                     <option value="<%= target.issuer %>" <%= 'selected' if selected_target == target.issuer %>>
                       <%= target.issuer %>
                     </option>

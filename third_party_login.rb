@@ -13,7 +13,7 @@ module LoginGov
       class InvalidInitiation < StandardError; end
 
       # Actor side: this app sends the browser to another app's login-initiation endpoint.
-      def start_actor_third_party_login(initiate_login_uri, immediately_begin_delegation: true)
+      def redirect_to_third_party_login(initiate_login_uri, immediately_begin_delegation: true)
         login_hint = SecureRandom.uuid
 
         session[:handoff_login_hint] = login_hint
@@ -52,7 +52,7 @@ module LoginGov
         login_hint = session.delete(:handoff_login_hint)
         started_at = session.delete(:handoff_started_at)
         auth_request_query = session.delete(:auth_request_query)
-        immediately_begin_delegation = session.delete( :handoff_immediately_begin_delegation)
+        immediately_begin_delegation = session.delete(:handoff_immediately_begin_delegation)
 
         return nil if login_hint.nil?
 

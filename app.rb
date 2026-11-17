@@ -473,9 +473,9 @@ module LoginGov::OidcSinatra
     rescue ExchangeRefused => e
       # actor token exchange is refused bc the user has no identity
       # initiate third-party login
-      resource = uri = URI(session['token_resource'])
+      resource = URI(session['token_resource'])
       target = targets.find { |target| URI(target.initiate_login_uri).origin == resource.origin }
-      return start_actor_third_party_login(target.initiate_login_uri) if target.initiate_login_uri
+      return redirect_to_third_party_login(target.initiate_login_uri) if target.initiate_login_uri
 
       sign_in_failed('Delegation', e.message)
     rescue AppError => e
@@ -705,7 +705,7 @@ module LoginGov::OidcSinatra
       session[:auth_request_query] = URI.encode_www_form(target: target.issuer)
       immediately_begin_delegation = params[:immediately_begin_delegation] == 'true'
 
-      start_actor_third_party_login(target.initiate_login_uri, immediately_begin_delegation:)
+      redirect_to_third_party_login(target.initiate_login_uri, immediately_begin_delegation:)
     end
 
     def delegated_exchange_locals
