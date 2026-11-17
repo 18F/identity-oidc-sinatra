@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'securerandom'
 require 'uri'
 
 module LoginGov
@@ -9,13 +10,66 @@ module LoginGov
       LOGIN_HINT_MAX_LENGTH = 128
       TARGET_LINK_URI_MAX_LENGTH = 2048
 
-      # Raised for a request §4 says must be refused. The message is safe to show.
       class InvalidInitiation < StandardError; end
 
+      # Actor side: this app sends the browser to another app's login-initiation endpoint.
+      def start_actor_third_party_login(initiate_login_uri, immediately_begin_delegation: true)
+        login_hint = SecureRandom.uuid
+
+        session[:handoff_login_hint] = login_hint
+        session[:handoff_started_at] = Time.now.to_i
+        session[:handoff_immediately_begin_delegation] = immediately_begin_delegation
+
+        uri = URI.parse(initiate_login_uri)
+        uri.query = actor_third_party_initiation_query(uri.query, login_hint)
+
+        settings.logger.info("no identity at the agency; third-party-initiated login at #{uri}")
+
+        redirect to(uri.to_s)
+      end
+
+      def actor_third_party_return_path(handoff)
+        return '/delegated_exchange' unless handoff[:immediately_begin_delegation]
+
+        query = handoff[:auth_request_query]
+        return '/delegated_exchange/request' if query.to_s.empty?
+
+        "/delegated_exchange/request?#{query}"
+      end
+
+      def actor_third_party_initiation_query(existing_query, login_hint)
+        URI.encode_www_form(
+          URI.decode_www_form(existing_query.to_s) + [
+            ['iss', config.idp_url],
+            ['login_hint', login_hint],
+            ['target_link_uri', File.join(config.redirect_uri, 'third_party/return')],
+          ],
+        )
+      end
+
+      # Removes and returns the pending hand-off so it is honored at most once.
+      def handle_third_party_handoff
+        login_hint = session.delete(:handoff_login_hint)
+        started_at = session.delete(:handoff_started_at)
+        auth_request_query = session.delete(:auth_request_query)
+        immediately_begin_delegation = session.delete( :handoff_immediately_begin_delegation)
+
+        return nil if login_hint.nil?
+
+        {
+          login_hint:,
+          started_at: started_at.to_i,
+          auth_request_query:,
+          immediately_begin_delegation:,
+        }
+      end
+
+      # Target side: this app receives a third-party initiated login request from another app.
       # @return [Hash] `login_hint` and `target_link_uri`, both validated
       # @raise [InvalidInitiation]
       def validate_third_party_initiation!(params)
         verify_third_party_issuer!(params['iss'])
+
         {
           login_hint: normalize_login_hint(params['login_hint']),
           target_link_uri: verify_target_link_uri!(params['target_link_uri']),
@@ -24,14 +78,13 @@ module LoginGov
 
       def verify_third_party_issuer!(iss)
         raise InvalidInitiation.new('iss is required') if iss.to_s.strip.empty?
+
         return iss if same_issuer?(iss, config.idp_url)
 
         raise InvalidInitiation.new('iss is not the OpenID Provider this agency trusts')
       end
 
-      # Issuer identifiers are URLs (OpenID Connect Discovery §3); a trailing
-      # slash is the only variation tolerated, so `https://idp.example` and
-      # `https://idp.example/` compare equal and nothing else does.
+      # `https://idp.example` and  `https://idp.example/` compare equal
       def same_issuer?(candidate, trusted)
         candidate.to_s.strip.chomp('/') == trusted.to_s.strip.chomp('/')
       end
@@ -41,6 +94,7 @@ module LoginGov
         if target_link_uri.to_s.strip.empty?
           raise InvalidInitiation.new('target_link_uri is required')
         end
+
         if target_link_uri.length > TARGET_LINK_URI_MAX_LENGTH
           raise InvalidInitiation.new('target_link_uri is too long')
         end
@@ -56,30 +110,23 @@ module LoginGov
         raise InvalidInitiation.new('target_link_uri is not an allowed return location')
       end
 
-      # The hint is opaque: this app stores it and gives it back, nothing more.
-      # It is still bounded in size (see LOGIN_HINT_MAX_LENGTH)
       def normalize_login_hint(login_hint)
         hint = login_hint.to_s.strip
+
         return nil if hint.empty?
         raise InvalidInitiation.new('login_hint is too long') if hint.length > LOGIN_HINT_MAX_LENGTH
 
         hint
       end
 
-      # Keeps the hand-off in the session for exactly one sign-in.
-      def remember_third_party_handoff(login_hint:, target_link_uri:)
+      # Keeps the target-side hand-off in the session for exactly one sign-in.
+      def remember_target_third_party_handoff(login_hint:, target_link_uri:)
         session[:third_party_login_hint] = login_hint
         session[:third_party_target_link_uri] = target_link_uri
       end
 
-      def third_party_handoff_pending?
-        !session[:third_party_target_link_uri].to_s.empty?
-      end
-
-      # Removes and returns the pending hand-off, so it is honored at most once:
-      # a later, unrelated sign-in must not bounce the user back to the third
-      # party again.
-      def take_third_party_handoff
+      # Removes and returns the pending target-side hand-off, so it is honored at most once
+      def take_target_third_party_handoff
         target = session.delete(:third_party_target_link_uri)
         hint = session.delete(:third_party_login_hint)
         return nil if target.to_s.empty?
@@ -87,13 +134,15 @@ module LoginGov
         { login_hint: hint, target_link_uri: target }
       end
 
-      # Where to send the user after the sign-in the hand-off started has ended.
+      # Where to send the user after the target-side sign-in the hand-off started has ended.
       # @param status [String] `signed_in` or `failed`
-      def third_party_return_url(handoff, status:)
+      def target_third_party_return_url(handoff, status:)
         uri = URI.parse(handoff[:target_link_uri])
+
         existing = URI.decode_www_form(uri.query.to_s)
         additions = [['iss', client_id], ['status', status]]
         additions.unshift(['login_hint', handoff[:login_hint]]) if handoff[:login_hint]
+
         uri.query = URI.encode_www_form(existing + additions)
         uri.to_s
       end

@@ -764,15 +764,20 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(params['iss']).to eq(host)
       expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
       expect(last_request.session['auth_request_query']).to eq('target=state')
-      expect(last_request.session['handoff_immediately_begin_delegation_request']).to be(false)
+      expect(last_request.session['handoff_immediately_begin_delegation']).to be(false)
     end
 
     it 'can immediately begin the delegation request after third-party initiated login' do
       get '/delegated_exchange/third_party_login',
-          { target: 'state', immediately_begin_delegation_request: 'true' },
+          { target: 'state', immediately_begin_delegation: 'true' },
           'rack.session' => last_request.session
 
-      expect(last_request.session['handoff_immediately_begin_delegation_request']).to be(true)
+      get '/third_party/return',
+          { login_hint: last_request.session['handoff_login_hint'], status: 'signed_in' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to end_with('/delegated_exchange/request?target=state')
     end
 
     it 'can test third-party initiated login without immediately beginning delegation' do
