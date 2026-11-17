@@ -34,7 +34,6 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
    | client_id_pkce              | Identifier for this app as configured with the identity provider. Used if `PKCE` is true     | urn:gov:gsa:openidconnect:sp:sinatra_pkce |
    | eipp_allowed                | Enhanced In Person Proofing allowed                                                          | false                                     |
    | idp_url                     | URL for the identity provider                                                                | http://localhost:3000                     |
-   | DPOP                        | With `PKCE`, binds the sign-in and the delegated token to a key held for the sign-in (RFC 9449): `dpop_jkt` on the authorization request and a `DPoP` proof on every token request | false                                     |
    | PKCE                        | Determines if PKCE or private_key_jwt is used to communicate with the identity provider      | false                                     |
    | third_party_target_link_allowlist | Exact origins an actor application may name in `target_link_uri` when it starts a sign-in here through `GET /initiate_login` (space- or comma-separated) | http://localhost:9292 |
    | third_party_sign_in_ial     | The identity assurance level this target application signs people in at when a third party starts the sign-in | 2                                         |
@@ -46,9 +45,9 @@ An example of a Relying Party for OpenID Connect written as a simple Sinatra app
 This demo app plays two roles: the **actor**, the service a person signs in to (say, MyBenefits Assistant), which asks
 Login.gov for a token it can use to call an agency's API on that person's behalf, and the **agency API** itself (the
 target application, say Housing Assistance Records), which receives that token and decides whether to answer. The actor
-role is turned on by checking "Initiate Broker token exchange" on the home page and requesting a `token_exchange:<value>`
-scope, with `DPOP=true` (together with `PKCE=true`) adding key binding; the agency role is just this app running as the
-target service, where `third_party_target_link_allowlist` and `third_party_sign_in_ial` govern the sign-ins it accepts
+role is turned on from the "Test delegated exchange" page, with the page's DPoP checkbox adding key binding; the agency
+role is just this app running as the target service, where `third_party_target_link_allowlist` and
+`third_party_sign_in_ial` govern the sign-ins it accepts
 from another site (see [the target application side](#third-party-initiated-login-the-target-application-side)).
 
 The "Test delegated exchange" page makes the sinatra demo app act as a delegated-access actor: it requests the
@@ -88,8 +87,8 @@ sequenceDiagram
 ### Binding the tokens to a key (DPoP)
 
 A plain bearer token works for whoever holds it: if it leaks from the browser, a log or a proxy, the thief can use it.
-With `DPOP=true` (and `PKCE=true`) the app binds its tokens to a private key it keeps for the sign-in, following
-[RFC 9449](https://www.rfc-editor.org/rfc/rfc9449). Every use of the token must then come with a fresh signature from
+When the delegated exchange page's DPoP checkbox is selected, the app binds its tokens to a private key it keeps for the
+sign-in, following [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449). Every use of the token must then come with a fresh signature from
 that key, so a copied token is useless on its own. The steps are:
 
 1. **Make a key and announce it.** The app generates a P-256 key for each sign-in and puts the key's thumbprint on the

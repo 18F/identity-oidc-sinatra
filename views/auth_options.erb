@@ -4,6 +4,18 @@
       <details class="details-popup" open>
         <summary>Options</summary>
 
+        <div class="usa-checkbox">
+          <input class="usa-checkbox__input"
+                  id="check-use-dpop"
+                  type="checkbox"
+                  name="use_dpop"
+                  value="true"
+          >
+          <label class="usa-checkbox__label" for="check-use-dpop">
+            Use DPoP key binding
+          </label>
+        </div>
+
         <label class="usa-label" for="aal">
           Authentication Assurance Level (AAL)
         </label>
@@ -14,7 +26,7 @@
                 ['2-phishing_resistant', 'Phishing-resistant AAL2'],
                 ['2-hspd12', 'HSPD12 required'],
               ].each do |value, label| %>
-            <option value="<%= value %>" <%= 'selected' if aal == value %> >
+            <option value="<%= value %>" <%= 'selected' if aal == value %>>
               <%= label %>
             </option>
           <% end %>
@@ -25,7 +37,7 @@
         </label>
         <select name="ial" id="ial" class="usa-select">
           <% ial_select_options.each do |value, label| %>
-            <option value="<%= value %>" <%= 'selected' if ial == value %> >
+            <option value="<%= value %>" <%= 'selected' if ial == value %>>
               <%= label %>
             </option>
           <% end %>
@@ -75,6 +87,7 @@
             Initiate User Registration
           </label>
         </div>
+
       </details>
     </div>
   </form>

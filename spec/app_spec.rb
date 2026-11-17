@@ -47,6 +47,13 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(ial2_option[:selected]).to eq 'selected'
     end
 
+    it 'offers DPoP key binding' do
+      get '/'
+
+      expect(last_response).to be_ok
+      expect(last_response.body).to include('Use DPoP key binding')
+    end
+
     it 'pre-fills HSPD12 if the URL has ?aal=2-hspd12' do
       get '/?aal=2-hspd12'
 
@@ -735,6 +742,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
       expect(last_response.body).to include('state')
       expect(last_response.body).to include('county')
+      expect(last_response.body).to include('Use DPoP key binding')
+    end
+
+    it 'sets up DPoP for the selected delegated exchange' do
+      get '/delegated_exchange/request', { target: 'state', use_dpop: 'true' },
+          'rack.session' => last_request.session
+
+      expect(parameter_value(last_response.location, 'dpop_jkt')).to match(/\A[A-Za-z0-9_-]{43}\z/)
+      expect(last_request.session['dpop_key']).to be_present
     end
 
     it 'clears the delegated token when starting a new delegated exchange' do
@@ -885,13 +901,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
     before do
       ENV['PKCE'] = 'true'
-      ENV['DPOP'] = 'true'
       ENV['token_exchange_targets'] = targets.to_json
     end
 
     after do
       ENV['PKCE'] = 'false'
-      ENV['DPOP'] = 'false'
       ENV.delete('token_exchange_targets')
     end
 
@@ -909,8 +923,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       JWT.decode(request.headers['Dpop'], nil, false).first['ath'] == LoginGov::OidcSinatra::Dpop.token_hash(token)
     end
 
-    def start_delegated_sign_in
-      get '/delegated_exchange/request', target: 'state'
+    def start_delegated_sign_in(use_dpop: true)
+      params = { target: 'state' }
+      params[:use_dpop] = 'true' if use_dpop
+      get '/delegated_exchange/request', params
     end
 
     it 'names the key thumbprint as dpop_jkt on the authorization request' do
@@ -922,16 +938,15 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(jkt).to eq(LoginGov::OidcSinatra::Dpop.thumbprint(session_key))
     end
 
-    it 'does not send dpop_jkt when DPOP is off' do
-      ENV['DPOP'] = 'false'
-      start_delegated_sign_in
+    it 'does not send dpop_jkt when DPoP is not selected' do
+      start_delegated_sign_in(use_dpop: false)
 
       expect(CGI.parse(URI(last_response.location).query)).not_to have_key('dpop_jkt')
       expect(last_request.session).not_to have_key('dpop_key')
     end
 
     it 'presents a key-bound sign-in token under the DPoP scheme at userinfo, with a proof over it' do
-      get '/auth/request'
+      get '/auth/request', use_dpop: 'true'
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code', 'code' => code), headers: { 'DPoP' => proof_format }).
         to_return(body: {
@@ -985,6 +1000,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response).to be_ok
       expect(last_response.body).to include('<code>DPoP</code>')
       expect(last_response.body).to include('bound to this sign-in')
+      expect(last_response.body).to include('DPoP is live')
     end
 
     it 'renders the error Login.gov returns when the exchange is refused' do
@@ -1034,10 +1050,9 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     end
 
     context 'GET /api/records, the agency API side' do
-      # The agency instance is a confidential client of its own: no PKCE, no DPoP of its own.
+      # The agency instance is a confidential client of its own: no PKCE of its own.
       before do
         ENV['PKCE'] = 'false'
-        ENV['DPOP'] = 'false'
       end
 
       let(:actor_key) { LoginGov::OidcSinatra::Dpop.generate_key }
