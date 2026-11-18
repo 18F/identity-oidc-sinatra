@@ -266,7 +266,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
           prompt = CGI.parse(URI(last_response.location).query)['prompt'][0]
           expect(prompt).to eq 'select_account'
-        end 
+        end
 
       context 'when semantic ial values are enabled' do
         before do
@@ -285,7 +285,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
 
           prompt = CGI.parse(URI(last_response.location).query)['prompt'][0]
           expect(prompt).to eq 'create'
-        end 
+        end
       end
     end
 
@@ -395,7 +395,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
 
       context 'when eipp is allowed' do
-        
+
         before { ENV['eipp_allowed'] = 'true' }
         after {  ENV['eipp_allowed'] = 'false' }
 
@@ -434,7 +434,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
           get '/auth/result'
           follow_redirect!
 
-          expect(last_response.body).to include('missing callback param: code') 
+          expect(last_response.body).to include('missing callback param: code')
         end
       end
     end
@@ -713,7 +713,14 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:code) { 'abc-code' }
     let(:api_url) { 'https://api.agency-b.gov/records' }
     let(:other_api_url) { 'https://api.agency-c.gov/records' }
-    let(:targets) { [{ issuer: 'state', api: api_url }, { issuer: 'county', api: other_api_url }] }
+    let(:initiate_login_uri) { 'https://api.agency-b.gov/initiate-login' }
+    let(:other_initiate_login_uri) { 'https://api.agency-c.gov/initiate-login' }
+    let(:targets) do
+      [
+        { issuer: 'state', api: api_url, initiate_login_uri: },
+        { issuer: 'county', api: other_api_url, initiate_login_uri: },
+      ]
+    end
 
     before { ENV['token_exchange_targets'] = targets.to_json }
     after { ENV.delete('token_exchange_targets') }
@@ -743,6 +750,53 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('state')
       expect(last_response.body).to include('county')
       expect(last_response.body).to include('Use DPoP key binding')
+      expect(last_response.body).to include('Immediately begin delegation request after return')
+      expect(last_response.body).to include('Start third-party initiated login')
+    end
+
+    it 'starts third-party initiated login for the selected target' do
+      get '/delegated_exchange/third_party_login', { target: 'state' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      location = URI(last_response.location)
+      expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+      params = CGI.parse(location.query).transform_values(&:first)
+      expect(params['iss']).to eq(host)
+      expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+      expect(last_request.session['auth_request_query']).to eq('target=state')
+      expect(last_request.session['handoff_immediately_begin_delegation']).to be(false)
+    end
+
+    it 'can immediately begin the delegation request after third-party initiated login' do
+      get '/delegated_exchange/third_party_login',
+          { target: 'state', immediately_begin_delegation: 'true' },
+          'rack.session' => last_request.session
+
+      get '/third_party/return',
+          { login_hint: last_request.session['handoff_login_hint'], status: 'signed_in' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to end_with('/delegated_exchange/request?target=state')
+    end
+
+    it 'can test third-party initiated login without immediately beginning delegation' do
+      get '/delegated_exchange/third_party_login', { target: 'state' },
+          'rack.session' => last_request.session
+
+      get '/third_party/return',
+          { login_hint: last_request.session['handoff_login_hint'], status: 'signed_in' },
+          'rack.session' => last_request.session
+
+      expect(last_response).to be_redirect
+      expect(last_response.location).to end_with('/delegated_exchange')
+      expect(last_request.session).not_to have_key('handoff_login_hint')
+      expect(last_request.session).not_to have_key('auth_request_query')
+
+      follow_redirect!
+
+      expect(last_response.body).to include('Third-party delegated login completed.')
     end
 
     it 'sets up DPoP for the selected delegated exchange' do
@@ -798,19 +852,20 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     context 'when the exchange is refused' do
       before { refuse_exchange(error: 'invalid_client') }
 
-      it 'renders the error Login.gov returns' do
+      it 'starts third-party initiated login at the configured target address' do
         finish_sign_in
 
         expect(last_response).to be_redirect
-        expect(last_request.session['error_type']).to eq('Delegation')
-        expect(last_request.session['error']).to include('invalid_client')
+        location = URI(last_response.location)
+        expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+        params = CGI.parse(location.query).transform_values(&:first)
+        expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+        expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
       end
     end
 
     context 'when Login.gov refuses because the person has not connected their account to the target application' do
-      let(:initiate_login_uri) { 'https://records.example.gov/initiate_login' }
-
-      it 'starts third-party-initiated login at the address Login.gov names, remembering the request' do
+      it 'starts third-party-initiated login at the configured target address, remembering the request' do
         refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
 
         finish_sign_in
@@ -826,17 +881,6 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         expect(last_request.session['auth_request_query']).to eq('target=state')
       end
 
-      context 'when Login.gov names no address' do
-        it 'shows the refusal' do
-          refuse_exchange(error: 'invalid_target', error_description: 'the audience is not registered')
-
-          finish_sign_in
-
-          expect(last_response.location).to end_with('/')
-          expect(last_request.session['error_type']).to eq('Delegation')
-          expect(last_request.session['error']).to eq('the audience is not registered')
-        end
-      end
 
       context 'GET /third_party/return' do
         before do
@@ -896,7 +940,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     let(:code) { 'abc-code' }
     let(:sp_private_key) { OpenSSL::PKey::RSA.new(File.read('config/demo_sp.key')) }
     let(:api_url) { 'https://api.agency-b.gov/records' }
-    let(:targets) { [{ issuer: 'state', api: api_url }] }
+    let(:initiate_login_uri) { 'https://api.agency-b.gov/initiate-login' }
+    let(:targets) { [{ issuer: 'state', api: api_url, initiate_login_uri: }] }
     let(:proof_format) { /\A[\w-]+\.[\w-]+\.[\w-]+\z/ }
 
     before do
@@ -1003,7 +1048,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('DPoP is live')
     end
 
-    it 'renders the error Login.gov returns when the exchange is refused' do
+    it 'starts third-party initiated login when the exchange is refused' do
       start_delegated_sign_in
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code')).
@@ -1015,8 +1060,11 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
       expect(last_response).to be_redirect
-      expect(last_request.session['error_type']).to eq('Delegation')
-      expect(last_request.session['error']).to include('invalid_dpop_proof')
+      location = URI(last_response.location)
+      expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+      params = CGI.parse(location.query).transform_values(&:first)
+      expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+      expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
     end
 
     context 'POST /send-access-token' do
@@ -1203,7 +1251,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
         masked_event = event.dup.first.merge(
           {
             'pii_event' => 'REDACTED',
-            'nested' => { 
+            'nested' => {
               'first_name' => 'REDACTED',
               'success' => { 'more_pii' => 'REDACTED' },
             },

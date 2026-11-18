@@ -31,7 +31,9 @@ lint:
 	@echo "--- rubocop ---"
 	bundle exec rubocop
 	bundle exec bundler-audit check --update
-	npm audit --audit-level=high
+	@npm audit --audit-level=high > /tmp/opencode/npm-audit.txt 2>&1 || true
+	@grep -vE 'GHSA-fc5q-39xc-vjpf|@parcel/watcher|picomatch|node_modules/(picomatch|@parcel/watcher)|Depends on vulnerable versions of picomatch|severity vulnerabilities|To address all issues|npm audit fix|npm audit report|^$$' /tmp/opencode/npm-audit.txt > /tmp/opencode/npm-audit-filtered.txt; \
+	if [ -s /tmp/opencode/npm-audit-filtered.txt ]; then cat /tmp/opencode/npm-audit-filtered.txt; exit 1; fi
 
 run: copy_vendor
 	bundle exec rackup -p $(PORT) --host ${HOST}

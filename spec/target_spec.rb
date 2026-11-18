@@ -6,11 +6,13 @@ RSpec.describe LoginGov::OidcSinatra::Target do
       target = described_class.from_config(
         'issuer' => 'state',
         'api' => 'https://api.example.gov/records',
+        'initiate_login_uri' => 'https://records.example.gov/initiate_login',
       )
 
       expect(target.issuer).to eq('state')
       expect(target.api).to eq('https://api.example.gov/records')
       expect(target.resource).to eq('https://api.example.gov/records')
+      expect(target.initiate_login_uri).to eq('https://records.example.gov/initiate_login')
     end
   end
 end
