@@ -23,6 +23,10 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     ENV['PKCE'] = 'false'
     allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:cache_oidc_config?).
       and_return(false)
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).to receive(:idp_url).
+      and_return(host)
+    allow_any_instance_of(LoginGov::OidcSinatra::Config).
+      to receive(:third_party_target_link_allowlist).and_return(['http://localhost:9292'])
     stub_request(:get, "#{host}/.well-known/openid-configuration").
       to_return(body: {
         authorization_endpoint:,

@@ -7,6 +7,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
   let(:id) { store.put(token) }
 
   before do
+    ENV['PKCE'] = 'false'
     get '/document-artifacts'
     last_request.session[:document_test_id] = id
   end

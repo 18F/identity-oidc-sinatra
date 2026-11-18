@@ -471,11 +471,16 @@ module LoginGov::OidcSinatra
         redirect to('/')
       end
     rescue ExchangeRefused => e
-      # actor token exchange is refused bc the user has no identity
-      # initiate third-party login
-      resource = URI(session['token_resource'])
-      target = targets.find { |target| URI(target.initiate_login_uri).origin == resource.origin }
-      return redirect_to_third_party_login(target.initiate_login_uri) if target.initiate_login_uri
+
+      if session[:immediately_begin_third_party_login] == true
+        # actor token exchange is refused bc the user has no identity
+        # initiate third-party login
+        resource = URI(session['token_resource'])
+        target = targets.find { |target| URI(target.initiate_login_uri).origin == resource.origin }
+        session.delete(:immediately_begin_third_party_login)
+
+        return redirect_to_third_party_login(target.initiate_login_uri) if target.initiate_login_uri
+      end
 
       sign_in_failed('Delegation', e.message)
     rescue AppError => e
@@ -682,6 +687,8 @@ module LoginGov::OidcSinatra
       clear_delegated_exchange
       session[:use_dpop] = params[:use_dpop] == 'true'
       session[:broker_request] = 'true'
+      session[:immediately_begin_third_party_login] =
+        params[:immediately_begin_third_party_login] == 'true'
       session[:token_resource] = target.resource
       session[:auth_request_query] = request.query_string
       auth_url = begin_login_gov_sign_in(
