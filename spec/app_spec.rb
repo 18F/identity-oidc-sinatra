@@ -725,8 +725,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
     before { ENV['token_exchange_targets'] = targets.to_json }
     after { ENV.delete('token_exchange_targets') }
 
-    def start_delegated_sign_in
-      get '/delegated_exchange/request', target: 'state'
+    def start_delegated_sign_in(params = {})
+      get '/delegated_exchange/request', { target: 'state' }.merge(params)
     end
 
     def refuse_exchange(body)
@@ -750,6 +750,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('state')
       expect(last_response.body).to include('county')
       expect(last_response.body).to include('Use DPoP key binding')
+      expect(last_response.body).to include('Immediately begin third party login request if there is no identity')
       expect(last_response.body).to include('Immediately begin delegation request after return')
       expect(last_response.body).to include('Start third-party initiated login')
     end
@@ -849,41 +850,55 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       end
     end
 
-    context 'when the exchange is refused' do
+    context 'when the exchange is rejected' do
       before { refuse_exchange(error: 'invalid_client') }
 
-      it 'starts third-party initiated login at the configured target address' do
+      it 'renders the error Login.gov returns' do
         finish_sign_in
 
         expect(last_response).to be_redirect
-        location = URI(last_response.location)
-        expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
-        params = CGI.parse(location.query).transform_values(&:first)
-        expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
-        expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
+        expect(last_request.session['error_type']).to eq('Delegation')
+        expect(last_request.session['error']).to include('invalid_client')
       end
     end
 
-    context 'when Login.gov refuses because the person has not connected their account to the target application' do
-      it 'starts third-party-initiated login at the configured target address, remembering the request' do
-        refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
+    context 'when the user has no identity at the target application' do
+      context 'when third-party login is not selected' do
+        it 'renders the no identity error' do
+          refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
 
-        finish_sign_in
+          finish_sign_in
 
-        expect(last_response).to be_redirect
-        location = URI(last_response.location)
-        expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
-        params = CGI.parse(location.query).transform_values(&:first)
-        expect(params['iss']).to eq('http://localhost:3000')
-        expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
-        expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
-        expect(params['login_hint']).to match(/\A[0-9a-f-]{36}\z/)
-        expect(last_request.session['auth_request_query']).to eq('target=state')
+          expect(last_response).to be_redirect
+          expect(last_request.session['error_type']).to eq('Delegation')
+          expect(last_request.session['error']).to include('no identity there')
+        end
+      end
+
+      context 'when third-party login is selected' do
+
+        it 'starts third-party-initiated login at the configured target address' do
+          start_delegated_sign_in(immediately_begin_third_party_login: 'true')
+          refuse_exchange(error: 'invalid_target', error_description: 'no identity there', initiate_login_uri:)
+
+          finish_sign_in
+
+          expect(last_response).to be_redirect
+          location = URI(last_response.location)
+          expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
+          params = CGI.parse(location.query).transform_values(&:first)
+          expect(params['iss']).to eq('http://localhost:3000')
+          expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
+          expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
+          expect(params['login_hint']).to match(/\A[0-9a-f-]{36}\z/)
+          expect(last_request.session['auth_request_query']).to eq('target=state&immediately_begin_third_party_login=true')
+        end
       end
 
 
       context 'GET /third_party/return' do
         before do
+          start_delegated_sign_in(immediately_begin_third_party_login: 'true')
           refuse_exchange(error: 'invalid_target', initiate_login_uri:)
           finish_sign_in
         end
@@ -1048,7 +1063,7 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       expect(last_response.body).to include('DPoP is live')
     end
 
-    it 'starts third-party initiated login when the exchange is refused' do
+    it 'renders the error Login.gov returns when the exchange is refused' do
       start_delegated_sign_in
       stub_request(:post, token_endpoint).
         with(body: hash_including('grant_type' => 'authorization_code')).
@@ -1060,11 +1075,8 @@ RSpec.describe LoginGov::OidcSinatra::OpenidConnectRelyingParty do
       get '/auth/result', { code:, state: last_request.session['state'] }, 'rack.session' => last_request.session
 
       expect(last_response).to be_redirect
-      location = URI(last_response.location)
-      expect("#{location.scheme}://#{location.host}#{location.path}").to eq(initiate_login_uri)
-      params = CGI.parse(location.query).transform_values(&:first)
-      expect(params['target_link_uri']).to eq('http://localhost:9292/third_party/return')
-      expect(params['login_hint']).to eq(last_request.session['handoff_login_hint'])
+      expect(last_request.session['error_type']).to eq('Delegation')
+      expect(last_request.session['error']).to include('invalid_dpop_proof')
     end
 
     context 'POST /send-access-token' do
